@@ -162,9 +162,19 @@ function RootNavigator() {
       <Stack.Screen name="onboarding/role" />
       <Stack.Screen name="onboarding/skills" />
       <Stack.Screen name="gig/[id]" />
+      <Stack.Screen name="talent/[id]" />
       <Stack.Screen name="chat/[id]" />
+      <Stack.Screen name="notifications" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="admin-dashboard" />
+      <Stack.Screen
+        name="bid/[gigId]"
+        options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}
+      />
+      <Stack.Screen
+        name="review/[gigId]"
+        options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}
+      />
       <Stack.Screen
         name="publish"
         options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}

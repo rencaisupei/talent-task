@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { moderateText } from '@/lib/moderation';
 import { useAdminStore } from '@/lib/stores/admin';
+import { useNotificationStore } from '@/lib/stores/notifications';
 import type { ChatMessage, Conversation, Gig } from '@/lib/types';
 
 export interface StartConversationInput {
@@ -120,6 +121,13 @@ export const useChatStore = create<ChatState>()(
           createdAt: Date.now(),
           transcript: get().messages[conversationId] ?? [],
           resolved: false,
+        });
+
+        useNotificationStore.getState().pushNotification({
+          kind: 'system',
+          title: '檢舉已受理',
+          body: `已將與 ${conversation.clientName} 的對話送交安全審核，處理結果會在此通知。`,
+          conversationId,
         });
       },
     }),

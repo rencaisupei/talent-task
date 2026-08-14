@@ -1,203 +1,354 @@
 import { FlashList } from '@shopify/flash-list';
+import { SearchField } from 'heroui-native';
 import { router } from 'expo-router';
-import { Plus, ShieldCheck, SlidersHorizontal, Sparkles, Zap } from 'lucide-react-native';
+import {
+  ClipboardList,
+  Inbox,
+  List,
+  Map as MapIcon,
+  Plus,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Zap,
+} from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { BidCard } from '@/components/BidCard';
 import { BrandWordmark } from '@/components/BrandLogo';
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
 import { GigCard } from '@/components/GigCard';
-import { RegionPicker } from '@/components/RegionPicker';
+import { GigFilterSheet } from '@/components/GigFilterSheet';
+import { GigMapPanel } from '@/components/GigMapPanel';
+import { NotificationBell } from '@/components/NotificationBell';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
 import { COLORS } from '@/lib/colors';
-import { REGION_ANY, REGION_OPTIONS } from '@/lib/regions';
+import {
+  activeFilterCount,
+  applyGigFilters,
+  DEFAULT_GIG_FILTERS,
+  type GigFilters,
+} from '@/lib/gigFilters';
+import { useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
+import { useSavedStore } from '@/lib/stores/saved';
 import { useSessionStore } from '@/lib/stores/session';
 import type { Gig } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type TalentFilter = 'mine' | 'urgent' | 'all';
-
-const FILTER_LABELS: { id: TalentFilter; label: string }[] = [
-  { id: 'mine', label: '我的標籤' },
-  { id: 'urgent', label: '急件優先' },
-  { id: 'all', label: '全部任務' },
-];
+type BrowseMode = 'list' | 'map';
 
 export default function HomeScreen() {
   const role = useSessionStore((state) => state.role);
   return role === 'client' ? <ClientHome /> : <TalentHome />;
 }
 
-function sortGigs(gigs: Gig[]): Gig[] {
-  return [...gigs].sort((a, b) => {
-    if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
-    return b.createdAt - a.createdAt;
-  });
+function openGig(gigId: string) {
+  router.push({ pathname: '/gig/[id]', params: { id: gigId } });
 }
 
 function TalentHome() {
   const gigs = useGigStore((state) => state.gigs);
   const skills = useSessionStore((state) => state.skills);
+  const userId = useSessionStore((state) => state.userId);
   const verification = useSessionStore((state) => state.verification);
-  const [filter, setFilter] = useState<TalentFilter>('mine');
-  const [region, setRegion] = useState(REGION_ANY);
+  const savedGigIds = useSavedStore((state) => state.savedGigIds);
+  const toggleSaved = useSavedStore((state) => state.toggleSaved);
+
+  const [filters, setFilters] = useState<GigFilters>(DEFAULT_GIG_FILTERS);
+  const [isSheetOpen, setSheetOpen] = useState(false);
+  const [mode, setMode] = useState<BrowseMode>('list');
 
   const data = useMemo(() => {
-    const scoped = gigs.filter((gig) => {
-      if (gig.status === 'closed') return false;
-      if (region !== REGION_ANY && gig.location.region !== region) return false;
-      if (filter === 'mine' && !skills.includes(gig.tag)) return false;
-      if (filter === 'urgent' && !gig.isUrgent) return false;
-      return true;
-    });
-    return sortGigs(scoped);
-  }, [filter, gigs, region, skills]);
+    const openGigs = gigs.filter(
+      (gig) => gig.clientId !== userId && (gig.status === 'open' || gig.status === 'talking'),
+    );
+    return applyGigFilters(openGigs, filters, { skills });
+  }, [gigs, filters, skills, userId]);
+
+  const filterCount = activeFilterCount(filters);
+
+  const controlBar = (
+    <View className="gap-3">
+      <SearchField
+        value={filters.keyword}
+        onChange={(keyword) => setFilters((current) => ({ ...current, keyword }))}
+      >
+        <SearchField.Group>
+          <SearchField.SearchIcon />
+          <SearchField.Input placeholder="搜尋標籤、地區或任務內容" returnKeyType="search" />
+          <SearchField.ClearButton />
+        </SearchField.Group>
+      </SearchField>
+
+      <View className="flex-row items-center gap-2">
+        <Pressable
+          onPress={() => setSheetOpen(true)}
+          accessibilityRole="button"
+          className="border-hairline bg-canvas flex-1 flex-row items-center gap-2 rounded-xl border px-3.5 py-2.5"
+        >
+          <SlidersHorizontal size={15} color={COLORS.ink} strokeWidth={2.1} />
+          <Text className="text-ink flex-1 text-[13px] font-semibold">篩選與排序</Text>
+          {filterCount > 0 ? (
+            <View className="bg-brand min-w-5 items-center rounded-md px-1.5 py-0.5">
+              <Text className="text-[11px] font-bold text-white">{filterCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+
+        <View className="border-hairline bg-canvas flex-row items-center gap-1 rounded-xl border p-1">
+          <ModeButton
+            isActive={mode === 'list'}
+            label="列表"
+            icon={<List size={14} color={mode === 'list' ? COLORS.white : COLORS.muted} />}
+            onPress={() => setMode('list')}
+          />
+          <ModeButton
+            isActive={mode === 'map'}
+            label="地圖"
+            icon={<MapIcon size={14} color={mode === 'map' ? COLORS.white : COLORS.muted} />}
+            onPress={() => setMode('map')}
+          />
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <View className="bg-background flex-1">
-      <FlashList
-        data={data}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View className="pt-safe-offset-4 gap-4 pb-4">
-            <BrandWordmark subtitle="即時任務牆" size={48} />
-
-            <ChatQuotaPill onPress={() => router.push('/subscription')} />
-
-            {verification === 'pending' ? (
-              <View className="border-hairline bg-canvas flex-row items-center gap-2 rounded-xl border px-4 py-3">
-                <ShieldCheck size={16} color={COLORS.muted} strokeWidth={2.1} />
-                <Text className="text-ink-soft flex-1 text-[13px]">
-                  技能認證審核中，通過後會顯示認證徽章。
-                </Text>
+      {mode === 'map' ? (
+        <>
+          <View className="pt-safe-offset-3 gap-3 px-5 pb-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <Text className="text-ink text-[20px] font-bold tracking-tight">地圖模式</Text>
+              <NotificationBell />
+            </View>
+            {controlBar}
+            <Text className="text-muted text-[12px]">{data.length} 筆任務符合條件</Text>
+          </View>
+          <GigMapPanel gigs={data} onOpenGig={openGig} />
+        </>
+      ) : (
+        <FlashList
+          data={data}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View className="pt-safe-offset-4 gap-4 pb-4">
+              <View className="flex-row items-center justify-between gap-3">
+                <BrandWordmark subtitle="即時任務牆" size={48} />
+                <NotificationBell />
               </View>
-            ) : null}
 
-            <View className="flex-row gap-2">
-              {FILTER_LABELS.map((item) => {
-                const isActive = filter === item.id;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => setFilter(item.id)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isActive }}
-                    className={cn(
-                      'rounded-xl border px-3.5 py-2',
-                      isActive ? 'border-brand bg-brand' : 'border-hairline bg-canvas',
-                    )}
-                  >
-                    <Text
-                      className={cn(
-                        'text-[13px] font-semibold',
-                        isActive ? 'text-white' : 'text-ink-soft',
-                      )}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              <ChatQuotaPill onPress={() => router.push('/subscription')} />
+
+              {verification === 'pending' ? (
+                <View className="border-hairline bg-canvas flex-row items-center gap-2 rounded-xl border px-4 py-3">
+                  <ShieldCheck size={16} color={COLORS.muted} strokeWidth={2.1} />
+                  <Text className="text-ink-soft flex-1 text-[13px]">
+                    技能認證審核中，通過後會顯示認證徽章。
+                  </Text>
+                </View>
+              ) : null}
+
+              {controlBar}
+
+              <SectionHeading
+                title={`${data.length} 筆任務`}
+                caption={
+                  filters.skillOnly ? '僅顯示符合你認證標籤的任務，可於篩選中關閉' : undefined
+                }
+              />
             </View>
-
-            <View className="flex-row items-center gap-2">
-              <SlidersHorizontal size={15} color={COLORS.muted} strokeWidth={2} />
-              <Text className="text-muted text-[12px]">依地區篩選</Text>
+          }
+          renderItem={({ item }) => (
+            <View className="pb-3">
+              <GigCard
+                gig={item}
+                onPress={() => openGig(item.id)}
+                isSaved={savedGigIds.includes(item.id)}
+                onToggleSave={() => toggleSaved(item.id)}
+              />
             </View>
-
-            <RegionPicker value={region} onChange={setRegion} options={REGION_OPTIONS} />
-
-            <SectionHeading
-              title={`${data.length} 筆任務`}
-              caption={filter === 'mine' ? '僅顯示符合你認證標籤的任務' : undefined}
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title="目前沒有符合條件的任務"
+              caption="調整篩選條件或擴大服務地區，就能看到更多急件。"
+              icon={<Zap size={22} color={COLORS.coral} strokeWidth={2.1} />}
             />
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View className="pb-3">
-            <GigCard
-              gig={item}
-              onPress={() => router.push({ pathname: '/gig/[id]', params: { id: item.id } })}
-            />
-          </View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            title="目前沒有符合條件的任務"
-            caption="調整篩選條件或擴大服務地區，就能看到更多急件。"
-            icon={<Zap size={22} color={COLORS.coral} strokeWidth={2.1} />}
-          />
-        }
+          }
+        />
+      )}
+
+      <GigFilterSheet
+        visible={isSheetOpen}
+        filters={filters}
+        onClose={() => setSheetOpen(false)}
+        onApply={setFilters}
+        showSkillFilter
+        skillCount={skills.length}
       />
     </View>
   );
 }
 
+function ModeButton({
+  isActive,
+  label,
+  icon,
+  onPress,
+}: {
+  isActive: boolean;
+  label: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isActive }}
+      className={cn(
+        'flex-row items-center gap-1.5 rounded-lg px-2.5 py-1.5',
+        isActive ? 'bg-brand' : 'bg-transparent',
+      )}
+    >
+      {icon}
+      <Text className={cn('text-[12px] font-semibold', isActive ? 'text-white' : 'text-muted')}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 function ClientHome() {
   const gigs = useGigStore((state) => state.gigs);
+  const bids = useBidStore((state) => state.bids);
   const userId = useSessionStore((state) => state.userId);
 
   const myGigs = useMemo(
-    () => sortGigs(gigs.filter((gig) => gig.clientId === userId)),
+    () => gigs.filter((gig) => gig.clientId === userId).sort((a, b) => b.createdAt - a.createdAt),
     [gigs, userId],
+  );
+
+  const pendingBids = useMemo(
+    () =>
+      bids
+        .filter((bid) => bid.clientId === userId && bid.status === 'pending')
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [bids, userId],
+  );
+
+  const activeGigs = useMemo(() => myGigs.filter((gig) => gig.status === 'assigned'), [myGigs]);
+
+  const recentGigs = useMemo(
+    () => myGigs.filter((gig) => gig.status !== 'completed' && gig.status !== 'closed').slice(0, 3),
+    [myGigs],
   );
 
   return (
     <View className="bg-background flex-1">
-      <FlashList
-        data={myGigs}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 112 }}
+      <ScrollView
+        contentContainerClassName="px-5 pt-safe-offset-4 pb-28 gap-5"
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View className="pt-safe-offset-4 gap-4 pb-4">
-            <BrandWordmark subtitle="我的需求任務" size={48} />
+      >
+        <View className="flex-row items-center justify-between gap-3">
+          <BrandWordmark subtitle="需求發布中心" size={48} />
+          <NotificationBell />
+        </View>
 
-            <Pressable
-              onPress={() => router.push('/publish')}
-              accessibilityRole="button"
-              className="border-brand/25 bg-brand-soft rounded-xl border p-4"
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="bg-brand h-11 w-11 items-center justify-center rounded-xl">
-                  <Sparkles size={20} color={COLORS.white} strokeWidth={2.1} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-ink text-[16px] font-bold tracking-tight">
-                    30 秒極速發布
-                  </Text>
-                  <Text className="text-ink-soft mt-0.5 text-[12px]">
-                    選標籤、補描述，立即廣播給全台認證人才
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
+        <Pressable
+          onPress={() => router.push('/publish')}
+          accessibilityRole="button"
+          className="border-brand/25 bg-brand-soft rounded-xl border p-4"
+        >
+          <View className="flex-row items-center gap-3">
+            <View className="bg-brand h-11 w-11 items-center justify-center rounded-xl">
+              <Sparkles size={20} color={COLORS.white} strokeWidth={2.1} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-ink text-[16px] font-bold tracking-tight">30 秒極速發布</Text>
+              <Text className="text-ink-soft mt-0.5 text-[12px]">
+                選標籤、補描述，立即廣播給全台認證人才
+              </Text>
+            </View>
+          </View>
+        </Pressable>
 
-            <SectionHeading
-              title="我的任務"
-              caption={myGigs.length > 0 ? `共 ${myGigs.length} 筆` : undefined}
-            />
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View className="pb-3">
-            <GigCard
-              gig={item}
-              onPress={() => router.push({ pathname: '/gig/[id]', params: { id: item.id } })}
-            />
-          </View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            title="還沒有發布任務"
-            caption="從 30 大類別中選一個標籤，30 秒完成發布。"
-            icon={<Sparkles size={22} color={COLORS.brand} strokeWidth={2.1} />}
+        <View className="gap-3">
+          <SectionHeading
+            title="待處理提案"
+            caption={
+              pendingBids.length > 0 ? `${pendingBids.length} 位人才等待你的回覆` : undefined
+            }
+            right={
+              pendingBids.length > 2 ? (
+                <Pressable onPress={() => router.push('/(tabs)/tasks')} accessibilityRole="button">
+                  <Text className="text-brand-strong text-[13px] font-semibold">查看全部</Text>
+                </Pressable>
+              ) : undefined
+            }
           />
-        }
-      />
+
+          {pendingBids.length === 0 ? (
+            <EmptyState
+              title="尚未收到提案"
+              caption="任務發布後，符合標籤的人才會送出報價與可到場時間。"
+              icon={<Inbox size={22} color={COLORS.brand} strokeWidth={2.1} />}
+            />
+          ) : (
+            pendingBids
+              .slice(0, 2)
+              .map((bid) => (
+                <BidCard
+                  key={bid.id}
+                  bid={bid}
+                  showGigTitle
+                  onPressGig={() => openGig(bid.gigId)}
+                  onPressTalent={() =>
+                    router.push({ pathname: '/talent/[id]', params: { id: bid.talentId } })
+                  }
+                />
+              ))
+          )}
+        </View>
+
+        {activeGigs.length > 0 ? (
+          <View className="gap-3">
+            <SectionHeading title="進行中任務" caption="已選定人才，等待完工確認" />
+            {activeGigs.map((gig) => (
+              <GigCard key={gig.id} gig={gig} onPress={() => openGig(gig.id)} />
+            ))}
+          </View>
+        ) : null}
+
+        <View className="gap-3">
+          <SectionHeading
+            title="最近發布"
+            caption={myGigs.length > 0 ? `共 ${myGigs.length} 筆任務` : undefined}
+            right={
+              <Pressable onPress={() => router.push('/(tabs)/tasks')} accessibilityRole="button">
+                <Text className="text-brand-strong text-[13px] font-semibold">全部管理</Text>
+              </Pressable>
+            }
+          />
+
+          {recentGigs.length === 0 ? (
+            <EmptyState
+              title="還沒有進行中的任務"
+              caption="從 30 大類別中選一個標籤，30 秒完成發布。"
+              icon={<ClipboardList size={22} color={COLORS.brand} strokeWidth={2.1} />}
+            />
+          ) : (
+            recentGigs.map((gig: Gig) => (
+              <GigCard key={gig.id} gig={gig} onPress={() => openGig(gig.id)} />
+            ))
+          )}
+        </View>
+      </ScrollView>
 
       <Pressable
         onPress={() => router.push('/publish')}

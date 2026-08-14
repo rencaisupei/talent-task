@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { SEED_REPORTS, SEED_VERIFICATIONS } from '@/lib/seed';
+import { useNotificationStore } from '@/lib/stores/notifications';
 import { useSessionStore } from '@/lib/stores/session';
 import type { AbuseReport, VerificationRequest } from '@/lib/types';
 
@@ -25,7 +26,17 @@ function applySessionVerification(
 ) {
   if (!request) return;
   const session = useSessionStore.getState();
-  if (request.talentId === session.userId) session.setVerification(status);
+  if (request.talentId === session.userId) {
+    session.setVerification(status);
+    useNotificationStore.getState().pushNotification({
+      kind: 'verification',
+      title: status === 'approved' ? '技能認證已通過' : '技能認證未通過',
+      body:
+        status === 'approved'
+          ? '認證徽章已顯示在你的公開檔案，客戶會優先看到已認證人才。'
+          : '請重新上傳清晰的證照影像後再送審。',
+    });
+  }
 }
 
 export const useAdminStore = create<AdminState>()(

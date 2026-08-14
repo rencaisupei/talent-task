@@ -1,14 +1,18 @@
 import { OMNI_INDUSTRY_TAGS } from '@/lib/omniTags';
-import { TAIWAN_REGIONS } from '@/lib/regions';
+import { regionCoordinate, TAIWAN_REGIONS } from '@/lib/regions';
 import { moderateText } from '@/lib/moderation';
-import type {
-  AbuseReport,
-  BudgetLevelId,
-  ChatMessage,
-  Gig,
-  TalentProfile,
-  VerificationRequest,
-  WeeklyPoint,
+import {
+  type AbuseReport,
+  type AppNotification,
+  type Bid,
+  type BudgetLevelId,
+  type ChatMessage,
+  type Gig,
+  LOCAL_USER_ID,
+  type Review,
+  type TalentProfile,
+  type VerificationRequest,
+  type WeeklyPoint,
 } from '@/lib/types';
 
 /** 固定亂數源，確保每次啟動的示範資料一致。 */
@@ -87,22 +91,34 @@ export const SEED_TALENTS: TalentProfile[] = TALENT_NAMES.map((name, index) => {
     verification: index % 4 === 0 ? 'pending' : 'approved',
     completedJobs: 8 + Math.floor(random() * 120),
     rating: Math.round((4.2 + random() * 0.8) * 10) / 10,
+    responseMinutes: 4 + Math.floor(random() * 55),
   };
 });
 
-export const SEED_GIGS: Gig[] = Array.from({ length: 26 }, (_, index) => {
+/** 依縣市中心點加上固定偏移，讓地圖標記不會完全重疊。 */
+function scatterCoordinate(region: string, seed: number) {
+  const random = makeRandom(90_000 + seed * 17);
+  const base = regionCoordinate(region);
+  return {
+    latitude: base.latitude + (random() - 0.5) * 0.08,
+    longitude: base.longitude + (random() - 0.5) * 0.08,
+  };
+}
+
+const BROADCAST_GIGS: Gig[] = Array.from({ length: 26 }, (_, index) => {
   const random = makeRandom(500 + index * 91);
   const category = OMNI_INDUSTRY_TAGS[(index * 4 + 1) % OMNI_INDUSTRY_TAGS.length];
   const tag = category.tags[Math.floor(random() * category.tags.length)];
   const region = TAIWAN_REGIONS[Math.floor(random() * TAIWAN_REGIONS.length)];
   const isUrgent = random() > 0.45;
+  const coordinate = scatterCoordinate(region, index + 1);
   return {
     id: `gig_seed_${index + 1}`,
     title: `${tag}｜${GIG_TITLE_SUFFIX[index % GIG_TITLE_SUFFIX.length]}`,
     categoryId: category.id,
     tag,
     detail: `${region}現場需要${tag}，希望提供過往實績與可到場時段，現場備有停車位，需自備工具與耗材。`,
-    location: { region, source: 'manual' as const },
+    location: { region, source: 'manual' as const, ...coordinate },
     budgetLevel: BUDGETS[Math.floor(random() * BUDGETS.length)],
     isUrgent,
     clientId: `client_seed_${(index % CLIENT_NAMES.length) + 1}`,
@@ -111,6 +127,214 @@ export const SEED_GIGS: Gig[] = Array.from({ length: 26 }, (_, index) => {
     status: random() > 0.7 ? 'talking' : 'open',
   } satisfies Gig;
 });
+
+/** 示範資料：本機帳號（客戶身分）已發布的任務，用於體驗提案媒合、進行中與評價流程。 */
+const MY_DEMO_GIGS: Gig[] = [
+  {
+    id: 'gig_local_1',
+    title: '冷氣維修｜三房不冷需今日到場',
+    categoryId: 'CAT_01',
+    tag: '冷氣維修',
+    detail:
+      '臺北市大安區公寓 3 台分離式冷氣同時不冷，室外機有異音，希望今日下午到場檢測並報價，可停車於社區地下室。',
+    location: { region: '臺北市', source: 'manual', ...scatterCoordinate('臺北市', 901) },
+    budgetLevel: 'B2',
+    isUrgent: true,
+    clientId: LOCAL_USER_ID,
+    clientName: '我',
+    createdAt: NOW - 5 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_local_2',
+    title: '介面體驗設計｜訂閱頁改版提案',
+    categoryId: 'CAT_09',
+    tag: '介面體驗設計',
+    detail:
+      '既有 App 訂閱流程轉換率偏低，需要重新設計方案比較與付款頁，共 6 個畫面，附既有設計檔與數據報表。',
+    location: { region: '臺中市', source: 'manual', ...scatterCoordinate('臺中市', 902) },
+    budgetLevel: 'B3',
+    isUrgent: false,
+    clientId: LOCAL_USER_ID,
+    clientName: '我',
+    createdAt: NOW - 2 * DAY,
+    status: 'open',
+  },
+  {
+    id: 'gig_local_3',
+    title: '急件到府代工｜辦公室系統櫃組裝',
+    categoryId: 'CAT_18',
+    tag: '急件到府代工',
+    detail: '新辦公室 8 組系統櫃與 12 張桌椅組裝，已完成驗收，感謝師傅假日加班支援。',
+    location: { region: '新北市', source: 'manual', ...scatterCoordinate('新北市', 903) },
+    budgetLevel: 'B2',
+    isUrgent: false,
+    clientId: LOCAL_USER_ID,
+    clientName: '我',
+    createdAt: NOW - 6 * DAY,
+    status: 'completed',
+    assignedTalentId: 'talent_seed_2',
+    assignedTalentName: '李冠廷',
+    completedAt: NOW - 3 * HOUR,
+  },
+];
+
+export const SEED_GIGS: Gig[] = [...MY_DEMO_GIGS, ...BROADCAST_GIGS];
+
+/** 示範資料：人才對本機客戶任務投遞的提案。 */
+export const SEED_BIDS: Bid[] = [
+  {
+    id: 'bid_seed_1',
+    gigId: 'gig_local_1',
+    gigTitle: MY_DEMO_GIGS[0].title,
+    tag: '冷氣維修',
+    clientId: LOCAL_USER_ID,
+    talentId: 'talent_seed_1',
+    talentName: '王師傅工班',
+    talentRegion: '新北市',
+    quote: 3200,
+    etaLabel: '今天可到',
+    message: '兩人一組帶真空泵與冷媒錶，先檢測壓縮機與冷媒壓力，含基本清洗；若需補冷媒另計。',
+    createdAt: NOW - 4 * HOUR,
+    status: 'pending',
+  },
+  {
+    id: 'bid_seed_2',
+    gigId: 'gig_local_1',
+    gigTitle: MY_DEMO_GIGS[0].title,
+    tag: '冷氣維修',
+    clientId: LOCAL_USER_ID,
+    talentId: 'talent_seed_4',
+    talentName: '林彥丞',
+    talentRegion: '臺北市',
+    quote: 2800,
+    etaLabel: '24 小時內',
+    message: '大安區在地師傅，可先視訊看室外機狀況再到場，維修後保固 90 天。',
+    createdAt: NOW - 3 * HOUR,
+    status: 'pending',
+  },
+  {
+    id: 'bid_seed_3',
+    gigId: 'gig_local_1',
+    gigTitle: MY_DEMO_GIGS[0].title,
+    tag: '冷氣維修',
+    clientId: LOCAL_USER_ID,
+    talentId: 'talent_seed_11',
+    talentName: '柯宥辰',
+    talentRegion: '桃園市',
+    quote: null,
+    etaLabel: '3 天內',
+    message: '需先確認機型與樓層高度，到場檢測費 800 元，維修工資依實際狀況報價。',
+    createdAt: NOW - 90 * 60 * 1000,
+    status: 'pending',
+  },
+  {
+    id: 'bid_seed_4',
+    gigId: 'gig_local_2',
+    gigTitle: MY_DEMO_GIGS[1].title,
+    tag: '介面體驗設計',
+    clientId: LOCAL_USER_ID,
+    talentId: 'talent_seed_5',
+    talentName: '高語彤',
+    talentRegion: '臺中市',
+    quote: 18000,
+    etaLabel: '一週內',
+    message: '含 2 版方案比較頁與付款流程重構、可用性測試腳本，交付 Figma 原型與設計規範。',
+    createdAt: NOW - 30 * HOUR,
+    status: 'pending',
+  },
+  {
+    id: 'bid_seed_5',
+    gigId: 'gig_local_2',
+    gigTitle: MY_DEMO_GIGS[1].title,
+    tag: '介面體驗設計',
+    clientId: LOCAL_USER_ID,
+    talentId: 'talent_seed_9',
+    talentName: '范芷妍',
+    talentRegion: '高雄市',
+    quote: 15500,
+    etaLabel: '時間可再議',
+    message: '過去做過三個訂閱制產品改版，可先出低保真線稿確認方向再進視覺。',
+    createdAt: NOW - 20 * HOUR,
+    status: 'pending',
+  },
+];
+
+const REVIEW_COMMENTS = [
+  '準時到場，狀況說明清楚，收費與報價一致。',
+  '施作乾淨俐落，離場前把現場整理得很好。',
+  '溝通順暢，願意配合我的時間調整。',
+  '專業度高，主動提醒後續保養要注意的地方。',
+  '報價透明，沒有臨時加價的情況。',
+  '回覆訊息很快，急件當天就處理完成。',
+  '交付品質穩定，細節都有依需求修正。',
+  '態度親切，會再找他合作。',
+];
+
+/** 示範資料：人才收到的歷史評價（平均值與人才檔案分數一致）。 */
+export const SEED_REVIEWS: Review[] = SEED_TALENTS.flatMap((talent, talentIndex) => {
+  const random = makeRandom(52_000 + talentIndex * 61);
+  const count = 2 + (talentIndex % 3);
+  return Array.from({ length: count }, (_, reviewIndex) => {
+    const category = OMNI_INDUSTRY_TAGS[(talentIndex * 3) % OMNI_INDUSTRY_TAGS.length];
+    const tag = talent.tags[reviewIndex % talent.tags.length] ?? category.tags[0];
+    const stars = reviewIndex === count - 1 ? Math.max(3, Math.floor(talent.rating)) : 5;
+    const authorName = CLIENT_NAMES[(talentIndex * 4 + reviewIndex) % CLIENT_NAMES.length];
+    return {
+      id: `review_seed_${talentIndex + 1}_${reviewIndex + 1}`,
+      gigId: `gig_history_${talentIndex + 1}_${reviewIndex + 1}`,
+      gigTitle: `${tag}｜已完成委託`,
+      tag,
+      authorId: `client_seed_${((talentIndex + reviewIndex) % CLIENT_NAMES.length) + 1}`,
+      authorName,
+      targetId: talent.id,
+      targetName: talent.name,
+      targetRole: 'talent' as const,
+      stars,
+      comment: REVIEW_COMMENTS[Math.floor(random() * REVIEW_COMMENTS.length)],
+      createdAt: NOW - (talentIndex + 1) * DAY - reviewIndex * 7 * HOUR,
+    } satisfies Review;
+  });
+});
+
+/** 示範資料：通知中心初始動態。 */
+export const SEED_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: 'noti_seed_1',
+    kind: 'bid',
+    title: '收到 3 份新提案',
+    body: '「冷氣維修｜三房不冷需今日到場」已有 3 位認證人才投遞提案。',
+    createdAt: NOW - 90 * 60 * 1000,
+    isRead: false,
+    gigId: 'gig_local_1',
+  },
+  {
+    id: 'noti_seed_2',
+    kind: 'bid',
+    title: '收到 2 份新提案',
+    body: '「介面體驗設計｜訂閱頁改版提案」有新的報價可以比較。',
+    createdAt: NOW - 20 * HOUR,
+    isRead: false,
+    gigId: 'gig_local_2',
+  },
+  {
+    id: 'noti_seed_3',
+    kind: 'review',
+    title: '任務已完成，等待你的評價',
+    body: '「急件到府代工｜辦公室系統櫃組裝」已完成，給李冠廷一個評價。',
+    createdAt: NOW - 3 * HOUR,
+    isRead: false,
+    gigId: 'gig_local_3',
+  },
+  {
+    id: 'noti_seed_4',
+    kind: 'system',
+    title: '安全提醒',
+    body: '所有訊息皆經伺服器端審核，請勿在對話中提供銀行帳號或身分證影本。',
+    createdAt: NOW - 3 * DAY,
+    isRead: true,
+  },
+];
 
 export const SEED_VERIFICATIONS: VerificationRequest[] = [
   {

@@ -1,4 +1,4 @@
-import { MapPin, Zap } from 'lucide-react-native';
+import { Bookmark, MapPin, Zap } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
 import { StaticTag } from '@/components/TagChip';
@@ -11,15 +11,19 @@ interface GigCardProps {
   gig: Gig;
   onPress?: () => void;
   footer?: React.ReactNode;
+  isSaved?: boolean;
+  onToggleSave?: () => void;
 }
 
 const STATUS_LABEL: Record<Gig['status'], string> = {
   open: '等待媒合',
   talking: '對話中',
+  assigned: '進行中',
+  completed: '已完成',
   closed: '已結案',
 };
 
-export function GigCard({ gig, onPress, footer }: GigCardProps) {
+export function GigCard({ gig, onPress, footer, isSaved, onToggleSave }: GigCardProps) {
   const budget = BUDGET_LEVELS.find((level) => level.id === gig.budgetLevel);
   const category = findCategoryById(gig.categoryId);
 
@@ -48,6 +52,23 @@ export function GigCard({ gig, onPress, footer }: GigCardProps) {
           <View className="bg-coral-soft h-9 w-9 items-center justify-center rounded-xl">
             <Zap size={18} color={COLORS.coral} strokeWidth={2.1} />
           </View>
+        ) : null}
+        {onToggleSave ? (
+          <Pressable
+            onPress={onToggleSave}
+            accessibilityRole="button"
+            accessibilityLabel={isSaved ? '取消收藏' : '收藏任務'}
+            accessibilityState={{ selected: isSaved }}
+            hitSlop={8}
+            className="border-hairline bg-canvas h-9 w-9 items-center justify-center rounded-xl border"
+          >
+            <Bookmark
+              size={17}
+              color={isSaved ? COLORS.brand : COLORS.muted}
+              fill={isSaved ? COLORS.brand : 'transparent'}
+              strokeWidth={2.1}
+            />
+          </Pressable>
         ) : null}
       </View>
 

@@ -4,7 +4,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { MAX_TALENT_TAGS } from '@/lib/omniTags';
 import { REGION_ANY } from '@/lib/regions';
-import type { UserRole, VerificationStatus } from '@/lib/types';
+import { useNotificationStore } from '@/lib/stores/notifications';
+import { LOCAL_USER_ID, type UserRole, type VerificationStatus } from '@/lib/types';
 
 export const FREE_MONTHLY_CHAT_QUOTA = 2;
 export const PREMIUM_PRICE_TWD = 399;
@@ -53,7 +54,7 @@ interface SessionState {
 
 const initialState = {
   hydrated: false,
-  userId: 'user_local',
+  userId: LOCAL_USER_ID,
   displayName: '我',
   role: null as UserRole | null,
   region: REGION_ANY,
@@ -103,7 +104,14 @@ export const useSessionStore = create<SessionState>()(
 
       setVerification: (status) => set({ verification: status }),
 
-      activatePremium: () => set({ isPremium: true, premiumSince: Date.now() }),
+      activatePremium: () => {
+        set({ isPremium: true, premiumSince: Date.now() });
+        useNotificationStore.getState().pushNotification({
+          kind: 'system',
+          title: '進階版已啟用',
+          body: `每月 NT$ ${PREMIUM_PRICE_TWD} 方案已生效，本月可無限開啟新對話。`,
+        });
+      },
 
       cancelPremium: () => set({ isPremium: false, premiumSince: null }),
 

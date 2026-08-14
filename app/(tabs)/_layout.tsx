@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Home, MessageCircle, User } from 'lucide-react-native';
+import { ClipboardList, Home, MessageCircle, User } from 'lucide-react-native';
 import { View } from 'react-native';
 
 import { COLORS } from '@/lib/colors';
@@ -48,8 +48,15 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: role === 'client' ? '我的任務' : '任務牆',
+            title: role === 'client' ? '發布中心' : '任務牆',
             tabBarIcon: ({ color, size }) => <Home color={color} size={size ?? 24} />,
+          }}
+        />
+        <Tabs.Screen
+          name="tasks"
+          options={{
+            title: role === 'client' ? '任務管理' : '我的接案',
+            tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size ?? 24} />,
           }}
         />
         <Tabs.Screen

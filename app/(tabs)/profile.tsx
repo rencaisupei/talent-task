@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Button, Input, Label, TextField } from 'heroui-native';
 import {
   BadgeCheck,
+  Bell,
   ChevronRight,
   Clock,
   Crown,
@@ -9,17 +10,23 @@ import {
   RefreshCw,
   Repeat,
   ShieldCheck,
+  Star,
   Tags,
 } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
+import { RatingStars } from '@/components/RatingStars';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
+import { useGigStore } from '@/lib/stores/gigs';
+import { useReviewStore } from '@/lib/stores/reviews';
 import { PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
+import { reviewsForUser, summarizeReviews, trustBadge } from '@/lib/trust';
 import type { VerificationStatus } from '@/lib/types';
 
 const VERIFICATION_LABEL: Record<VerificationStatus, string> = {
@@ -38,8 +45,29 @@ export default function ProfileScreen() {
   const skills = useSessionStore((state) => state.skills);
   const verification = useSessionStore((state) => state.verification);
   const isPremium = useSessionStore((state) => state.isPremium);
+  const userId = useSessionStore((state) => state.userId);
   const switchRole = useSessionStore((state) => state.switchRole);
   const resetSession = useSessionStore((state) => state.resetSession);
+
+  const reviews = useReviewStore((state) => state.reviews);
+  const gigs = useGigStore((state) => state.gigs);
+
+  const summary = useMemo(
+    () => summarizeReviews(reviewsForUser(reviews, userId)),
+    [reviews, userId],
+  );
+
+  const completedCount = useMemo(
+    () =>
+      gigs.filter(
+        (gig) =>
+          gig.status === 'completed' &&
+          (role === 'talent' ? gig.assignedTalentId === userId : gig.clientId === userId),
+      ).length,
+    [gigs, role, userId],
+  );
+
+  const badge = trustBadge(summary, completedCount);
 
   const handleSwitchRole = () => {
     const target = role === 'client' ? '我要接案' : '尋找專家';
@@ -110,6 +138,35 @@ export default function ProfileScreen() {
         {role === 'talent' ? (
           <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
             <SectionHeading
+              title="我的信任度"
+              caption="客戶會看到星等、完成件數與認證徽章"
+              right={
+                <Pressable
+                  onPress={() => router.push({ pathname: '/talent/[id]', params: { id: userId } })}
+                  accessibilityRole="button"
+                  className="flex-row items-center gap-1"
+                >
+                  <Text className="text-brand-strong text-[13px] font-semibold">公開檔案</Text>
+                  <ChevronRight size={14} color={COLORS.brandStrong} strokeWidth={2.2} />
+                </Pressable>
+              }
+            />
+            <View className="flex-row flex-wrap items-center gap-3">
+              <RatingStars value={summary.average} size={16} count={summary.count} />
+              <StaticTag label={badge.label} tone={badge.tone} />
+            </View>
+            <View className="border-hairline flex-row items-center gap-2 border-t pt-3">
+              <Star size={14} color={COLORS.coral} strokeWidth={2.2} />
+              <Text className="text-ink-soft flex-1 text-[12px]">
+                已完成 {completedCount} 件任務・{summary.count} 則客戶評價
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {role === 'talent' ? (
+          <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
+            <SectionHeading
               title="對話配額與訂閱"
               caption={
                 isPremium
@@ -173,6 +230,13 @@ export default function ProfileScreen() {
         ) : null}
 
         <View className="border-hairline overflow-hidden rounded-xl border bg-white">
+          <ProfileRow
+            icon={<Bell size={17} color={COLORS.ink} strokeWidth={2.1} />}
+            label="通知中心"
+            caption="提案、媒合與評價動態"
+            onPress={() => router.push('/notifications')}
+          />
+          <View className="bg-hairline h-px" />
           <ProfileRow
             icon={<Repeat size={17} color={COLORS.ink} strokeWidth={2.1} />}
             label="切換使用身分"
