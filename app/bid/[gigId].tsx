@@ -1,26 +1,20 @@
 import { useLocalSearchParams } from 'expo-router';
-import { Button, Input, Label, Switch, TextArea, TextField } from 'heroui-native';
+import { Button, Input, Label, Spinner, Switch, TextArea, TextField } from 'heroui-native';
 import { ArrowLeft, Clock, Info } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AiReviewCard } from '@/components/AiReviewCard';
 import { EmptyState } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
+import { publishReviewFromAi, runAiReview } from '@/lib/aiReview';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
 import { myBidForGig, useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useSessionStore } from '@/lib/stores/session';
-import { BID_ETA_OPTIONS, BUDGET_LEVELS } from '@/lib/types';
+import { type AiReviewResult, BID_ETA_OPTIONS, BUDGET_LEVELS } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function BidScreen() {
@@ -43,6 +37,8 @@ export default function BidScreen() {
   const [quote, setQuote] = useState(existing?.quote ? String(existing.quote) : '');
   const [eta, setEta] = useState<string>(existing?.etaLabel ?? BID_ETA_OPTIONS[0]);
   const [message, setMessage] = useState(existing?.message ?? '');
+  const [reviewing, setReviewing] = useState(false);
+  const [flagged, setFlagged] = useState<AiReviewResult | null>(null);
 
   if (!gig) {
     return (
@@ -65,11 +61,22 @@ export default function BidScreen() {
     message.trim().length >= 10 &&
     (isNegotiable || (Number.isFinite(numericQuote) && numericQuote > 0));
 
-  const handleSubmit = () => {
-    if (!canSubmit) {
-      Alert.alert('提案還不完整', '請填寫報價（或選擇面議）並輸入至少 10 個字的說明。');
-      return;
-    }
+  const handleSubmit = async () => {
+    if (!canSubmit || reviewing) return;
+    setReviewing(true);
+    setFlagged(null);
+
+    const ai = await runAiReview({
+      target: 'gig',
+      title: `提案：${gig.title}`,
+      detail: message.trim(),
+      tag: gig.tag,
+      region,
+      name: displayName,
+      budgetLabel: isNegotiable ? '價格面議' : `報價 ${formatCurrency(numericQuote)}`,
+    });
+    const review = publishReviewFromAi(ai);
+
     submitBid({
       gig,
       talentId: userId,
@@ -78,8 +85,16 @@ export default function BidScreen() {
       quote: isNegotiable ? null : numericQuote,
       etaLabel: eta,
       message: message.trim(),
+      review,
     });
-    goBackOrReplace({ pathname: '/gig/[id]', params: { id: gig.id } });
+
+    setReviewing(false);
+
+    if (review.state === 'approved') {
+      goBackOrReplace({ pathname: '/gig/[id]', params: { id: gig.id } });
+      return;
+    }
+    setFlagged(ai);
   };
 
   return (

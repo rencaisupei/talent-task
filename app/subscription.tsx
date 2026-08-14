@@ -2,8 +2,9 @@ import { router } from 'expo-router';
 import { Button } from 'heroui-native';
 import { Check, Crown, Infinity as InfinityIcon, X } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { SUBSCRIPTION_TERMS } from '@/lib/legalCopy';
@@ -14,7 +15,7 @@ import { cn } from '@/lib/utils';
 const FREE_FEATURES = [
   `每月可與 ${FREE_MONTHLY_CHAT_QUOTA} 位不同客戶開啟新對話`,
   '完整瀏覽全台任務牆',
-  '技能認證與認證徽章',
+  'AI 即時認證徽章',
 ];
 
 const PREMIUM_FEATURES = [
@@ -30,32 +31,31 @@ export default function SubscriptionScreen() {
   const activatePremium = useSessionStore((state) => state.activatePremium);
   const cancelPremium = useSessionStore((state) => state.cancelPremium);
   const [processing, setProcessing] = useState(false);
+  const [confirmKind, setConfirmKind] = useState<'subscribe' | 'cancel' | null>(null);
 
   const storeName = Platform.OS === 'android' ? 'Google Play' : 'App Store';
 
   const handleSubscribe = () => {
     setProcessing(true);
-    Alert.alert(
-      `${storeName} 訂閱確認`,
-      `即時發 進階版\n${formatCurrency(PREMIUM_PRICE_TWD)} / 月，可隨時取消。`,
-      [
-        { text: '取消', style: 'cancel', onPress: () => setProcessing(false) },
-        {
-          text: '確認訂閱',
-          onPress: () => {
-            activatePremium();
-            setProcessing(false);
-          },
-        },
-      ],
-    );
+    setConfirmKind('subscribe');
   };
 
-  const handleCancel = () => {
-    Alert.alert('取消進階版？', '取消後將回到免費版每月 2 組新對話的限制。', [
-      { text: '保留進階版', style: 'cancel' },
-      { text: '確認取消', style: 'destructive', onPress: cancelPremium },
-    ]);
+  const handleCancel = () => setConfirmKind('cancel');
+
+  const handleConfirm = () => {
+    if (confirmKind === 'subscribe') {
+      activatePremium();
+      setProcessing(false);
+    }
+    if (confirmKind === 'cancel') {
+      cancelPremium();
+    }
+    setConfirmKind(null);
+  };
+
+  const handleDismiss = () => {
+    setProcessing(false);
+    setConfirmKind(null);
   };
 
   return (
@@ -126,6 +126,26 @@ export default function SubscriptionScreen() {
           )}
         </View>
       </View>
+
+      <ConfirmSheet
+        visible={confirmKind !== null}
+        title={confirmKind === 'cancel' ? '取消進階版？' : `${storeName} 訂閱確認`}
+        message={
+          confirmKind === 'cancel'
+            ? `取消後將回到免費版每月 ${FREE_MONTHLY_CHAT_QUOTA} 組新對話的限制。`
+            : `即時發 進階版 ${formatCurrency(PREMIUM_PRICE_TWD)} / 月，可隨時取消。`
+        }
+        actions={[
+          {
+            id: 'confirm',
+            label: confirmKind === 'cancel' ? '確認取消' : '確認訂閱',
+            tone: confirmKind === 'cancel' ? 'danger' : 'primary',
+          },
+        ]}
+        cancelLabel={confirmKind === 'cancel' ? '保留進階版' : '取消'}
+        onSelect={handleConfirm}
+        onCancel={handleDismiss}
+      />
     </View>
   );
 }

@@ -16,6 +16,8 @@ interface AdminState {
   addReport: (report: AbuseReport) => void;
   approveVerification: (id: string) => void;
   rejectVerification: (id: string) => void;
+  /** 證照人工驗證（信任度加分項，與能否接案無關）。 */
+  verifyCredential: (id: string, verified: boolean) => void;
   resolveReport: (id: string) => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
@@ -30,13 +32,18 @@ function applySessionVerification(
   const session = useSessionStore.getState();
   if (request.talentId === session.userId) {
     session.setVerification(status);
+    if (status === 'approved' && request.credentialUri !== undefined) {
+      session.setCredentialVerified(true);
+    }
     useNotificationStore.getState().pushNotification({
       kind: 'verification',
-      title: status === 'approved' ? '技能認證已通過' : '技能認證未通過',
+      title: status === 'approved' ? '人才資料複審通過' : '人才資料複審未通過',
       body:
         status === 'approved'
-          ? '認證徽章已顯示在你的公開檔案，客戶會優先看到已認證人才。'
-          : '請重新上傳清晰的證照影像後再送審。',
+          ? request.credentialUri !== undefined
+            ? '已通過複審，證照驗證徽章與信任度加分已套用於你的公開檔案。'
+            : '已通過複審，你的公開檔案已顯示認證徽章，可開始接案。'
+          : '資料含疑似不實或高風險內容，請修正技能與服務說明後重新送審。',
     });
   }
 }
@@ -59,13 +66,17 @@ export const useAdminStore = create<AdminState>()(
       addReport: (report) => set((state) => ({ reports: [report, ...state.reports] })),
 
       approveVerification: (id) => {
-        applySessionVerification(
-          get().verifications.find((item) => item.id === id),
-          'approved',
-        );
+        const request = get().verifications.find((item) => item.id === id);
+        applySessionVerification(request, 'approved');
         set((state) => ({
           verifications: state.verifications.map((item) =>
-            item.id === id ? { ...item, status: 'approved' } : item,
+            item.id === id
+              ? {
+                  ...item,
+                  status: 'approved',
+                  credentialVerified: item.credentialUri !== undefined,
+                }
+              : item,
           ),
         }));
       },
@@ -88,6 +99,29 @@ export const useAdminStore = create<AdminState>()(
             item.id === id ? { ...item, resolved: true } : item,
           ),
         })),
+
+      verifyCredential: (id, verified) => {
+        const request = get().verifications.find((item) => item.id === id);
+        set((state) => ({
+          verifications: state.verifications.map((item) =>
+            item.id === id ? { ...item, credentialVerified: verified } : item,
+          ),
+        }));
+        if (!request) return;
+
+        const session = useSessionStore.getState();
+        if (request.talentId !== session.userId) return;
+
+        session.setCredentialVerified(verified);
+        useNotificationStore.getState().pushNotification({
+          kind: 'verification',
+          title: verified ? '證照驗證通過' : '證照驗證未通過',
+          body: verified
+            ? '你的證照已驗證，信任度加分徽章已套用於公開檔案。'
+            : '證照影像無法辨識，加分徽章未套用（仍可正常接案）。',
+          talentId: request.talentId,
+        });
+      },
 
       banUser: (userId) =>
         set((state) => ({

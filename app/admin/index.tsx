@@ -6,14 +6,16 @@ import {
   ClipboardList,
   CreditCard,
   LogOut,
+  ScanEye,
   ScrollText,
   ShieldCheck,
   Users,
 } from 'lucide-react-native';
-import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { KpiCard } from '@/components/KpiCard';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
@@ -24,7 +26,7 @@ import { useAdminStore } from '@/lib/stores/admin';
 import { useAdminAuditStore } from '@/lib/stores/adminAudit';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useAnnouncementStore } from '@/lib/stores/announcements';
-import { useGigStore } from '@/lib/stores/gigs';
+import { gigsAwaitingReview, useGigStore } from '@/lib/stores/gigs';
 import { usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { ADMIN_ACTION_LABEL, ADMIN_ROLE_LABEL } from '@/lib/types';
 
@@ -42,6 +44,8 @@ export default function AdminHomeScreen() {
 
   const analytics = usePlatformAnalytics(CATEGORY_FILTER_ALL);
 
+  const [signOutVisible, setSignOutVisible] = useState(false);
+
   const pendingVerifications = useMemo(
     () => verifications.filter((item) => item.status === 'pending').length,
     [verifications],
@@ -51,21 +55,16 @@ export default function AdminHomeScreen() {
     () => gigs.filter((gig) => gig.takedownReason !== undefined).length,
     [gigs],
   );
+  const pendingGigReviews = useMemo(() => gigsAwaitingReview(gigs).length, [gigs]);
 
   const recentEntries = auditEntries.slice(0, 4);
 
-  const handleSignOut = () => {
-    Alert.alert('登出管理後台？', '將回到管理員登入頁，一般使用者介面不受影響。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '確認登出',
-        style: 'destructive',
-        onPress: () => {
-          signOut();
-          router.replace('/admin/login');
-        },
-      },
-    ]);
+  const handleSignOut = () => setSignOutVisible(true);
+
+  const confirmSignOut = () => {
+    setSignOutVisible(false);
+    signOut();
+    router.replace('/admin/login');
   };
 
   return (
@@ -98,9 +97,9 @@ export default function AdminHomeScreen() {
           <View className="flex-row gap-3">
             <KpiCard
               className="flex-1"
-              label="待審核驗證"
+              label="待複審驗證"
               value={formatNumber(pendingVerifications)}
-              caption="憑證影像待比對"
+              caption="AI 認證未通過的人才"
               tone="coral"
             />
             <KpiCard
@@ -114,18 +113,24 @@ export default function AdminHomeScreen() {
           <View className="flex-row gap-3">
             <KpiCard
               className="flex-1"
+              label="待複審任務"
+              value={formatNumber(pendingGigReviews)}
+              caption="未通過即時認證"
+              tone="coral"
+            />
+            <KpiCard
+              className="flex-1"
               label="已封禁帳號"
               value={formatNumber(bannedUserIds.length)}
               caption="封禁引擎累計"
             />
-            <KpiCard
-              className="flex-1"
-              label="月經常性收入"
-              value={formatCurrency(analytics.mrrEstimate)}
-              caption={`活躍付費人才 ${formatNumber(analytics.activePremiumTalents)} 位`}
-              tone="brand"
-            />
           </View>
+          <KpiCard
+            label="月經常性收入"
+            value={formatCurrency(analytics.mrrEstimate)}
+            caption={`活躍付費人才 ${formatNumber(analytics.activePremiumTalents)} 位`}
+            tone="brand"
+          />
           <KpiCard
             label="平台累計註冊用戶"
             value={formatNumber(analytics.totalUsers)}
@@ -137,6 +142,13 @@ export default function AdminHomeScreen() {
         <View className="gap-3">
           <SectionHeading title="管理模組" caption="所有動作皆記錄操作者與時間" />
           <View className="border-hairline overflow-hidden rounded-xl border bg-white">
+            <ModuleRow
+              icon={<ScanEye size={17} color={COLORS.coral} strokeWidth={2.1} />}
+              label="AI 認證複審中心"
+              caption={`待複審任務 ${pendingGigReviews} 件・待複審人才 ${pendingVerifications} 位`}
+              onPress={() => router.push('/admin/review')}
+            />
+            <Divider />
             <ModuleRow
               icon={<Users size={17} color={COLORS.ink} strokeWidth={2.1} />}
               label="使用者管理總表"
@@ -220,6 +232,15 @@ export default function AdminHomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <ConfirmSheet
+        visible={signOutVisible}
+        title="登出管理後台？"
+        message="將回到管理員登入頁，一般使用者介面不受影響。"
+        actions={[{ id: 'confirm', label: '確認登出', tone: 'danger' }]}
+        onSelect={confirmSignOut}
+        onCancel={() => setSignOutVisible(false)}
+      />
     </View>
   );
 }

@@ -6,12 +6,17 @@ import {
   Handshake,
   Inbox,
   MessageCircle,
+  PhoneCall,
+  ScanEye,
+  Settings,
   ShieldCheck,
   Sparkles,
   Star,
 } from 'lucide-react-native';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { EmptyState } from '@/components/SectionHeading';
 import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
@@ -27,6 +32,8 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   chat: '對話訊息',
   verification: '認證審核',
   system: '系統公告',
+  call: '語音通話',
+  moderation: '發布審核',
 };
 
 function KindIcon({ kind }: { kind: NotificationKind }) {
@@ -37,6 +44,8 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
   if (kind === 'review') return <Star size={size} color={COLORS.coral} strokeWidth={2.2} />;
   if (kind === 'chat')
     return <MessageCircle size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
+  if (kind === 'call') return <PhoneCall size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
+  if (kind === 'moderation') return <ScanEye size={size} color={COLORS.coral} strokeWidth={2.2} />;
   if (kind === 'verification') {
     return <ShieldCheck size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
   }
@@ -48,6 +57,8 @@ export default function NotificationsScreen() {
   const markRead = useNotificationStore((state) => state.markRead);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
   const clearAll = useNotificationStore((state) => state.clearAll);
+
+  const [clearVisible, setClearVisible] = useState(false);
 
   const unread = countUnread(items);
 
@@ -66,12 +77,7 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleClear = () => {
-    Alert.alert('清空所有通知？', '清空後將無法復原歷史動態。', [
-      { text: '取消', style: 'cancel' },
-      { text: '確認清空', style: 'destructive', onPress: clearAll },
-    ]);
-  };
+  const handleClear = () => setClearVisible(true);
 
   return (
     <View className="bg-background flex-1">
@@ -95,6 +101,14 @@ export default function NotificationsScreen() {
             <Text className="text-brand-strong text-[13px] font-semibold">全部已讀</Text>
           </Pressable>
         ) : null}
+        <Pressable
+          onPress={() => router.push('/notification-settings')}
+          accessibilityRole="button"
+          accessibilityLabel="推播通知設定"
+          className="bg-canvas h-9 w-9 items-center justify-center rounded-xl"
+        >
+          <Settings size={17} color={COLORS.ink} strokeWidth={2.1} />
+        </Pressable>
       </View>
 
       <FlashList
@@ -143,6 +157,18 @@ export default function NotificationsScreen() {
             </Pressable>
           ) : null
         }
+      />
+
+      <ConfirmSheet
+        visible={clearVisible}
+        title="清空所有通知？"
+        message="清空後將無法復原歷史動態。"
+        actions={[{ id: 'confirm', label: '確認清空', tone: 'danger' }]}
+        onSelect={() => {
+          clearAll();
+          setClearVisible(false);
+        }}
+        onCancel={() => setClearVisible(false)}
       />
     </View>
   );

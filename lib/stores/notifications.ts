@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { deliverPush } from '@/lib/push';
 import { SEED_NOTIFICATIONS } from '@/lib/seed';
 import type { AppNotification } from '@/lib/types';
 
@@ -24,7 +25,7 @@ export const useNotificationStore = create<NotificationState>()(
     (set) => ({
       items: SEED_NOTIFICATIONS,
 
-      pushNotification: (input) =>
+      pushNotification: (input) => {
         set((state) => ({
           items: [
             {
@@ -35,7 +36,19 @@ export const useNotificationStore = create<NotificationState>()(
             },
             ...state.items,
           ].slice(0, 120),
-        })),
+        }));
+
+        deliverPush({
+          kind: input.kind,
+          title: input.title,
+          body: input.body,
+          route: {
+            gigId: input.gigId,
+            conversationId: input.conversationId,
+            talentId: input.talentId,
+          },
+        });
+      },
 
       markRead: (id) =>
         set((state) => ({

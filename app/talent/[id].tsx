@@ -1,5 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, BadgeCheck, CircleCheckBig, Clock, MapPin, Star } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CircleCheckBig,
+  Clock,
+  FileBadge,
+  MapPin,
+  ShieldCheck,
+  Star,
+} from 'lucide-react-native';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -14,7 +23,13 @@ import { SEED_TALENTS } from '@/lib/seed';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useReviewStore } from '@/lib/stores/reviews';
 import { useSessionStore } from '@/lib/stores/session';
-import { formatResponseTime, reviewsForUser, summarizeReviews, trustBadge } from '@/lib/trust';
+import {
+  formatResponseTime,
+  reviewsForUser,
+  summarizeReviews,
+  trustScore,
+  trustSignals,
+} from '@/lib/trust';
 
 export default function TalentProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -26,6 +41,7 @@ export default function TalentProfileScreen() {
   const region = useSessionStore((state) => state.region);
   const skills = useSessionStore((state) => state.skills);
   const verification = useSessionStore((state) => state.verification);
+  const credentialVerified = useSessionStore((state) => state.credentialVerified);
 
   const isSelf = id === userId;
   const seedProfile = SEED_TALENTS.find((talent) => talent.id === id);
@@ -65,12 +81,26 @@ export default function TalentProfileScreen() {
     tags: skills,
     isPremium: false,
     verification,
+    credentialVerified,
     completedJobs: completedBySelf,
     rating: summary.average,
     responseMinutes: 15,
   };
 
-  const badge = trustBadge(summary, profile.completedJobs);
+  const aiVerified = profile.verification === 'approved';
+  const hasCredentialBadge = profile.credentialVerified === true;
+  const signals = trustSignals({
+    summary,
+    completedJobs: profile.completedJobs,
+    aiVerified,
+    credentialVerified: hasCredentialBadge,
+  });
+  const score = trustScore({
+    summary,
+    completedJobs: profile.completedJobs,
+    aiVerified,
+    credentialVerified: hasCredentialBadge,
+  });
   const maxDistribution = Math.max(1, ...summary.distribution);
 
   return (
@@ -85,7 +115,7 @@ export default function TalentProfileScreen() {
           <ArrowLeft size={18} color={COLORS.ink} strokeWidth={2.2} />
         </Pressable>
         <Text className="text-ink flex-1 text-[17px] font-semibold">人才檔案</Text>
-        <StaticTag label={badge.label} tone={badge.tone} />
+        <StaticTag label={`信任度 ${score}`} tone={score >= 60 ? 'brand' : 'coral'} />
       </View>
 
       <ScrollView
@@ -102,8 +132,11 @@ export default function TalentProfileScreen() {
                 <Text className="text-ink text-[18px] font-bold tracking-tight">
                   {profile.name}
                 </Text>
-                {profile.verification === 'approved' ? (
+                {aiVerified ? (
                   <BadgeCheck size={16} color={COLORS.brand} strokeWidth={2.2} />
+                ) : null}
+                {hasCredentialBadge ? (
+                  <FileBadge size={15} color={COLORS.coral} strokeWidth={2.2} />
                 ) : null}
               </View>
               <View className="mt-1 flex-row items-center gap-1.5">
@@ -112,6 +145,28 @@ export default function TalentProfileScreen() {
               </View>
               <RatingStars className="mt-1.5" value={summary.average} count={summary.count} />
             </View>
+          </View>
+
+          <View className="mt-3 flex-row flex-wrap gap-2">
+            {signals.map((signal) => (
+              <StaticTag key={signal.label} label={signal.label} tone={signal.tone} />
+            ))}
+          </View>
+
+          <View className="border-hairline mt-4 flex-row items-start gap-2 border-t pt-4">
+            <ShieldCheck
+              size={15}
+              color={aiVerified ? COLORS.brandStrong : COLORS.coral}
+              strokeWidth={2.1}
+            />
+            <Text className="text-ink-soft flex-1 text-[12px] leading-5">
+              {aiVerified
+                ? '此帳號的接案資料已通過平台即時認證。'
+                : '此帳號的接案資料正由管理員複審中。'}
+              {hasCredentialBadge
+                ? '證照已通過人工驗證，信任度加分已套用。'
+                : '證照為選填加分項，未上傳不影響接案資格。'}
+            </Text>
           </View>
 
           <View className="border-hairline mt-4 flex-row border-t pt-4">

@@ -25,6 +25,7 @@ export default function AdminLayout() {
       <Stack.Screen name="login" />
       <Stack.Screen name="index" />
       <Stack.Screen name="dashboard" />
+      <Stack.Screen name="review" />
       <Stack.Screen name="users" />
       <Stack.Screen name="user/[id]" />
       <Stack.Screen name="gigs" />

@@ -26,6 +26,7 @@ import { initPostHog } from '@/lib/posthog';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { PushBridge } from '@/components/PushBridge';
 
 /**
  * Custom ErrorBoundary that reports React render errors to the parent window (Bilt preview iframe)
@@ -142,6 +143,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>
         <RootNavigator />
+        <PushBridge />
         <InstallPrompt />
       </HeroUINativeProvider>
     </GestureHandlerRootView>
@@ -165,9 +167,18 @@ function RootNavigator() {
       <Stack.Screen name="talent/[id]" />
       <Stack.Screen name="chat/[id]" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="notification-settings" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="admin" />
+      <Stack.Screen
+        name="call/[id]"
+        options={{
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: background },
+        }}
+      />
       <Stack.Screen
         name="bid/[gigId]"
         options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}

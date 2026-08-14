@@ -1,6 +1,6 @@
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
-import { Bookmark, ClipboardList, Inbox, Send, Star } from 'lucide-react-native';
+import { Bookmark, ClipboardList, Inbox, ScanEye, Send, Star } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -109,6 +109,8 @@ function ClientTasks() {
             (bid) => bid.status === 'pending',
           ).length;
           const needsReview = item.status === 'completed' && !findReview(reviews, item.id, userId);
+          const awaitingModeration = item.review?.state === 'pending';
+          const moderationRejected = item.review?.state === 'rejected';
 
           return (
             <View className="pb-3">
@@ -116,8 +118,22 @@ function ClientTasks() {
                 gig={item}
                 onPress={() => openGig(item.id)}
                 footer={
-                  gigBidCount > 0 || needsReview ? (
-                    <View className="border-hairline mt-3 flex-row items-center gap-2 border-t pt-3">
+                  gigBidCount > 0 || needsReview || awaitingModeration || moderationRejected ? (
+                    <View className="border-hairline mt-3 flex-row flex-wrap items-center gap-2 border-t pt-3">
+                      {awaitingModeration ? (
+                        <View className="border-coral/25 bg-coral-soft flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1">
+                          <ScanEye size={12} color={COLORS.coral} strokeWidth={2.2} />
+                          <Text className="text-coral text-[11px] font-semibold">
+                            認證複審中，尚未曝光
+                          </Text>
+                        </View>
+                      ) : null}
+                      {moderationRejected ? (
+                        <View className="border-coral/25 bg-coral-soft flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1">
+                          <ScanEye size={12} color={COLORS.coral} strokeWidth={2.2} />
+                          <Text className="text-coral text-[11px] font-semibold">複審未通過</Text>
+                        </View>
+                      ) : null}
                       {gigBidCount > 0 ? (
                         <View className="border-brand/25 bg-brand-soft flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1">
                           <Inbox size={12} color={COLORS.brandStrong} strokeWidth={2.2} />

@@ -32,7 +32,7 @@ import {
 } from '@/lib/gigFilters';
 import { CATEGORY_COUNT } from '@/lib/omniTags';
 import { useBidStore } from '@/lib/stores/bids';
-import { useGigStore } from '@/lib/stores/gigs';
+import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { useSavedStore } from '@/lib/stores/saved';
 import { useSessionStore } from '@/lib/stores/session';
 import type { Gig } from '@/lib/types';
@@ -63,7 +63,10 @@ function TalentHome() {
 
   const data = useMemo(() => {
     const openGigs = gigs.filter(
-      (gig) => gig.clientId !== userId && (gig.status === 'open' || gig.status === 'talking'),
+      (gig) =>
+        gig.clientId !== userId &&
+        isGigVisible(gig) &&
+        (gig.status === 'open' || gig.status === 'talking'),
     );
     return applyGigFilters(openGigs, filters, { skills });
   }, [gigs, filters, skills, userId]);
@@ -146,10 +149,10 @@ function TalentHome() {
               <ChatQuotaPill onPress={() => router.push('/subscription')} />
 
               {verification === 'pending' ? (
-                <View className="border-hairline bg-canvas flex-row items-center gap-2 rounded-xl border px-4 py-3">
-                  <ShieldCheck size={16} color={COLORS.muted} strokeWidth={2.1} />
+                <View className="border-coral/25 bg-coral-soft flex-row items-center gap-2 rounded-xl border px-4 py-3">
+                  <ShieldCheck size={16} color={COLORS.coral} strokeWidth={2.1} />
                   <Text className="text-ink-soft flex-1 text-[13px]">
-                    技能認證審核中，通過後會顯示認證徽章。
+                    人才資料正由管理員複審，通過後會顯示「AI 已認證」徽章。
                   </Text>
                 </View>
               ) : null}

@@ -5,7 +5,13 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { regionCoordinate } from '@/lib/regions';
 import { SEED_GIGS } from '@/lib/seed';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import { type BudgetLevelId, type Gig, type GigLocation, LOCAL_USER_ID } from '@/lib/types';
+import {
+  type BudgetLevelId,
+  type Gig,
+  type GigLocation,
+  LOCAL_USER_ID,
+  type PublishReview,
+} from '@/lib/types';
 
 export interface PublishGigInput {
   categoryId: string;
@@ -16,11 +22,33 @@ export interface PublishGigInput {
   isUrgent: boolean;
   clientId: string;
   clientName: string;
+  /** 發布前的即時審核結果，未通過者不會出現在任務牆。 */
+  review: PublishReview;
+}
+
+export interface ReviewDecisionInput {
+  adminId: string;
+  adminName: string;
+  note?: string;
+}
+
+/** 是否可公開曝光（示範資料沒有審核紀錄，視為已通過）。 */
+export function isGigVisible(gig: Gig): boolean {
+  return gig.review === undefined || gig.review.state === 'approved';
+}
+
+/** 等待管理員複審的任務。 */
+export function gigsAwaitingReview(gigs: Gig[]): Gig[] {
+  return gigs.filter((gig) => gig.review?.state === 'pending');
 }
 
 interface GigState {
   gigs: Gig[];
   publishGig: (input: PublishGigInput) => Gig;
+  /** 管理員複審放行，任務開始曝光。 */
+  approveGigReview: (gigId: string, input: ReviewDecisionInput) => void;
+  /** 管理員複審退回，任務不予上架。 */
+  rejectGigReview: (gigId: string, input: ReviewDecisionInput) => void;
   markTalking: (gigId: string) => void;
   assignGig: (gigId: string, talentId: string, talentName: string) => void;
   completeGig: (gigId: string) => void;
@@ -65,15 +93,80 @@ export const useGigStore = create<GigState>()(
           clientName: input.clientName,
           createdAt: Date.now(),
           status: 'open',
+          review: input.review,
         };
         set((state) => ({ gigs: [gig, ...state.gigs] }));
+
+        const passed = input.review.state === 'approved';
         useNotificationStore.getState().pushNotification({
-          kind: 'system',
-          title: '任務已廣播',
-          body: `「${gig.title}」已發送給全台符合「${gig.tag}」的認證人才。`,
+          kind: passed ? 'system' : 'moderation',
+          title: passed ? '認證通過，任務已廣播' : '任務已送交管理員複審',
+          body: passed
+            ? `「${gig.title}」通過即時認證，已發送給全台符合「${gig.tag}」的人才。`
+            : `「${gig.title}」未通過即時認證（${input.review.ai.reasons[0] ?? '內容需人工確認'}），管理員複審通過後才會曝光。`,
           gigId: gig.id,
         });
         return gig;
+      },
+
+      approveGigReview: (gigId, { adminId, adminName, note }) => {
+        const gig = get().gigs.find((item) => item.id === gigId);
+        set((state) => ({
+          gigs: state.gigs.map((item) =>
+            item.id === gigId && item.review
+              ? {
+                  ...item,
+                  status: item.status === 'closed' ? 'open' : item.status,
+                  review: {
+                    ...item.review,
+                    state: 'approved',
+                    adminId,
+                    adminName,
+                    adminNote: note,
+                    decidedAt: Date.now(),
+                  },
+                }
+              : item,
+          ),
+        }));
+        if (gig && gig.clientId === LOCAL_USER_ID) {
+          useNotificationStore.getState().pushNotification({
+            kind: 'moderation',
+            title: '複審通過，任務已上架',
+            body: `「${gig.title}」經管理員複審確認無詐騙風險，已開始推播給符合標籤的人才。`,
+            gigId: gig.id,
+          });
+        }
+      },
+
+      rejectGigReview: (gigId, { adminId, adminName, note }) => {
+        const gig = get().gigs.find((item) => item.id === gigId);
+        set((state) => ({
+          gigs: state.gigs.map((item) =>
+            item.id === gigId && item.review
+              ? {
+                  ...item,
+                  status: 'closed',
+                  review: {
+                    ...item.review,
+                    state: 'rejected',
+                    adminId,
+                    adminName,
+                    adminNote: note,
+                    decidedAt: Date.now(),
+                  },
+                }
+              : item,
+          ),
+        }));
+        if (gig && gig.clientId === LOCAL_USER_ID) {
+          useNotificationStore.getState().pushNotification({
+            kind: 'moderation',
+            title: '複審未通過，任務未上架',
+            body: `「${gig.title}」因「${note ?? '內容有詐騙風險'}」未通過複審，請修正內容後重新發布。`,
+            gigId: gig.id,
+          });
+        }
       },
 
       markTalking: (gigId) =>

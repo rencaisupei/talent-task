@@ -5,7 +5,12 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { MAX_TALENT_TAGS } from '@/lib/omniTags';
 import { REGION_ANY } from '@/lib/regions';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import { LOCAL_USER_ID, type UserRole, type VerificationStatus } from '@/lib/types';
+import {
+  type AiReviewResult,
+  LOCAL_USER_ID,
+  type UserRole,
+  type VerificationStatus,
+} from '@/lib/types';
 
 export const FREE_MONTHLY_CHAT_QUOTA = 2;
 export const PREMIUM_PRICE_TWD = 399;
@@ -28,7 +33,11 @@ interface SessionState {
   skills: string[];
   credentialUri: string | null;
   credentialUploadState: UploadState;
+  /** 證照經人工驗證通過（信任度加分，非接案必要條件）。 */
+  credentialVerified: boolean;
   verification: VerificationStatus;
+  /** 最近一次人才資料的即時認證結果。 */
+  profileReview: AiReviewResult | null;
   isPremium: boolean;
   premiumSince: number | null;
   chatQuotaRemaining: number;
@@ -44,7 +53,9 @@ interface SessionState {
   toggleSkill: (tag: string) => 'added' | 'removed' | 'limit';
   setCredentialUri: (uri: string | null) => void;
   setCredentialUploadState: (state: UploadState) => void;
+  setCredentialVerified: (verified: boolean) => void;
   setVerification: (status: VerificationStatus) => void;
+  setProfileReview: (result: AiReviewResult | null) => void;
   activatePremium: () => void;
   cancelPremium: () => void;
   syncQuotaMonth: () => void;
@@ -62,7 +73,9 @@ const initialState = {
   skills: [] as string[],
   credentialUri: null as string | null,
   credentialUploadState: 'idle' as UploadState,
+  credentialVerified: false,
   verification: 'none' as VerificationStatus,
+  profileReview: null as AiReviewResult | null,
   isPremium: false,
   premiumSince: null as number | null,
   chatQuotaRemaining: FREE_MONTHLY_CHAT_QUOTA,
@@ -102,7 +115,11 @@ export const useSessionStore = create<SessionState>()(
 
       setCredentialUploadState: (state) => set({ credentialUploadState: state }),
 
+      setCredentialVerified: (verified) => set({ credentialVerified: verified }),
+
       setVerification: (status) => set({ verification: status }),
+
+      setProfileReview: (result) => set({ profileReview: result }),
 
       activatePremium: () => {
         set({ isPremium: true, premiumSince: Date.now() });
@@ -155,7 +172,9 @@ export const useSessionStore = create<SessionState>()(
         skills: state.skills,
         credentialUri: state.credentialUri,
         credentialUploadState: state.credentialUploadState,
+        credentialVerified: state.credentialVerified,
         verification: state.verification,
+        profileReview: state.profileReview,
         isPremium: state.isPremium,
         premiumSince: state.premiumSince,
         chatQuotaRemaining: state.chatQuotaRemaining,

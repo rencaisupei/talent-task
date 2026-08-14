@@ -3,6 +3,7 @@ import { Button, Input, Label, TextField } from 'heroui-native';
 import {
   BadgeCheck,
   Bell,
+  BellRing,
   ChevronRight,
   Clock,
   Crown,
@@ -27,16 +28,17 @@ import { formatCurrency } from '@/lib/format';
 import { CATEGORY_COUNT, TOTAL_TAG_COUNT } from '@/lib/omniTags';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useGigStore } from '@/lib/stores/gigs';
+import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 import { useReviewStore } from '@/lib/stores/reviews';
 import { PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
-import { reviewsForUser, summarizeReviews, trustBadge } from '@/lib/trust';
+import { reviewsForUser, summarizeReviews, trustScore, trustSignals } from '@/lib/trust';
 import type { VerificationStatus } from '@/lib/types';
 
 const VERIFICATION_LABEL: Record<VerificationStatus, string> = {
-  none: '尚未送審',
-  pending: '審核中',
-  approved: '已認證',
-  rejected: '未通過',
+  none: '尚未認證',
+  pending: '複審中',
+  approved: 'AI 已認證',
+  rejected: '複審未通過',
 };
 
 export default function ProfileScreen() {
@@ -47,6 +49,8 @@ export default function ProfileScreen() {
   const setRegion = useSessionStore((state) => state.setRegion);
   const skills = useSessionStore((state) => state.skills);
   const verification = useSessionStore((state) => state.verification);
+  const credentialVerified = useSessionStore((state) => state.credentialVerified);
+  const credentialUri = useSessionStore((state) => state.credentialUri);
   const isPremium = useSessionStore((state) => state.isPremium);
   const userId = useSessionStore((state) => state.userId);
   const switchRole = useSessionStore((state) => state.switchRole);
@@ -55,6 +59,8 @@ export default function ProfileScreen() {
   const reviews = useReviewStore((state) => state.reviews);
   const gigs = useGigStore((state) => state.gigs);
   const adminSignedIn = useAdminAuthStore((state) => state.currentAdmin !== null);
+  const pushEnabled = usePushPrefsStore((state) => state.enabled);
+  const pushPermission = usePushPrefsStore((state) => state.permission);
 
   const [confirmAction, setConfirmAction] = useState<'switch' | 'reset' | null>(null);
 
@@ -73,7 +79,18 @@ export default function ProfileScreen() {
     [gigs, role, userId],
   );
 
-  const badge = trustBadge(summary, completedCount);
+  const trustInput = useMemo(
+    () => ({
+      summary,
+      completedJobs: completedCount,
+      aiVerified: verification === 'approved',
+      credentialVerified,
+    }),
+    [summary, completedCount, verification, credentialVerified],
+  );
+
+  const signals = trustSignals(trustInput);
+  const score = trustScore(trustInput);
 
   const handleSwitchRole = () => setConfirmAction('switch');
 
@@ -144,7 +161,7 @@ export default function ProfileScreen() {
           <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
             <SectionHeading
               title="我的信任度"
-              caption="客戶會看到星等、完成件數與認證徽章"
+              caption={`信任度 ${score} 分・AI 認證為基礎，證照為加分`}
               right={
                 <Pressable
                   onPress={() => router.push({ pathname: '/talent/[id]', params: { id: userId } })}
@@ -158,7 +175,11 @@ export default function ProfileScreen() {
             />
             <View className="flex-row flex-wrap items-center gap-3">
               <RatingStars value={summary.average} size={16} count={summary.count} />
-              <StaticTag label={badge.label} tone={badge.tone} />
+            </View>
+            <View className="flex-row flex-wrap gap-2">
+              {signals.map((signal) => (
+                <StaticTag key={signal.label} label={signal.label} tone={signal.tone} />
+              ))}
             </View>
             <View className="border-hairline flex-row items-center gap-2 border-t pt-3">
               <Star size={14} color={COLORS.coral} strokeWidth={2.2} />
@@ -228,7 +249,8 @@ export default function ProfileScreen() {
                 <Clock size={16} color={COLORS.coral} strokeWidth={2.2} />
               )}
               <Text className="text-ink-soft flex-1 text-[12px]">
-                證照審核狀態：{VERIFICATION_LABEL[verification]}
+                資料認證：{VERIFICATION_LABEL[verification]}・證照（選填）：
+                {credentialVerified ? '已驗證加分' : credentialUri ? '待人工驗證' : '未上傳'}
               </Text>
             </View>
           </View>
@@ -238,8 +260,21 @@ export default function ProfileScreen() {
           <ProfileRow
             icon={<Bell size={17} color={COLORS.ink} strokeWidth={2.1} />}
             label="通知中心"
-            caption="提案、媒合與評價動態"
+            caption="提案、媒合、來電與評價動態"
             onPress={() => router.push('/notifications')}
+          />
+          <View className="bg-hairline h-px" />
+          <ProfileRow
+            icon={<BellRing size={17} color={COLORS.ink} strokeWidth={2.1} />}
+            label="推播通知設定"
+            caption={
+              pushPermission === 'unsupported'
+                ? '此平台不支援裝置推播'
+                : pushEnabled
+                  ? '已開啟・可依分類調整'
+                  : '目前已關閉全部推播'
+            }
+            onPress={() => router.push('/notification-settings')}
           />
           <View className="bg-hairline h-px" />
           <ProfileRow

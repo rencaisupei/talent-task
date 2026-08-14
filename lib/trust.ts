@@ -54,3 +54,42 @@ export function trustBadge(summary: RatingSummary, completedJobs: number): Trust
   if (summary.count === 0) return { label: '新加入', tone: 'coral' };
   return { label: '穩定合作', tone: 'neutral' };
 }
+
+export interface TrustProfileInput {
+  summary: RatingSummary;
+  completedJobs: number;
+  /** 已通過發布內容的即時認證。 */
+  aiVerified: boolean;
+  /** 證照經人工驗證（加分項）。 */
+  credentialVerified: boolean;
+}
+
+/**
+ * 信任度總分（0 至 100）。
+ * AI 認證為基礎門檻，證照僅作為加分，其餘由完成件數與評價決定。
+ */
+export function trustScore({
+  summary,
+  completedJobs,
+  aiVerified,
+  credentialVerified,
+}: TrustProfileInput): number {
+  const base = aiVerified ? 35 : 0;
+  const credential = credentialVerified ? 10 : 0;
+  const experience = Math.min(25, completedJobs * 0.8);
+  const rating = summary.count > 0 ? (summary.average / 5) * 30 : 0;
+  return Math.min(100, Math.round(base + credential + experience + rating));
+}
+
+/** 公開檔案上的信任標籤清單（含 AI 認證與證照加分）。 */
+export function trustSignals(input: TrustProfileInput): TrustBadge[] {
+  const signals: TrustBadge[] = [];
+  signals.push(
+    input.aiVerified
+      ? { label: 'AI 已認證', tone: 'brand' }
+      : { label: '認證複審中', tone: 'coral' },
+  );
+  if (input.credentialVerified) signals.push({ label: '證照已驗證（加分）', tone: 'brand' });
+  signals.push(trustBadge(input.summary, input.completedJobs));
+  return signals;
+}

@@ -1,18 +1,30 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Button, Spinner } from 'heroui-native';
-import { ArrowLeft, CircleCheck, CloudUpload, FileImage, X } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CircleCheck,
+  CloudUpload,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AiReviewCard } from '@/components/AiReviewCard';
 import { CategoryAccordion } from '@/components/CategoryAccordion';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
+import { runAiReview } from '@/lib/aiReview';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
 import { CATEGORY_COUNT, MAX_TALENT_TAGS, TOTAL_TAG_COUNT } from '@/lib/omniTags';
 import { useAdminStore } from '@/lib/stores/admin';
 import { useSessionStore } from '@/lib/stores/session';
+import type { AiReviewResult } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 export default function SkillCertificationScreen() {
   const skills = useSessionStore((state) => state.skills);
@@ -27,9 +39,14 @@ export default function SkillCertificationScreen() {
   const uploadState = useSessionStore((state) => state.credentialUploadState);
   const setUploadState = useSessionStore((state) => state.setCredentialUploadState);
   const setVerification = useSessionStore((state) => state.setVerification);
+  const setProfileReview = useSessionStore((state) => state.setProfileReview);
+  const setCredentialVerified = useSessionStore((state) => state.setCredentialVerified);
   const submitVerification = useAdminStore((state) => state.submitVerification);
 
   const [limitHint, setLimitHint] = useState(false);
+  const [permissionHint, setPermissionHint] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [outcome, setOutcome] = useState<AiReviewResult | null>(null);
   const uploadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -50,9 +67,10 @@ export default function SkillCertificationScreen() {
   const pickCredential = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('需要相簿權限', '請於系統設定開啟相簿權限後再上傳證照。');
+      setPermissionHint(true);
       return;
     }
+    setPermissionHint(false);
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -70,11 +88,27 @@ export default function SkillCertificationScreen() {
     if (uploadTimer.current) clearTimeout(uploadTimer.current);
     setCredentialUri(null);
     setUploadState('idle');
+    setCredentialVerified(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (skills.length === 0 || reviewing) return;
+    setReviewing(true);
+
+    const ai = await runAiReview({
+      target: 'talent',
+      name: displayName,
+      region,
+      tags: skills,
+      detail: `我要接案，主要服務地區 ${region}，可承接的技能項目：${skills.join('、')}。${
+        credentialUri ? '已附上證照或實績影像。' : '未附證照，以平台履歷與評價為主。'
+      }`,
+    });
+
+    const passed = ai.decision === 'approved';
     chooseRole('talent');
-    setVerification('pending');
+    setProfileReview(ai);
+    setVerification(passed ? 'approved' : 'pending');
     submitVerification({
       id: `ver_${Date.now()}`,
       talentId: userId,
@@ -83,11 +117,62 @@ export default function SkillCertificationScreen() {
       tags: skills,
       credentialUri: credentialUri ?? undefined,
       submittedAt: Date.now(),
-      status: 'pending',
-      note: credentialUri ? '使用者自行上傳證照影像，待人工比對' : '尚未附上證照，需補件',
+      status: passed ? 'approved' : 'pending',
+      note: passed
+        ? credentialUri
+          ? 'AI 即時認證通過；已附證照，待人工驗證加分徽章'
+          : 'AI 即時認證通過；未附證照（非必要條件）'
+        : `AI 認證未通過，需人工複審：${ai.reasons[0] ?? '內容需確認'}`,
+      aiReview: ai,
+      credentialVerified: false,
     });
-    router.replace('/(tabs)');
+
+    setReviewing(false);
+    setOutcome(ai);
   };
+
+  if (outcome) {
+    const passed = outcome.decision === 'approved';
+    return (
+      <ScrollView
+        className="bg-background flex-1"
+        contentContainerClassName="px-6 pt-safe-offset-10 pb-12 gap-4 items-center"
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          className={cn(
+            'h-16 w-16 items-center justify-center rounded-full',
+            passed ? 'bg-brand-soft' : 'bg-coral-soft',
+          )}
+        >
+          {passed ? (
+            <BadgeCheck size={30} color={COLORS.brand} strokeWidth={2.2} />
+          ) : (
+            <ShieldCheck size={30} color={COLORS.coral} strokeWidth={2.2} />
+          )}
+        </View>
+        <Text className="text-ink text-[22px] font-bold tracking-tight">
+          {passed ? 'AI 已認證，可開始接案' : '資料已送交管理員複審'}
+        </Text>
+        <Text className="text-muted text-center text-[14px] leading-6">
+          {passed
+            ? '你的公開檔案已顯示「AI 已認證」徽章。上傳證照並通過人工驗證可再獲得信任度加分。'
+            : '為防止詐騙，未通過即時認證的人才資料會由管理員複審，結果會在通知中心告知你。'}
+        </Text>
+
+        <AiReviewCard result={outcome} className="w-full" />
+
+        <View className="mt-1 w-full gap-3">
+          <Button size="lg" onPress={() => router.replace('/(tabs)')}>
+            <Button.Label>進入任務牆</Button.Label>
+          </Button>
+          <Button size="lg" variant="tertiary" onPress={() => setOutcome(null)}>
+            <Button.Label>回到技能設定</Button.Label>
+          </Button>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <View className="bg-background flex-1">
@@ -117,6 +202,13 @@ export default function SkillCertificationScreen() {
         contentContainerClassName="px-5 py-5 gap-5 pb-10"
         showsVerticalScrollIndicator={false}
       >
+        <View className="border-brand/25 bg-brand-soft flex-row items-start gap-2 rounded-xl border px-4 py-3">
+          <Sparkles size={16} color={COLORS.brandStrong} strokeWidth={2.1} />
+          <Text className="text-ink-soft flex-1 text-[12px] leading-5">
+            送出後會立即進行 AI 認證：通過就能馬上接案，未通過則轉由管理員複審。證照為選填加分項，不影響能否接案。
+          </Text>
+        </View>
+
         <SectionHeading
           title="選擇你的專業標籤"
           caption={`從 ${CATEGORY_COUNT} 大類別矩陣中最多選擇 ${MAX_TALENT_TAGS} 項，任務牆會依標籤即時推播。`}
@@ -150,7 +242,10 @@ export default function SkillCertificationScreen() {
         <RegionPicker label="主要服務地區" value={region} onChange={setRegion} />
 
         <View className="border-hairline rounded-xl border bg-white p-4">
-          <SectionHeading title="證照 / 實績上傳" caption="背景上傳，不影響你繼續操作。" />
+          <SectionHeading
+            title="證照 / 實績（選填）"
+            caption="可有可無；上傳並通過人工驗證可獲得信任度加分徽章。"
+          />
 
           {credentialUri ? (
             <View className="border-hairline bg-canvas mt-3 flex-row items-center gap-3 rounded-xl border p-3">
@@ -170,7 +265,9 @@ export default function SkillCertificationScreen() {
                   ) : (
                     <>
                       <CircleCheck size={14} color={COLORS.brand} strokeWidth={2.2} />
-                      <Text className="text-brand-strong text-[12px]">已上傳，待人工比對</Text>
+                      <Text className="text-brand-strong text-[12px]">
+                        已上傳，待人工驗證加分徽章
+                      </Text>
                     </>
                   )}
                 </View>
@@ -186,21 +283,31 @@ export default function SkillCertificationScreen() {
             </View>
           ) : (
             <Pressable
-              onPress={pickCredential}
+              onPress={() => void pickCredential()}
               accessibilityRole="button"
               className="border-hairline bg-canvas mt-3 items-center gap-2 rounded-xl border border-dashed px-4 py-6"
             >
               <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">
                 <CloudUpload size={20} color={COLORS.brandStrong} strokeWidth={2} />
               </View>
-              <Text className="text-ink text-[14px] font-semibold">選擇證照或作品影像</Text>
-              <Text className="text-muted text-[12px]">支援相簿影像，審核後不對外公開</Text>
+              <Text className="text-ink text-[14px] font-semibold">選擇證照或作品影像（選填）</Text>
+              <Text className="text-muted text-[12px]">支援相簿影像，驗證後不對外公開</Text>
             </Pressable>
           )}
 
+          {permissionHint ? (
+            <View className="border-coral/25 bg-coral-soft mt-3 rounded-xl border px-4 py-3">
+              <Text className="text-coral text-[12px] leading-5">
+                未取得相簿權限，請於系統設定開啟後再上傳；沒有證照也可以直接送出認證。
+              </Text>
+            </View>
+          ) : null}
+
           <View className="mt-3 flex-row items-center gap-1.5">
-            <FileImage size={14} color={COLORS.muted} strokeWidth={2} />
-            <Text className="text-muted text-[12px]">未附證照仍可送審，審核人員會要求補件</Text>
+            <BadgeCheck size={14} color={COLORS.brand} strokeWidth={2} />
+            <Text className="text-muted flex-1 text-[12px]">
+              沒有證照也能接案，AI 認證通過即可投遞提案。
+            </Text>
           </View>
         </View>
 
@@ -217,9 +324,25 @@ export default function SkillCertificationScreen() {
       </ScrollView>
 
       <View className="border-hairline pb-safe-or-5 border-t bg-white px-5 pt-4">
-        <Button size="lg" isDisabled={skills.length === 0} onPress={handleSubmit}>
+        {reviewing ? (
+          <View className="mb-3 flex-row items-center justify-center gap-2">
+            <Spinner size="sm" />
+            <Text className="text-brand-strong text-[13px] font-semibold">
+              AI 即時認證中，正在檢查資料真實性…
+            </Text>
+          </View>
+        ) : null}
+        <Button
+          size="lg"
+          isDisabled={skills.length === 0 || reviewing}
+          onPress={() => void handleSubmit()}
+        >
           <Button.Label>
-            {skills.length === 0 ? '請至少選擇 1 項標籤' : '送出技能認證並進入任務牆'}
+            {reviewing
+              ? '認證中…'
+              : skills.length === 0
+                ? '請至少選擇 1 項標籤'
+                : '送出 AI 認證並進入任務牆'}
           </Button.Label>
         </Button>
       </View>

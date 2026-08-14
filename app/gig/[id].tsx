@@ -12,11 +12,13 @@ import {
   UserCheck,
   Zap,
 } from 'lucide-react-native';
-import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AiReviewCard } from '@/components/AiReviewCard';
 import { BidCard } from '@/components/BidCard';
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import MapView from '@/components/MapView';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
@@ -27,11 +29,17 @@ import { findCategoryById } from '@/lib/omniTags';
 import { SEED_TALENTS } from '@/lib/seed';
 import { bidsForGig, myBidForGig, useBidStore } from '@/lib/stores/bids';
 import { useChatStore } from '@/lib/stores/chat';
-import { useGigStore } from '@/lib/stores/gigs';
+import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
 import { useSavedStore } from '@/lib/stores/saved';
 import { useSessionStore } from '@/lib/stores/session';
 import { BUDGET_LEVELS } from '@/lib/types';
+
+type GigConfirmKind =
+  | { type: 'accept'; bidId: string; talentName: string }
+  | { type: 'withdraw'; bidId: string }
+  | { type: 'complete' }
+  | { type: 'close' };
 
 export default function GigDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -55,6 +63,8 @@ export default function GigDetailScreen() {
   const reviews = useReviewStore((state) => state.reviews);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
   const toggleSaved = useSavedStore((state) => state.toggleSaved);
+
+  const [confirm, setConfirm] = useState<GigConfirmKind | null>(null);
 
   const gig = gigs.find((item) => item.id === id);
 
@@ -124,40 +134,65 @@ export default function GigDetailScreen() {
     goToChat(userId, displayName, `您好，我可以承接「${gig.tag}」這項任務，方便說明現場細節嗎？`);
   };
 
-  const handleAcceptBid = (bidId: string, talentName: string) => {
-    Alert.alert('選定這位人才？', `將由 ${talentName} 承接此任務，其他提案會標記為未錄取。`, [
-      { text: '取消', style: 'cancel' },
-      { text: '確認選定', onPress: () => acceptBid(bidId) },
-    ]);
+  const handleAcceptBid = (bidId: string, talentName: string) =>
+    setConfirm({ type: 'accept', bidId, talentName });
+
+  const handleWithdraw = (bidId: string) => setConfirm({ type: 'withdraw', bidId });
+
+  const handleComplete = () => setConfirm({ type: 'complete' });
+
+  const handleClose = () => setConfirm({ type: 'close' });
+
+  const confirmCopy = (): { title: string; message: string; label: string; danger: boolean } => {
+    switch (confirm?.type) {
+      case 'accept':
+        return {
+          title: '選定這位人才？',
+          message: `將由 ${confirm.talentName} 承接此任務，其他提案會標記為未錄取。`,
+          label: '確認選定',
+          danger: false,
+        };
+      case 'withdraw':
+        return {
+          title: '撤回提案？',
+          message: '撤回後客戶將看不到這份提案，可再重新投遞。',
+          label: '確認撤回',
+          danger: true,
+        };
+      case 'complete':
+        return {
+          title: '標記任務完成？',
+          message: '完成後雙方即可互相評價。',
+          label: '確認完成',
+          danger: false,
+        };
+      default:
+        return {
+          title: '結束這筆任務？',
+          message: '結束後將不再出現在人才任務牆。',
+          label: '確認結束',
+          danger: true,
+        };
+    }
   };
 
-  const handleWithdraw = (bidId: string) => {
-    Alert.alert('撤回提案？', '撤回後客戶將看不到這份提案，可再重新投遞。', [
-      { text: '取消', style: 'cancel' },
-      { text: '確認撤回', style: 'destructive', onPress: () => withdrawBid(bidId) },
-    ]);
+  const runConfirm = () => {
+    if (!confirm) return;
+    if (confirm.type === 'accept') acceptBid(confirm.bidId);
+    if (confirm.type === 'withdraw') withdrawBid(confirm.bidId);
+    if (confirm.type === 'complete') completeGig(gig.id);
+    if (confirm.type === 'close') {
+      closeGig(gig.id);
+      setConfirm(null);
+      goBackOrReplace('/(tabs)');
+      return;
+    }
+    setConfirm(null);
   };
 
-  const handleComplete = () => {
-    Alert.alert('標記任務完成？', '完成後雙方即可互相評價。', [
-      { text: '取消', style: 'cancel' },
-      { text: '確認完成', onPress: () => completeGig(gig.id) },
-    ]);
-  };
-
-  const handleClose = () => {
-    Alert.alert('結束這筆任務？', '結束後將不再出現在人才任務牆。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '確認結束',
-        style: 'destructive',
-        onPress: () => {
-          closeGig(gig.id);
-          goBackOrReplace('/(tabs)');
-        },
-      },
-    ]);
-  };
+  const confirmText = confirmCopy();
+  const publishReview = gig.review;
+  const isVisible = isGigVisible(gig);
 
   return (
     <View className="bg-background flex-1">
@@ -217,6 +252,36 @@ export default function GigDetailScreen() {
             ) : null}
           </View>
         </View>
+
+        {isOwner && publishReview ? (
+          <View className="gap-3">
+            <SectionHeading
+              title="發布認證狀態"
+              caption="任何發布都需先通過即時認證，未通過會由管理員複審。"
+            />
+            <AiReviewCard
+              result={publishReview.ai}
+              title={
+                publishReview.state === 'approved'
+                  ? publishReview.adminName
+                    ? `管理員複審通過（${publishReview.adminName}）`
+                    : 'AI 已認證，任務公開中'
+                  : publishReview.state === 'pending'
+                    ? '等待管理員複審，尚未公開曝光'
+                    : `複審未通過：${publishReview.adminNote ?? '內容有風險'}`
+              }
+            />
+          </View>
+        ) : null}
+
+        {!isVisible && !isOwner ? (
+          <View className="border-coral/25 bg-coral-soft flex-row items-start gap-2 rounded-xl border p-4">
+            <Zap size={16} color={COLORS.coral} strokeWidth={2.1} />
+            <Text className="text-ink-soft flex-1 text-[13px] leading-5">
+              此任務尚未通過發布認證，暫時不開放投遞提案。
+            </Text>
+          </View>
+        ) : null}
 
         {gig.location.latitude !== undefined && gig.location.longitude !== undefined ? (
           <View className="border-hairline overflow-hidden rounded-xl border bg-white">
@@ -311,7 +376,11 @@ export default function GigDetailScreen() {
           </View>
         ) : null}
 
-        {role === 'talent' && !isOwner && gig.status !== 'completed' && gig.status !== 'closed' ? (
+        {role === 'talent' &&
+        !isOwner &&
+        isVisible &&
+        gig.status !== 'completed' &&
+        gig.status !== 'closed' ? (
           <View className="gap-3">
             <ChatQuotaPill onPress={() => router.push('/subscription')} />
 
@@ -477,6 +546,17 @@ export default function GigDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={confirm !== null}
+        title={confirmText.title}
+        message={confirmText.message}
+        actions={[
+          { id: 'confirm', label: confirmText.label, tone: confirmText.danger ? 'danger' : 'primary' },
+        ]}
+        onSelect={runConfirm}
+        onCancel={() => setConfirm(null)}
+      />
     </View>
   );
 }

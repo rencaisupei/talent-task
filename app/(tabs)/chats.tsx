@@ -1,6 +1,6 @@
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
-import { MessageCircle, ShieldCheck, TriangleAlert } from 'lucide-react-native';
+import { MessageCircle, Phone, ShieldCheck, TriangleAlert } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -43,7 +43,7 @@ export default function ChatListScreen() {
             <View className="border-hairline bg-canvas flex-row items-start gap-2 rounded-xl border px-4 py-3">
               <ShieldCheck size={16} color={COLORS.brandStrong} strokeWidth={2.1} />
               <Text className="text-ink-soft flex-1 text-[12px] leading-5">
-                所有訊息皆經伺服器端安全審核，命中詐騙關鍵字時會標記並送交專責人員複核。
+                所有訊息皆經伺服器端安全審核，命中詐騙關鍵字時會標記並送交專責人員複核；點擊話筒可直接撥打平台語音電話。
               </Text>
             </View>
 
@@ -79,6 +79,14 @@ export default function ChatListScreen() {
                     {lastMessage?.text ?? '尚無訊息'}
                   </Text>
                 </View>
+                <Pressable
+                  onPress={() => router.push({ pathname: '/call/[id]', params: { id: item.id } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`撥打語音電話給 ${counterpart}`}
+                  className="border-brand/25 bg-brand-soft h-10 w-10 items-center justify-center rounded-xl border"
+                >
+                  <Phone size={17} color={COLORS.brandStrong} strokeWidth={2.2} />
+                </Pressable>
               </View>
 
               <View className="mt-3 flex-row items-center gap-2">

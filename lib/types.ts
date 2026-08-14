@@ -5,6 +5,49 @@ export const LOCAL_USER_ID = 'user_local';
 
 export type VerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
+/** 即時審核判定：approved 立即上架、review 需管理員複審、rejected 高風險擋下並複審。 */
+export type AiReviewDecision = 'approved' | 'review' | 'rejected';
+
+export type AiReviewTarget = 'gig' | 'talent';
+
+/** 審核引擎來源：model 為 AI 模型、rules 為伺服器風險引擎、offline 為裝置端規則備援。 */
+export type AiReviewEngine = 'model' | 'rules' | 'offline';
+
+export const AI_ENGINE_LABEL: Record<AiReviewEngine, string> = {
+  model: 'AI 模型即時審核',
+  rules: '伺服器風險引擎',
+  offline: '離線規則備援',
+};
+
+export const AI_DECISION_LABEL: Record<AiReviewDecision, string> = {
+  approved: 'AI 已認證',
+  review: '待管理員複審',
+  rejected: '高風險已擋下',
+};
+
+export interface AiReviewResult {
+  target: AiReviewTarget;
+  decision: AiReviewDecision;
+  /** 0 至 100 的風險分數，越高越可疑。 */
+  riskScore: number;
+  reasons: string[];
+  flaggedTerms: string[];
+  engine: AiReviewEngine;
+  reviewedAt: number;
+}
+
+/** 上架狀態：approved 已公開、pending 等待管理員複審、rejected 複審退回。 */
+export type PublishReviewState = 'approved' | 'pending' | 'rejected';
+
+export interface PublishReview {
+  state: PublishReviewState;
+  ai: AiReviewResult;
+  adminId?: string;
+  adminName?: string;
+  adminNote?: string;
+  decidedAt?: number;
+}
+
 export type BudgetLevelId = 'B1' | 'B2' | 'B3' | 'B4' | 'B5';
 
 export interface BudgetLevel {
@@ -54,6 +97,8 @@ export interface Gig {
   /** 管理員下架原因（有值代表由管理員強制下架）。 */
   takedownReason?: string;
   takedownAt?: number;
+  /** 發布前的即時審核結果；未帶值代表示範資料（視為已通過）。 */
+  review?: PublishReview;
 }
 
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
@@ -74,10 +119,11 @@ export interface Bid {
   message: string;
   createdAt: number;
   status: BidStatus;
+  /** 送出前的即時審核結果；未帶值代表示範資料（視為已通過）。 */
+  review?: PublishReview;
 }
 
 export const BID_ETA_OPTIONS = ['今天可到', '24 小時內', '3 天內', '一週內', '時間可再議'] as const;
-
 /** 任務完成後的雙向評價。 */
 export interface Review {
   id: string;
@@ -94,7 +140,15 @@ export interface Review {
   createdAt: number;
 }
 
-export type NotificationKind = 'bid' | 'match' | 'review' | 'chat' | 'verification' | 'system';
+export type NotificationKind =
+  | 'bid'
+  | 'match'
+  | 'review'
+  | 'chat'
+  | 'verification'
+  | 'system'
+  | 'call'
+  | 'moderation';
 
 export interface AppNotification {
   id: string;
@@ -143,6 +197,8 @@ export interface TalentProfile {
   isPremium: boolean;
   verification: VerificationStatus;
   credentialUri?: string;
+  /** 證照經人工驗證通過（信任度加分項，非接案必要條件）。 */
+  credentialVerified?: boolean;
   completedJobs: number;
   rating: number;
   /** 平均回應時間（分鐘），用於信任度評估。 */
@@ -159,7 +215,50 @@ export interface VerificationRequest {
   submittedAt: number;
   status: VerificationStatus;
   note?: string;
+  /** 送審時的即時審核結果；有值代表已跑過 AI 認證。 */
+  aiReview?: AiReviewResult;
+  /** 證照是否經管理員人工驗證（加分項）。 */
+  credentialVerified?: boolean;
 }
+
+export type CallOutcome = 'completed' | 'cancelled' | 'declined' | 'missed';
+
+export const CALL_OUTCOME_LABEL: Record<CallOutcome, string> = {
+  completed: '通話結束',
+  cancelled: '已取消撥號',
+  declined: '對方拒接',
+  missed: '未接來電',
+};
+
+/** 平台語音通話紀錄（通話建立於既有對話之上，不佔用對話配額）。 */
+export interface CallRecord {
+  id: string;
+  conversationId: string;
+  gigId: string;
+  gigTitle: string;
+  callerId: string;
+  callerName: string;
+  calleeId: string;
+  calleeName: string;
+  startedAt: number;
+  connectedAt?: number;
+  endedAt?: number;
+  durationSeconds: number;
+  outcome: CallOutcome;
+}
+
+/** 推播分類開關。 */
+export type PushChannel = 'chat' | 'call' | 'bid' | 'match' | 'review' | 'moderation' | 'system';
+
+export const PUSH_CHANNEL_LABEL: Record<PushChannel, { title: string; caption: string }> = {
+  chat: { title: '新訊息', caption: '對方在對話中傳送訊息時推播' },
+  call: { title: '語音通話', caption: '有人撥打語音電話或未接來電時推播' },
+  bid: { title: '提案動態', caption: '收到新提案或提案被修改時推播' },
+  match: { title: '媒合結果', caption: '被選定承接或任務完成時推播' },
+  review: { title: '評價提醒', caption: '任務完成後的評價提醒' },
+  moderation: { title: '審核結果', caption: '發布內容的認證與複審結果' },
+  system: { title: '系統公告', caption: '平台公告與帳號重要通知' },
+};
 
 export interface AbuseReport {
   id: string;
@@ -223,7 +322,8 @@ export type AdminActionKind =
   | 'gig'
   | 'subscription'
   | 'announcement'
-  | 'report';
+  | 'report'
+  | 'moderation';
 
 export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
   auth: '登入登出',
@@ -233,6 +333,7 @@ export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
   subscription: '訂閱營收',
   announcement: '公告推播',
   report: '檢舉處理',
+  moderation: '發布複審',
 };
 
 export interface AdminAuditEntry {

@@ -3,6 +3,7 @@ import { BadgeCheck, FileImage, ShieldQuestion } from 'lucide-react-native';
 import { Image, Text, View } from 'react-native';
 
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
+import { AiReviewCard } from '@/components/AiReviewCard';
 import { StaticTag } from '@/components/TagChip';
 import { useAuditLogger } from '@/hooks/useAuditLogger';
 import { COLORS } from '@/lib/colors';
@@ -12,9 +13,9 @@ import type { VerificationRequest, VerificationStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<VerificationStatus, string> = {
   none: '未送審',
-  pending: '待審核',
-  approved: '已核准',
-  rejected: '已拒絕',
+  pending: '待複審',
+  approved: '已認證',
+  rejected: '已退回',
 };
 
 export function VerificationQueue() {
@@ -30,11 +31,11 @@ export function VerificationQueue() {
     if (decision === 'approved') approveVerification(request.id);
     else rejectVerification(request.id);
     logAction({
-      kind: 'verification',
+      kind: 'moderation',
       summary:
         decision === 'approved'
-          ? '核准技能認證：憑證影像比對通過'
-          : '拒絕技能認證：憑證不足或影像不清',
+          ? '複審放行人才資料：內容確認無詐騙風險'
+          : '複審退回人才資料：疑似不實或高風險',
       targetId: request.talentId,
       targetLabel: request.talentName,
     });
@@ -43,8 +44,8 @@ export function VerificationQueue() {
   return (
     <View className="gap-4">
       <SectionHeading
-        title="非同步驗證佇列"
-        caption={`待審核 ${pending.length} 件・已處理 ${processed.length} 件`}
+        title="人才資料複審佇列"
+        caption={`待複審 ${pending.length} 件・已處理 ${processed.length} 件（AI 認證未通過才會進入此佇列）`}
       />
 
       {verifications.length === 0 ? (
@@ -101,15 +102,19 @@ export function VerificationQueue() {
 
           {request.note ? (
             <Text className="text-ink-soft mt-3 text-[12px] leading-5">
-              憑證備註：{request.note}
+              審核備註：{request.note}
             </Text>
+          ) : null}
+
+          {request.aiReview ? (
+            <AiReviewCard result={request.aiReview} title="AI 判定結果" className="mt-3" />
           ) : null}
 
           {request.status === 'pending' ? (
             <View className="border-hairline mt-4 flex-row gap-2 border-t pt-4">
               <View className="flex-1">
                 <Button size="md" onPress={() => handleDecision(request, 'approved')}>
-                  <Button.Label>核准</Button.Label>
+                  <Button.Label>放行</Button.Label>
                 </Button>
               </View>
               <View className="flex-1">
@@ -118,7 +123,7 @@ export function VerificationQueue() {
                   variant="tertiary"
                   onPress={() => handleDecision(request, 'rejected')}
                 >
-                  <Button.Label>拒絕</Button.Label>
+                  <Button.Label>退回</Button.Label>
                 </Button>
               </View>
             </View>

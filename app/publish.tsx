@@ -1,28 +1,27 @@
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { Button, Description, Label, Switch, TextArea, TextField } from 'heroui-native';
-import { CircleCheck, Crosshair, MapPin, X, Zap } from 'lucide-react-native';
+import { Button, Description, Label, Spinner, Switch, TextArea, TextField } from 'heroui-native';
+import { CircleCheck, Crosshair, MapPin, ShieldCheck, X, Zap } from 'lucide-react-native';
 import { useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AiReviewCard } from '@/components/AiReviewCard';
 import { CategoryAccordion } from '@/components/CategoryAccordion';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
+import { publishReviewFromAi, runAiReview } from '@/lib/aiReview';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
-import { CATEGORY_COUNT } from '@/lib/omniTags';
+import { CATEGORY_COUNT, findCategoryById } from '@/lib/omniTags';
 import { REGION_ANY, TAIWAN_REGIONS } from '@/lib/regions';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useSessionStore } from '@/lib/stores/session';
-import { BUDGET_LEVELS, type BudgetLevelId, type GigLocation } from '@/lib/types';
+import {
+  type AiReviewResult,
+  BUDGET_LEVELS,
+  type BudgetLevelId,
+  type GigLocation,
+} from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function detailTemplate(tag: string, region: string) {
@@ -34,6 +33,12 @@ function normalizeRegion(input: string | null | undefined): string | null {
   if (!input) return null;
   const normalized = input.replace('台', '臺');
   return TAIWAN_REGIONS.find((region) => normalized.includes(region)) ?? null;
+}
+
+interface PublishOutcome {
+  gigId: string;
+  ai: AiReviewResult;
+  passed: boolean;
 }
 
 export default function PublishScreen() {
@@ -49,9 +54,11 @@ export default function PublishScreen() {
   const [region, setRegion] = useState(sessionRegion === REGION_ANY ? '臺北市' : sessionRegion);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [budgetLevel, setBudgetLevel] = useState<BudgetLevelId>('B2');
   const [isUrgent, setIsUrgent] = useState(true);
-  const [publishedId, setPublishedId] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [outcome, setOutcome] = useState<PublishOutcome | null>(null);
 
   const handleSelectTag = (nextTag: string, nextCategoryId: string) => {
     if (tag === nextTag) {
@@ -66,10 +73,11 @@ export default function PublishScreen() {
 
   const useDeviceLocation = async () => {
     setLocating(true);
+    setLocationNotice(null);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('無法取得定位', '請改用下方的地區下拉選單選擇任務地點。');
+        setLocationNotice('無法取得定位權限，請改用下方的地區下拉選單選擇任務地點。');
         return;
       }
       const position = await Location.getCurrentPositionAsync({
@@ -88,7 +96,7 @@ export default function PublishScreen() {
         // 反向地理編碼在部分平台不支援，保留下拉選單結果即可。
       }
     } catch {
-      Alert.alert('定位失敗', '請改用下方的地區下拉選單選擇任務地點。');
+      setLocationNotice('定位失敗，請改用下方的地區下拉選單選擇任務地點。');
     } finally {
       setLocating(false);
     }
@@ -96,8 +104,23 @@ export default function PublishScreen() {
 
   const canPublish = tag !== null && categoryId !== null && detail.trim().length >= 5;
 
-  const handlePublish = () => {
-    if (!tag || !categoryId) return;
+  const handlePublish = async () => {
+    if (!tag || !categoryId || reviewing) return;
+    setReviewing(true);
+
+    const title = `${tag}｜${isUrgent ? '急件立即處理' : '徵求專業協助'}`;
+    const ai = await runAiReview({
+      target: 'gig',
+      title,
+      detail: detail.trim(),
+      tag,
+      categoryName: findCategoryById(categoryId)?.name,
+      region,
+      budgetLabel: BUDGET_LEVELS.find((level) => level.id === budgetLevel)?.label,
+      name: displayName,
+    });
+    const review = publishReviewFromAi(ai);
+
     const location: GigLocation = {
       region,
       latitude: coords?.latitude,
@@ -113,24 +136,47 @@ export default function PublishScreen() {
       isUrgent,
       clientId: userId,
       clientName: displayName,
+      review,
     });
-    setPublishedId(gig.id);
+
+    setReviewing(false);
+    setOutcome({ gigId: gig.id, ai, passed: review.state === 'approved' });
   };
 
-  if (publishedId) {
+  if (outcome) {
     return (
-      <View className="bg-background flex-1 items-center justify-center gap-4 px-8">
-        <View className="bg-brand-soft h-16 w-16 items-center justify-center rounded-full">
-          <CircleCheck size={30} color={COLORS.brand} strokeWidth={2.2} />
+      <ScrollView
+        className="bg-background flex-1"
+        contentContainerClassName="px-6 py-10 gap-4 items-center"
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          className={cn(
+            'h-16 w-16 items-center justify-center rounded-full',
+            outcome.passed ? 'bg-brand-soft' : 'bg-coral-soft',
+          )}
+        >
+          {outcome.passed ? (
+            <CircleCheck size={30} color={COLORS.brand} strokeWidth={2.2} />
+          ) : (
+            <ShieldCheck size={30} color={COLORS.coral} strokeWidth={2.2} />
+          )}
         </View>
-        <Text className="text-ink text-[22px] font-bold tracking-tight">任務已廣播</Text>
-        <Text className="text-muted text-center text-[14px] leading-6">
-          符合「{tag}」標籤的認證人才已收到推播，通常在數分鐘內就會有人開啟對話。
+        <Text className="text-ink text-[22px] font-bold tracking-tight">
+          {outcome.passed ? '認證通過，任務已廣播' : '已送交管理員複審'}
         </Text>
-        <View className="mt-2 w-full gap-3">
+        <Text className="text-muted text-center text-[14px] leading-6">
+          {outcome.passed
+            ? `即時認證未發現詐騙風險，符合「${tag}」標籤的人才已收到推播。`
+            : '為防止詐騙，未通過即時認證的內容不會公開曝光，管理員複審通過後會立刻通知你。'}
+        </Text>
+
+        <AiReviewCard result={outcome.ai} className="w-full" />
+
+        <View className="mt-1 w-full gap-3">
           <Button
             size="lg"
-            onPress={() => router.replace({ pathname: '/gig/[id]', params: { id: publishedId } })}
+            onPress={() => router.replace({ pathname: '/gig/[id]', params: { id: outcome.gigId } })}
           >
             <Button.Label>查看任務詳情</Button.Label>
           </Button>
@@ -138,7 +184,7 @@ export default function PublishScreen() {
             <Button.Label>返回我的任務</Button.Label>
           </Button>
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -179,6 +225,13 @@ export default function PublishScreen() {
           </Text>
         </View>
 
+        <View className="border-brand/25 bg-brand-soft flex-row items-start gap-2 rounded-xl border px-4 py-3">
+          <ShieldCheck size={16} color={COLORS.brandStrong} strokeWidth={2.1} />
+          <Text className="text-ink-soft flex-1 text-[12px] leading-5">
+            所有發布內容都會先經過即時認證，通過才會公開曝光；認證未通過會轉由管理員複審，以防止詐騙貼文。
+          </Text>
+        </View>
+
         <SectionHeading title="任務類別與標籤" caption="點擊類別展開子標籤，選取後以純青色高亮。" />
 
         <CategoryAccordion
@@ -208,7 +261,7 @@ export default function PublishScreen() {
 
         <View className="gap-3">
           <Pressable
-            onPress={useDeviceLocation}
+            onPress={() => void useDeviceLocation()}
             accessibilityRole="button"
             className="border-brand/25 bg-brand-soft flex-row items-center justify-between rounded-xl border px-4 py-3.5"
           >
@@ -233,6 +286,12 @@ export default function PublishScreen() {
             onChange={setRegion}
             options={[...TAIWAN_REGIONS]}
           />
+
+          {locationNotice ? (
+            <View className="border-coral/25 bg-coral-soft rounded-xl border px-4 py-3">
+              <Text className="text-coral text-[12px] leading-5">{locationNotice}</Text>
+            </View>
+          ) : null}
 
           <View className="flex-row items-center gap-1.5">
             <MapPin size={14} color={COLORS.muted} strokeWidth={2} />
@@ -286,9 +345,23 @@ export default function PublishScreen() {
       </ScrollView>
 
       <View className="border-hairline pb-safe-or-5 border-t bg-white px-5 pt-4">
-        <Button size="lg" isDisabled={!canPublish} onPress={handlePublish}>
+        {reviewing ? (
+          <View className="mb-3 flex-row items-center justify-center gap-2">
+            <Spinner size="sm" />
+            <Text className="text-brand-strong text-[13px] font-semibold">
+              即時認證中，正在比對詐騙特徵…
+            </Text>
+          </View>
+        ) : null}
+        <Button size="lg" isDisabled={!canPublish || reviewing} onPress={() => void handlePublish()}>
           <Button.Label>
-            {canPublish ? (isUrgent ? '立即發布急件任務' : '立即發布任務') : '請完成標籤與描述'}
+            {reviewing
+              ? '認證中…'
+              : canPublish
+                ? isUrgent
+                  ? '認證並立即發布急件任務'
+                  : '認證並立即發布任務'
+                : '請完成標籤與描述'}
           </Button.Label>
         </Button>
       </View>
