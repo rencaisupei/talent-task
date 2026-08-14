@@ -24,6 +24,7 @@ import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
+import { CATEGORY_COUNT, TOTAL_TAG_COUNT } from '@/lib/omniTags';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useReviewStore } from '@/lib/stores/reviews';
@@ -250,8 +251,8 @@ export default function ProfileScreen() {
           <View className="bg-hairline h-px" />
           <ProfileRow
             icon={<Tags size={17} color={COLORS.ink} strokeWidth={2.1} />}
-            label="瀏覽 30 大類別矩陣"
-            caption="共 250 個技能標籤"
+            label={`瀏覽 ${CATEGORY_COUNT} 大類別矩陣`}
+            caption={`共 ${TOTAL_TAG_COUNT} 個技能標籤`}
             onPress={() => router.push('/onboarding/skills')}
           />
           <View className="bg-hairline h-px" />

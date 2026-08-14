@@ -71,7 +71,7 @@ const GIG_TITLE_SUFFIX = [
   '假日可施作',
 ];
 
-export const SEED_TALENTS: TalentProfile[] = TALENT_NAMES.map((name, index) => {
+const GENERATED_TALENTS: TalentProfile[] = TALENT_NAMES.map((name, index) => {
   const random = makeRandom(1000 + index * 37);
   const category = OMNI_INDUSTRY_TAGS[(index * 3) % OMNI_INDUSTRY_TAGS.length];
   const secondary = OMNI_INDUSTRY_TAGS[(index * 7 + 5) % OMNI_INDUSTRY_TAGS.length];
@@ -94,6 +94,89 @@ export const SEED_TALENTS: TalentProfile[] = TALENT_NAMES.map((name, index) => {
     responseMinutes: 4 + Math.floor(random() * 55),
   };
 });
+
+/** 新增專業領域（3C、商用設備、車輛、醫療、農園藝、工業）的示範人才。 */
+const DOMAIN_SPECIALIST_TALENTS: TalentProfile[] = [
+  {
+    id: 'talent_seed_15',
+    name: '迅捷 3C 快修',
+    region: '臺北市',
+    tags: ['手機螢幕更換', '手機電池更換', '手機主板檢測維修'],
+    isPremium: true,
+    verification: 'approved',
+    completedJobs: 412,
+    rating: 4.9,
+    responseMinutes: 6,
+  },
+  {
+    id: 'talent_seed_16',
+    name: '郭子睿',
+    region: '新竹市',
+    tags: ['硬碟資料救援', '筆電維修與螢幕更換', '桌機組裝與硬體升級'],
+    isPremium: true,
+    verification: 'approved',
+    completedJobs: 268,
+    rating: 4.8,
+    responseMinutes: 14,
+  },
+  {
+    id: 'talent_seed_17',
+    name: '詹宇珊',
+    region: '臺中市',
+    tags: ['收銀 POS 系統維護', '印表機影印機維修', '商用無線網路佈建'],
+    isPremium: false,
+    verification: 'approved',
+    completedJobs: 153,
+    rating: 4.7,
+    responseMinutes: 21,
+  },
+  {
+    id: 'talent_seed_18',
+    name: '邱柏澔汽車工坊',
+    region: '臺南市',
+    tags: ['汽車引擎故障診斷', '行車電腦診斷解碼', '電動車電池模組檢測'],
+    isPremium: true,
+    verification: 'approved',
+    completedJobs: 331,
+    rating: 4.8,
+    responseMinutes: 11,
+  },
+  {
+    id: 'talent_seed_19',
+    name: '蘇怡安（護理師）',
+    region: '新北市',
+    tags: ['居家護理換藥', '傷口照護指導', '急救與心肺復甦教學'],
+    isPremium: false,
+    verification: 'pending',
+    completedJobs: 96,
+    rating: 4.9,
+    responseMinutes: 33,
+  },
+  {
+    id: 'talent_seed_20',
+    name: '綠禾園藝工班',
+    region: '宜蘭縣',
+    tags: ['大樹移除與截枝', '庭園修剪維護', '農機具維修'],
+    isPremium: false,
+    verification: 'approved',
+    completedJobs: 187,
+    rating: 4.6,
+    responseMinutes: 42,
+  },
+  {
+    id: 'talent_seed_21',
+    name: '鄭工焊接工程',
+    region: '彰化縣',
+    tags: ['專業焊接加工', '產線機械保養', '消防設備檢修'],
+    isPremium: false,
+    verification: 'approved',
+    completedJobs: 224,
+    rating: 4.7,
+    responseMinutes: 26,
+  },
+];
+
+export const SEED_TALENTS: TalentProfile[] = [...GENERATED_TALENTS, ...DOMAIN_SPECIALIST_TALENTS];
 
 /** 依縣市中心點加上固定偏移，讓地圖標記不會完全重疊。 */
 function scatterCoordinate(region: string, seed: number) {
@@ -179,7 +262,176 @@ const MY_DEMO_GIGS: Gig[] = [
   },
 ];
 
-export const SEED_GIGS: Gig[] = [...MY_DEMO_GIGS, ...BROADCAST_GIGS];
+/** 示範資料：新增專業領域（3C、商用設備、車輛、醫療、農園藝、工業）的實際急件。 */
+const NEW_DOMAIN_GIGS: Gig[] = [
+  {
+    id: 'gig_domain_1',
+    title: '手機螢幕更換｜今晚就要拿回手機',
+    categoryId: 'CAT_31',
+    tag: '手機螢幕更換',
+    detail:
+      'iPhone 摔破螢幕但觸控正常，希望到府或門市快修，今晚 9 點前完成，請報原廠與副廠兩種價格與保固期。',
+    location: { region: '臺北市', source: 'manual', ...scatterCoordinate('臺北市', 911) },
+    budgetLevel: 'B2',
+    isUrgent: true,
+    clientId: 'client_seed_3',
+    clientName: CLIENT_NAMES[2],
+    createdAt: NOW - 2 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_2',
+    title: '硬碟資料救援｜工作檔案急件搶救',
+    categoryId: 'CAT_31',
+    tag: '硬碟資料救援',
+    detail:
+      '外接硬碟摔落後電腦讀不到，內有客戶標案檔案，需要開盤前先檢測並報價，成功才付款，可簽保密協議。',
+    location: { region: '新竹市', source: 'manual', ...scatterCoordinate('新竹市', 912) },
+    budgetLevel: 'B3',
+    isUrgent: true,
+    clientId: 'client_seed_5',
+    clientName: CLIENT_NAMES[4],
+    createdAt: NOW - 8 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_3',
+    title: '電腦重灌與系統修復｜辦公室 6 台桌機',
+    categoryId: 'CAT_31',
+    tag: '電腦重灌與系統修復',
+    detail:
+      '辦公室 6 台桌機開機藍屏且速度極慢，需重灌系統、保留原有資料並加裝固態硬碟，希望假日到場施作。',
+    location: { region: '桃園市', source: 'manual', ...scatterCoordinate('桃園市', 913) },
+    budgetLevel: 'B3',
+    isUrgent: false,
+    clientId: 'client_seed_7',
+    clientName: CLIENT_NAMES[6],
+    createdAt: NOW - 1 * DAY,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_4',
+    title: '收銀 POS 系統維護｜開店前必須修好',
+    categoryId: 'CAT_32',
+    tag: '收銀 POS 系統維護',
+    detail:
+      '餐飲店 POS 主機無法連線出單機，早上 11 點開店前需排除，附設備型號照片，會員系統資料不可遺失。',
+    location: { region: '臺中市', source: 'manual', ...scatterCoordinate('臺中市', 914) },
+    budgetLevel: 'B2',
+    isUrgent: true,
+    clientId: 'client_seed_2',
+    clientName: CLIENT_NAMES[1],
+    createdAt: NOW - 3 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_5',
+    title: '電動車電池模組檢測｜續航驟降需診斷',
+    categoryId: 'CAT_33',
+    tag: '電動車電池模組檢測',
+    detail:
+      '電動車近一個月續航從 380 公里掉到 250 公里，儀表偶爾跳警示，需完整電池健康度檢測與衰退報告。',
+    location: { region: '高雄市', source: 'manual', ...scatterCoordinate('高雄市', 915) },
+    budgetLevel: 'B3',
+    isUrgent: false,
+    clientId: 'client_seed_9',
+    clientName: CLIENT_NAMES[8],
+    createdAt: NOW - 20 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_6',
+    title: '汽車引擎故障診斷｜引擎燈亮抖動明顯',
+    categoryId: 'CAT_33',
+    tag: '汽車引擎故障診斷',
+    detail:
+      '行駛中引擎燈亮起並伴隨抖動，冷車發動更嚴重，希望帶診斷儀到停車場檢測，先報檢測費與維修預估。',
+    location: { region: '臺南市', source: 'manual', ...scatterCoordinate('臺南市', 916) },
+    budgetLevel: 'B2',
+    isUrgent: true,
+    clientId: 'client_seed_11',
+    clientName: CLIENT_NAMES[10],
+    createdAt: NOW - 6 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_7',
+    title: '居家護理換藥｜術後傷口每日照護',
+    categoryId: 'CAT_34',
+    tag: '居家護理換藥',
+    detail:
+      '長輩術後返家需連續兩週每日換藥與傷口觀察，需具護理師執照，時段為上午 9 至 11 點，家中備有耗材。',
+    location: { region: '新北市', source: 'manual', ...scatterCoordinate('新北市', 917) },
+    budgetLevel: 'B3',
+    isUrgent: false,
+    clientId: 'client_seed_4',
+    clientName: CLIENT_NAMES[3],
+    createdAt: NOW - 1 * DAY - 4 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_8',
+    title: '大樹移除與截枝｜颱風前緊急處理',
+    categoryId: 'CAT_35',
+    tag: '大樹移除與截枝',
+    detail:
+      '庭院兩棵約六公尺高樹木傾向鄰宅屋頂，颱風前需截枝或移除並清運枝條，現場車輛可進入，需自備吊臂。',
+    location: { region: '宜蘭縣', source: 'manual', ...scatterCoordinate('宜蘭縣', 918) },
+    budgetLevel: 'B3',
+    isUrgent: true,
+    clientId: 'client_seed_6',
+    clientName: CLIENT_NAMES[5],
+    createdAt: NOW - 5 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_9',
+    title: '農機具維修｜採收期割草機無法啟動',
+    categoryId: 'CAT_35',
+    tag: '農機具維修',
+    detail:
+      '田區割草機與噴霧機同時故障，正值採收期需盡快修復，可到場或協助載運，希望一併保養化油器與皮帶。',
+    location: { region: '雲林縣', source: 'manual', ...scatterCoordinate('雲林縣', 919) },
+    budgetLevel: 'B2',
+    isUrgent: true,
+    clientId: 'client_seed_8',
+    clientName: CLIENT_NAMES[7],
+    createdAt: NOW - 11 * HOUR,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_10',
+    title: '專業焊接加工｜產線輸送架補強',
+    categoryId: 'CAT_36',
+    tag: '專業焊接加工',
+    detail:
+      '廠內不鏽鋼輸送架焊點斷裂需現場補強，需氬焊經驗與工安證明，可安排夜間停機時段施作，全程有人陪同。',
+    location: { region: '彰化縣', source: 'manual', ...scatterCoordinate('彰化縣', 920) },
+    budgetLevel: 'B3',
+    isUrgent: false,
+    clientId: 'client_seed_10',
+    clientName: CLIENT_NAMES[9],
+    createdAt: NOW - 2 * DAY,
+    status: 'open',
+  },
+  {
+    id: 'gig_domain_11',
+    title: '消防設備檢修｜年度申報前複檢',
+    categoryId: 'CAT_36',
+    tag: '消防設備檢修',
+    detail:
+      '商辦四層樓滅火器、自動撒水與警報主機需檢修並出具申報文件，需具消防設備士資格，可分兩日施作。',
+    location: { region: '基隆市', source: 'manual', ...scatterCoordinate('基隆市', 921) },
+    budgetLevel: 'B4',
+    isUrgent: false,
+    clientId: 'client_seed_12',
+    clientName: CLIENT_NAMES[11],
+    createdAt: NOW - 3 * DAY,
+    status: 'talking',
+  },
+];
+
+export const SEED_GIGS: Gig[] = [...MY_DEMO_GIGS, ...NEW_DOMAIN_GIGS, ...BROADCAST_GIGS];
 
 /** 示範資料：人才對本機客戶任務投遞的提案。 */
 export const SEED_BIDS: Bid[] = [
@@ -489,7 +741,7 @@ export const PLATFORM_BASELINE = {
 
 export const WEEK_LABELS: string[] = Array.from({ length: 12 }, (_, index) => `第${index + 1}週`);
 
-/** 每週任務頻率趨勢：依 30 大旗艦類別分開統計。 */
+/** 每週任務頻率趨勢：依旗艦產業類別分開統計。 */
 export const WEEKLY_TREND_BY_CATEGORY: Record<string, WeeklyPoint[]> = Object.fromEntries(
   OMNI_INDUSTRY_TAGS.map((category, categoryIndex) => {
     const random = makeRandom(7000 + categoryIndex * 131);

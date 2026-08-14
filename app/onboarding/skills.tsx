@@ -10,7 +10,7 @@ import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
-import { MAX_TALENT_TAGS, TOTAL_TAG_COUNT } from '@/lib/omniTags';
+import { CATEGORY_COUNT, MAX_TALENT_TAGS, TOTAL_TAG_COUNT } from '@/lib/omniTags';
 import { useAdminStore } from '@/lib/stores/admin';
 import { useSessionStore } from '@/lib/stores/session';
 
@@ -119,7 +119,7 @@ export default function SkillCertificationScreen() {
       >
         <SectionHeading
           title="選擇你的專業標籤"
-          caption={`從 30 大類別矩陣中最多選擇 ${MAX_TALENT_TAGS} 項，任務牆會依標籤即時推播。`}
+          caption={`從 ${CATEGORY_COUNT} 大類別矩陣中最多選擇 ${MAX_TALENT_TAGS} 項，任務牆會依標籤即時推播。`}
         />
 
         {skills.length > 0 ? (
@@ -204,7 +204,10 @@ export default function SkillCertificationScreen() {
           </View>
         </View>
 
-        <SectionHeading title="30 大類別技能矩陣" caption="點擊任一類別展開子標籤。" />
+        <SectionHeading
+          title={`${CATEGORY_COUNT} 大類別技能矩陣`}
+          caption="點擊任一類別展開子標籤。"
+        />
 
         <CategoryAccordion
           selectedTags={skills}

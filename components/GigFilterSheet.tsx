@@ -12,7 +12,7 @@ import {
   GIG_SORT_OPTIONS,
   type GigFilters,
 } from '@/lib/gigFilters';
-import { OMNI_INDUSTRY_TAGS } from '@/lib/omniTags';
+import { OMNI_INDUSTRY_TAGS, CATEGORY_COUNT } from '@/lib/omniTags';
 import { BUDGET_LEVELS, type BudgetLevelId } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -140,7 +140,7 @@ export function GigFilterSheet({
             </View>
 
             <View className="gap-3">
-              <SectionHeading title="產業類別" caption="30 大旗艦類別，單選" />
+              <SectionHeading title="產業類別" caption={`${CATEGORY_COUNT} 大旗艦類別，單選`} />
               <View className="flex-row flex-wrap gap-2">
                 <Pressable
                   onPress={() => setDraft((current) => ({ ...current, categoryId: null }))}

@@ -12,6 +12,10 @@ interface PlatformUserState {
   setNote: (userId: string, note: string) => void;
 }
 
+function isPersistedUserState(value: unknown): value is { users?: PlatformUser[] } {
+  return typeof value === 'object' && value !== null;
+}
+
 /** 管理端使用者總表（客戶 + 人才）。 */
 export const usePlatformUserStore = create<PlatformUserState>()(
   persist(
@@ -46,7 +50,18 @@ export const usePlatformUserStore = create<PlatformUserState>()(
     {
       name: 'instantgig-platform-users',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        const state = isPersistedUserState(persisted) ? persisted : undefined;
+        if (version < 2) {
+          // 補上新增專業領域帶來的人才與客戶帳號，保留既有管理備註與訂閱狀態。
+          const existing = state?.users ?? [];
+          const existingIds = new Set(existing.map((user) => user.id));
+          const missing = SEED_PLATFORM_USERS.filter((user) => !existingIds.has(user.id));
+          return { ...state, users: [...existing, ...missing] };
+        }
+        return persisted;
+      },
     },
   ),
 );

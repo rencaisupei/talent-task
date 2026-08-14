@@ -150,10 +150,10 @@ export const useGigStore = create<GigState>()(
     {
       name: 'instantgig-gigs',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const state = isPersistedGigState(persisted) ? persisted : undefined;
-        if (version < 2) {
+        if (version < 3) {
           const existing = (state?.gigs ?? []).map(withCoordinate);
           const existingIds = new Set(existing.map((gig) => gig.id));
           const missingSeeds = SEED_GIGS.filter((gig) => !existingIds.has(gig.id));

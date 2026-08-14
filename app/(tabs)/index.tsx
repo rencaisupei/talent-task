@@ -30,6 +30,7 @@ import {
   DEFAULT_GIG_FILTERS,
   type GigFilters,
 } from '@/lib/gigFilters';
+import { CATEGORY_COUNT } from '@/lib/omniTags';
 import { useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useSavedStore } from '@/lib/stores/saved';
@@ -339,7 +340,7 @@ function ClientHome() {
           {recentGigs.length === 0 ? (
             <EmptyState
               title="還沒有進行中的任務"
-              caption="從 30 大類別中選一個標籤，30 秒完成發布。"
+              caption={`從 ${CATEGORY_COUNT} 大類別中選一個標籤，30 秒完成發布。`}
               icon={<ClipboardList size={22} color={COLORS.brand} strokeWidth={2.1} />}
             />
           ) : (

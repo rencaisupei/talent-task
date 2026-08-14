@@ -7,6 +7,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { BrandWordmark } from '@/components/BrandLogo';
 import { COLORS } from '@/lib/colors';
 import { PRIVACY_POLICY_SUMMARY } from '@/lib/legalCopy';
+import { CATEGORY_COUNT } from '@/lib/omniTags';
 import { useSessionStore } from '@/lib/stores/session';
 import type { UserRole } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -21,7 +22,11 @@ const ROLE_CARDS: {
     role: 'client',
     title: '尋找專家',
     caption: '30 秒發布需求',
-    bullets: ['全台 30 大類別即時媒合', '免費發布任務不限件數', '對話前先看評價與實績'],
+    bullets: [
+      `全台 ${CATEGORY_COUNT} 大類別即時媒合`,
+      '免費發布任務不限件數',
+      '對話前先看評價與實績',
+    ],
   },
   {
     role: 'talent',

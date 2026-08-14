@@ -18,6 +18,7 @@ import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
+import { CATEGORY_COUNT } from '@/lib/omniTags';
 import { REGION_ANY, TAIWAN_REGIONS } from '@/lib/regions';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useSessionStore } from '@/lib/stores/session';
@@ -173,7 +174,7 @@ export default function PublishScreen() {
                 已選擇標籤：<Text className="text-brand-strong font-semibold">{tag}</Text>
               </>
             ) : (
-              '請先從下方 30 大類別中點選一個子標籤。'
+              `請先從下方 ${CATEGORY_COUNT} 大類別中點選一個子標籤。`
             )}
           </Text>
         </View>
