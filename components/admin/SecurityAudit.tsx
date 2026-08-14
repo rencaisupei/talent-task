@@ -1,9 +1,12 @@
 import { Button } from 'heroui-native';
 import { Ban, LockOpen, ShieldCheck, TriangleAlert } from 'lucide-react-native';
-import { Alert, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Text, View } from 'react-native';
 
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
+import { useAuditLogger } from '@/hooks/useAuditLogger';
 import { COLORS } from '@/lib/colors';
 import { formatClockTime, formatRelativeTime } from '@/lib/format';
 import { segmentTranscript } from '@/lib/moderation';
@@ -15,14 +18,44 @@ export function SecurityAudit() {
   const banUser = useAdminStore((state) => state.banUser);
   const unbanUser = useAdminStore((state) => state.unbanUser);
   const resolveReport = useAdminStore((state) => state.resolveReport);
+  const logAction = useAuditLogger();
+
+  const [banTarget, setBanTarget] = useState<{ id: string; name: string; reason: string } | null>(
+    null,
+  );
 
   const openReports = reports.filter((report) => !report.resolved);
 
-  const handleBan = (userId: string, userName: string) => {
-    Alert.alert('封禁此帳號？', `${userName} 將無法登入或開啟新對話。`, [
-      { text: '取消', style: 'cancel' },
-      { text: '確認封禁', style: 'destructive', onPress: () => banUser(userId) },
-    ]);
+  const handleConfirmBan = () => {
+    if (!banTarget) return;
+    banUser(banTarget.id);
+    logAction({
+      kind: 'ban',
+      summary: `封禁帳號：${banTarget.reason}`,
+      targetId: banTarget.id,
+      targetLabel: banTarget.name,
+    });
+    setBanTarget(null);
+  };
+
+  const handleUnban = (userId: string, userName: string) => {
+    unbanUser(userId);
+    logAction({
+      kind: 'ban',
+      summary: '解除封禁：恢復帳號使用權限',
+      targetId: userId,
+      targetLabel: userName,
+    });
+  };
+
+  const handleResolve = (reportId: string, userName: string) => {
+    resolveReport(reportId);
+    logAction({
+      kind: 'report',
+      summary: '標記檢舉已處理',
+      targetId: reportId,
+      targetLabel: userName,
+    });
   };
 
   return (
@@ -99,14 +132,20 @@ export function SecurityAudit() {
                   <Button
                     size="md"
                     variant="tertiary"
-                    onPress={() => unbanUser(report.reportedUserId)}
+                    onPress={() => handleUnban(report.reportedUserId, report.reportedUserName)}
                   >
                     <Button.Label>解除封禁</Button.Label>
                   </Button>
                 ) : (
                   <Button
                     size="md"
-                    onPress={() => handleBan(report.reportedUserId, report.reportedUserName)}
+                    onPress={() =>
+                      setBanTarget({
+                        id: report.reportedUserId,
+                        name: report.reportedUserName,
+                        reason: report.reason,
+                      })
+                    }
                   >
                     <Button.Label>封禁帳號</Button.Label>
                   </Button>
@@ -117,7 +156,7 @@ export function SecurityAudit() {
                   size="md"
                   variant="tertiary"
                   isDisabled={report.resolved}
-                  onPress={() => resolveReport(report.id)}
+                  onPress={() => handleResolve(report.id, report.reportedUserName)}
                 >
                   <Button.Label>{report.resolved ? '已結案' : '標記已處理'}</Button.Label>
                 </Button>
@@ -135,6 +174,15 @@ export function SecurityAudit() {
           </View>
         );
       })}
+
+      <ConfirmSheet
+        visible={banTarget !== null}
+        title="封禁此帳號？"
+        message={`${banTarget?.name ?? ''} 將無法登入、投遞提案或開啟新對話，動作會寫入稽核紀錄。`}
+        actions={[{ id: 'confirm', label: '確認封禁', tone: 'danger' }]}
+        onSelect={handleConfirmBan}
+        onCancel={() => setBanTarget(null)}
+      />
     </View>
   );
 }

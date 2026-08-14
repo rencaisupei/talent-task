@@ -13,16 +13,18 @@ import {
   Star,
   Tags,
 } from 'lucide-react-native';
-import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { RatingStars } from '@/components/RatingStars';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
+import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useReviewStore } from '@/lib/stores/reviews';
 import { PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
@@ -51,6 +53,9 @@ export default function ProfileScreen() {
 
   const reviews = useReviewStore((state) => state.reviews);
   const gigs = useGigStore((state) => state.gigs);
+  const adminSignedIn = useAdminAuthStore((state) => state.currentAdmin !== null);
+
+  const [confirmAction, setConfirmAction] = useState<'switch' | 'reset' | null>(null);
 
   const summary = useMemo(
     () => summarizeReviews(reviewsForUser(reviews, userId)),
@@ -69,32 +74,24 @@ export default function ProfileScreen() {
 
   const badge = trustBadge(summary, completedCount);
 
-  const handleSwitchRole = () => {
-    const target = role === 'client' ? '我要接案' : '尋找專家';
-    Alert.alert('切換使用身分？', `將切換為「${target}」模式，資料與對話都會保留。`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '確認切換',
-        onPress: () => {
-          switchRole();
-          router.replace('/(tabs)');
-        },
-      },
-    ]);
-  };
+  const handleSwitchRole = () => setConfirmAction('switch');
 
-  const handleReset = () => {
-    Alert.alert('重設個人資料？', '將清除身分、技能與訂閱狀態，回到身分選擇頁。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '確認重設',
-        style: 'destructive',
-        onPress: () => {
-          resetSession();
-          router.replace('/onboarding/role');
-        },
-      },
-    ]);
+  const handleReset = () => setConfirmAction('reset');
+
+  const handleConfirm = () => {
+    if (confirmAction === 'switch') {
+      switchRole();
+      setConfirmAction(null);
+      router.replace('/(tabs)');
+      return;
+    }
+    if (confirmAction === 'reset') {
+      resetSession();
+      setConfirmAction(null);
+      router.replace('/onboarding/role');
+      return;
+    }
+    setConfirmAction(null);
   };
 
   return (
@@ -103,7 +100,14 @@ export default function ProfileScreen() {
         contentContainerClassName="px-5 pt-safe-offset-4 pb-12 gap-5"
         showsVerticalScrollIndicator={false}
       >
-        <Text className="text-ink text-[26px] font-bold tracking-tight">帳戶</Text>
+        <Pressable
+          onLongPress={() => router.push('/admin/login')}
+          delayLongPress={800}
+          accessibilityRole="button"
+          accessibilityLabel="帳戶，長按進入管理員登入"
+        >
+          <Text className="text-ink text-[26px] font-bold tracking-tight">帳戶</Text>
+        </Pressable>
 
         <View className="border-hairline rounded-xl border bg-white p-4">
           <View className="flex-row items-center gap-3">
@@ -258,13 +262,17 @@ export default function ProfileScreen() {
             onPress={() => router.push('/privacy')}
           />
           <View className="bg-hairline h-px" />
-          <ProfileRow
-            icon={<LayoutDashboard size={17} color={COLORS.ink} strokeWidth={2.1} />}
-            label="平台管理儀表板"
-            caption="審核佇列、封禁引擎、即時分析"
-            onPress={() => router.push('/admin-dashboard')}
-          />
-          <View className="bg-hairline h-px" />
+          {adminSignedIn ? (
+            <>
+              <ProfileRow
+                icon={<LayoutDashboard size={17} color={COLORS.brandStrong} strokeWidth={2.1} />}
+                label="管理員專屬平台"
+                caption="使用者、任務、營收與稽核紀錄"
+                onPress={() => router.push('/admin')}
+              />
+              <View className="bg-hairline h-px" />
+            </>
+          ) : null}
           <ProfileRow
             icon={<RefreshCw size={17} color={COLORS.coral} strokeWidth={2.1} />}
             label="重設個人資料"
@@ -273,6 +281,25 @@ export default function ProfileScreen() {
           />
         </View>
       </ScrollView>
+
+      <ConfirmSheet
+        visible={confirmAction !== null}
+        title={confirmAction === 'reset' ? '重設個人資料？' : '切換使用身分？'}
+        message={
+          confirmAction === 'reset'
+            ? '將清除身分、技能與訂閱狀態，回到身分選擇頁。'
+            : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
+        }
+        actions={[
+          {
+            id: 'confirm',
+            label: confirmAction === 'reset' ? '確認重設' : '確認切換',
+            tone: confirmAction === 'reset' ? 'danger' : 'primary',
+          },
+        ]}
+        onSelect={handleConfirm}
+        onCancel={() => setConfirmAction(null)}
+      />
     </View>
   );
 }

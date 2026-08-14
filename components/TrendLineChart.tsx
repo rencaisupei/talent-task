@@ -10,6 +10,10 @@ interface TrendLineChartProps {
   points: WeeklyPoint[];
   title: string;
   caption?: string;
+  /** 數值顯示格式，預設為千分位數字。 */
+  formatValue?: (value: number) => string;
+  /** 無障礙說明的單位，預設「件任務」。 */
+  unitLabel?: string;
 }
 
 const CHART_HEIGHT = 196;
@@ -18,7 +22,13 @@ const PADDING_TOP = 18;
 const PADDING_BOTTOM = 26;
 
 /** 互動式折線圖：可點選任一週查看數值。 */
-export function TrendLineChart({ points, title, caption }: TrendLineChartProps) {
+export function TrendLineChart({
+  points,
+  title,
+  caption,
+  formatValue = formatNumber,
+  unitLabel = '件任務',
+}: TrendLineChartProps) {
   const [width, setWidth] = useState(0);
   const [activeIndex, setActiveIndex] = useState(points.length - 1);
 
@@ -68,7 +78,7 @@ export function TrendLineChart({ points, title, caption }: TrendLineChartProps) 
         <View className="items-end">
           <Text className="text-muted text-[12px]">{activePoint?.weekLabel}</Text>
           <Text className="text-brand-strong text-[20px] font-bold">
-            {formatNumber(activePoint?.value ?? 0)}
+            {formatValue(activePoint?.value ?? 0)}
           </Text>
         </View>
       </View>
@@ -125,7 +135,7 @@ export function TrendLineChart({ points, title, caption }: TrendLineChartProps) 
                   key={point.weekLabel}
                   onPress={() => setActiveIndex(index)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${point.weekLabel} 共 ${point.value} 件任務`}
+                  accessibilityLabel={`${point.weekLabel} 共 ${formatValue(point.value)} ${unitLabel}`}
                   className="flex-1"
                 />
               ))}

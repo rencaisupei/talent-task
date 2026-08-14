@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { regionCoordinate } from '@/lib/regions';
 import { SEED_GIGS } from '@/lib/seed';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import type { BudgetLevelId, Gig, GigLocation } from '@/lib/types';
+import { type BudgetLevelId, type Gig, type GigLocation, LOCAL_USER_ID } from '@/lib/types';
 
 export interface PublishGigInput {
   categoryId: string;
@@ -25,6 +25,10 @@ interface GigState {
   assignGig: (gigId: string, talentId: string, talentName: string) => void;
   completeGig: (gigId: string) => void;
   closeGig: (gigId: string) => void;
+  /** 管理員強制下架任務（記錄下架原因）。 */
+  takedownGig: (gigId: string, reason: string) => void;
+  /** 管理員恢復上架，任務回到等待媒合。 */
+  restoreGig: (gigId: string) => void;
 }
 
 function isPersistedGigState(value: unknown): value is { gigs?: Gig[] } {
@@ -113,6 +117,34 @@ export const useGigStore = create<GigState>()(
       closeGig: (gigId) =>
         set((state) => ({
           gigs: state.gigs.map((gig) => (gig.id === gigId ? { ...gig, status: 'closed' } : gig)),
+        })),
+
+      takedownGig: (gigId, reason) => {
+        const gig = get().gigs.find((item) => item.id === gigId);
+        set((state) => ({
+          gigs: state.gigs.map((item) =>
+            item.id === gigId
+              ? { ...item, status: 'closed', takedownReason: reason, takedownAt: Date.now() }
+              : item,
+          ),
+        }));
+        if (gig && gig.clientId === LOCAL_USER_ID) {
+          useNotificationStore.getState().pushNotification({
+            kind: 'system',
+            title: '任務已被管理員下架',
+            body: `「${gig.title}」因「${reason}」暫停曝光，修正後可聯繫客服恢復上架。`,
+            gigId: gig.id,
+          });
+        }
+      },
+
+      restoreGig: (gigId) =>
+        set((state) => ({
+          gigs: state.gigs.map((gig) =>
+            gig.id === gigId
+              ? { ...gig, status: 'open', takedownReason: undefined, takedownAt: undefined }
+              : gig,
+          ),
         })),
     }),
     {

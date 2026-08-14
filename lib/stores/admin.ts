@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { SEED_REPORTS, SEED_VERIFICATIONS } from '@/lib/seed';
 import { useNotificationStore } from '@/lib/stores/notifications';
+import { usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { useSessionStore } from '@/lib/stores/session';
 import type { AbuseReport, VerificationRequest } from '@/lib/types';
 
@@ -25,6 +26,7 @@ function applySessionVerification(
   status: 'approved' | 'rejected',
 ) {
   if (!request) return;
+  usePlatformUserStore.getState().setVerification(request.talentId, status);
   const session = useSessionStore.getState();
   if (request.talentId === session.userId) {
     session.setVerification(status);

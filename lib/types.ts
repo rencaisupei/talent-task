@@ -51,6 +51,9 @@ export interface Gig {
   assignedTalentId?: string;
   assignedTalentName?: string;
   completedAt?: number;
+  /** 管理員下架原因（有值代表由管理員強制下架）。 */
+  takedownReason?: string;
+  takedownAt?: number;
 }
 
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
@@ -173,4 +176,122 @@ export interface AbuseReport {
 export interface WeeklyPoint {
   weekLabel: string;
   value: number;
+}
+
+/** 管理員角色：owner 可執行全部動作，moderator 負責審核與封禁，analyst 僅檢視營運數據。 */
+export type AdminRole = 'owner' | 'moderator' | 'analyst';
+
+export const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
+  owner: '總管理員',
+  moderator: '審核專員',
+  analyst: '數據分析員',
+};
+
+export interface AdminAccount {
+  id: string;
+  email: string;
+  /** 本機示範驗證用；接後端後改為伺服器端雜湊驗證。 */
+  password: string;
+  name: string;
+  role: AdminRole;
+  createdAt: number;
+  lastLoginAt?: number;
+}
+
+/** 管理端使用者總表的一列（客戶與人才共用）。 */
+export interface PlatformUser {
+  id: string;
+  name: string;
+  role: UserRole;
+  region: string;
+  joinedAt: number;
+  tags: string[];
+  isPremium: boolean;
+  premiumSince?: number;
+  verification: VerificationStatus;
+  completedJobs: number;
+  rating: number;
+  responseMinutes: number;
+  publishedGigs: number;
+  note?: string;
+}
+
+export type AdminActionKind =
+  | 'auth'
+  | 'verification'
+  | 'ban'
+  | 'gig'
+  | 'subscription'
+  | 'announcement'
+  | 'report';
+
+export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
+  auth: '登入登出',
+  verification: '身分驗證',
+  ban: '帳號封禁',
+  gig: '任務內容',
+  subscription: '訂閱營收',
+  announcement: '公告推播',
+  report: '檢舉處理',
+};
+
+export interface AdminAuditEntry {
+  id: string;
+  at: number;
+  adminId: string;
+  adminName: string;
+  kind: AdminActionKind;
+  summary: string;
+  targetId?: string;
+  targetLabel?: string;
+}
+
+export type AnnouncementAudience = 'all' | 'client' | 'talent' | 'premium' | 'free';
+
+export const AUDIENCE_LABEL: Record<AnnouncementAudience, string> = {
+  all: '全部使用者',
+  client: '僅客戶',
+  talent: '僅人才',
+  premium: '僅進階版人才',
+  free: '僅免費版人才',
+};
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  audience: AnnouncementAudience;
+  createdAt: number;
+  adminName: string;
+  recipientCount: number;
+}
+
+export type SubscriptionStatus = 'active' | 'refunded' | 'cancelled';
+
+export type SubscriptionChannel = 'apple' | 'google' | 'manual';
+
+export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
+  active: '使用中',
+  refunded: '已退款',
+  cancelled: '已取消',
+};
+
+export const SUBSCRIPTION_CHANNEL_LABEL: Record<SubscriptionChannel, string> = {
+  apple: 'App Store',
+  google: 'Google Play',
+  manual: '管理員開通',
+};
+
+/** 進階版訂閱帳務紀錄。 */
+export interface SubscriptionRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  amount: number;
+  status: SubscriptionStatus;
+  channel: SubscriptionChannel;
+  invoiceNo: string;
+  startedAt: number;
+  renewsAt: number;
+  refundedAt?: number;
 }

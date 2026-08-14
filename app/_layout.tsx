@@ -167,6 +167,7 @@ function RootNavigator() {
       <Stack.Screen name="notifications" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="admin-dashboard" />
+      <Stack.Screen name="admin" />
       <Stack.Screen
         name="bid/[gigId]"
         options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}
