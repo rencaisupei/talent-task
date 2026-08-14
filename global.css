@@ -6,35 +6,106 @@
 @import 'heroui-native/styles';
 
 /*
- * HeroUI Native + Uniwind tokens
- *
- * HeroUI component variants compile to semantic utilities such as bg-accent,
- * text-accent-foreground, bg-default, and text-foreground. The imported
- * heroui-native/styles package defines the default semantic theme and maps it
- * to --color-* Tailwind utilities.
- *
- * When changing brand colors, override semantic tokens inside Uniwind theme
- * variants. Do not put --accent only in a plain :root block: web may look
- * correct through CSS cascade order while Expo Go/native keeps HeroUI's
- * default blue from the active light/dark theme table.
- *
- * Example:
- *
- * @layer theme {
- *   :root {
- *     @variant light {
- *       --accent: oklch(0.63 0.18 148);
- *       --accent-foreground: oklch(0.99 0 0);
- *       --focus: var(--accent);
- *     }
- *
- *     @variant dark {
- *       --accent: oklch(0.63 0.18 148);
- *       --accent-foreground: oklch(0.99 0 0);
- *       --focus: var(--accent);
- *     }
- *   }
- * }
+ * InstantGig 即時發 — 高端現代極簡科技美學
+ * 主色 #00A896 / 輔色 #FF6B35 / 文字 #111827 / 背景 #FFFFFF + #F9FAFB
  */
+
+@theme {
+  --radius: 0.75rem;
+
+  --color-brand: oklch(0.657 0.118 181);
+  --color-brand-strong: oklch(0.58 0.11 181);
+  --color-brand-soft: oklch(0.962 0.025 181);
+  --color-coral: oklch(0.704 0.193 39);
+  --color-coral-soft: oklch(0.964 0.035 39);
+  --color-ink: oklch(0.215 0.03 255);
+  --color-ink-soft: oklch(0.44 0.022 264);
+  --color-canvas: oklch(0.985 0.002 247);
+  --color-hairline: oklch(0.921 0.004 264);
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.215 0.03 255);
+
+      --surface: oklch(1 0 0);
+      --surface-foreground: var(--foreground);
+      --surface-secondary: oklch(0.985 0.002 247);
+      --surface-secondary-foreground: var(--foreground);
+      --surface-tertiary: oklch(0.967 0.003 264);
+      --surface-tertiary-foreground: var(--foreground);
+
+      --overlay: oklch(1 0 0);
+      --overlay-foreground: var(--foreground);
+
+      --muted: oklch(0.551 0.027 264);
+
+      --default: oklch(0.967 0.003 264);
+      --default-foreground: var(--foreground);
+
+      --accent: oklch(0.657 0.118 181);
+      --accent-foreground: oklch(1 0 0);
+
+      --field-background: oklch(0.985 0.002 247);
+      --field-foreground: var(--foreground);
+      --field-placeholder: oklch(0.66 0.02 264);
+      --field-border: oklch(0.921 0.004 264);
+
+      --warning: oklch(0.704 0.193 39);
+      --warning-foreground: oklch(1 0 0);
+
+      --border: oklch(0.921 0.004 264);
+      --separator: oklch(0.921 0.004 264);
+      --focus: var(--accent);
+      --link: var(--accent);
+
+      --surface-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.03), 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+      --overlay-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.03), 0 12px 24px 0 rgba(0, 0, 0, 0.04);
+      --field-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+    }
+
+    @variant dark {
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.215 0.03 255);
+
+      --surface: oklch(1 0 0);
+      --surface-foreground: var(--foreground);
+      --surface-secondary: oklch(0.985 0.002 247);
+      --surface-secondary-foreground: var(--foreground);
+      --surface-tertiary: oklch(0.967 0.003 264);
+      --surface-tertiary-foreground: var(--foreground);
+
+      --overlay: oklch(1 0 0);
+      --overlay-foreground: var(--foreground);
+
+      --muted: oklch(0.551 0.027 264);
+
+      --default: oklch(0.967 0.003 264);
+      --default-foreground: var(--foreground);
+
+      --accent: oklch(0.657 0.118 181);
+      --accent-foreground: oklch(1 0 0);
+
+      --field-background: oklch(0.985 0.002 247);
+      --field-foreground: var(--foreground);
+      --field-placeholder: oklch(0.66 0.02 264);
+      --field-border: oklch(0.921 0.004 264);
+
+      --warning: oklch(0.704 0.193 39);
+      --warning-foreground: oklch(1 0 0);
+
+      --border: oklch(0.921 0.004 264);
+      --separator: oklch(0.921 0.004 264);
+      --focus: var(--accent);
+      --link: var(--accent);
+
+      --surface-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.03), 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+      --overlay-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.03), 0 12px 24px 0 rgba(0, 0, 0, 0.04);
+      --field-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+    }
+  }
+}
 
 @source './node_modules/heroui-native/lib';

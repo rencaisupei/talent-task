@@ -13,7 +13,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import { useEffect } from 'react';
 import * as DevClient from 'expo-dev-client';
-import { HeroUINativeProvider } from 'heroui-native';
+import { HeroUINativeProvider, useThemeColor } from 'heroui-native';
 import { Uniwind } from 'uniwind';
 import {
   ErrorBoundary as ExpoErrorBoundary,
@@ -141,11 +141,38 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ title: 'Habits', headerShown: false }} />
-        </Stack>
+        <RootNavigator />
         <InstallPrompt />
       </HeroUINativeProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function RootNavigator() {
+  const [background] = useThemeColor(['background']);
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: background },
+      }}
+    >
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="onboarding/role" />
+      <Stack.Screen name="onboarding/skills" />
+      <Stack.Screen name="gig/[id]" />
+      <Stack.Screen name="chat/[id]" />
+      <Stack.Screen name="privacy" />
+      <Stack.Screen name="admin-dashboard" />
+      <Stack.Screen
+        name="publish"
+        options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}
+      />
+      <Stack.Screen
+        name="subscription"
+        options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}
+      />
+    </Stack>
   );
 }

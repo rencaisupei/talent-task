@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: '即刻幫',
+    name: '即時發',
     slug: 'app',
     newArchEnabled: true,
     version: process.env.BILT_APP_VERSION ?? '1.0.0',
