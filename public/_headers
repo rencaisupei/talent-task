@@ -1,0 +1,29 @@
+# Response headers for Netlify and Cloudflare Pages.
+# Copied verbatim into dist/ by `expo export -p web`.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Admin platform stays out of search indexes (robots.txt covers crawlers that
+# read it; this header covers the ones that only honour X-Robots-Tag).
+/admin
+  X-Robots-Tag: noindex, nofollow
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+
+# Hashed asset paths never change contents.
+/_expo/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Entry document and service worker must revalidate on every load so a new
+# deploy is picked up immediately.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate

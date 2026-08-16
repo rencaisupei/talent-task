@@ -1,12 +1,13 @@
 {
-  "name": "Your App Name",
-  "short_name": "Your App",
-  "description": "An app built with Bilt",
+  "name": "即時發 InstantGig",
+  "short_name": "即時發",
+  "description": "全台急件媒合平台：30 秒發布急件，立即媒合在地專家。",
+  "lang": "zh-Hant-TW",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#6366f1",
+  "theme_color": "#00A896",
   "background_color": "#ffffff",
   "icons": [
     {

@@ -1,0 +1,7 @@
+# 即時發（InstantGig）web build
+# The public app may be indexed; the admin platform must not be.
+User-agent: *
+Disallow: /admin
+Disallow: /admin/
+Disallow: /admin-dashboard
+Allow: /

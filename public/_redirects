@@ -1,0 +1,5 @@
+# SPA fallback for Netlify and Cloudflare Pages.
+# Copied verbatim into dist/ by `expo export -p web`.
+# Real files in dist/ (JS bundles, icons, manifest.json) are served first;
+# anything else falls through to the single-page entry document.
+/*    /index.html    200

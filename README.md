@@ -96,6 +96,53 @@ Simply send a message to your Bilt project: "Deploy this app to production"
 
 Bilt will handle the build and provide you with download links or submission-ready builds.
 
+## 網頁版（管理平台）靜態匯出與部署
+
+管理員專屬平台只在網頁版提供（`app/admin/`），手機 App 不顯示任何入口。網頁版就是這個
+Expo 專案以 `web.output: 'single'`（SPA）匯出的靜態網站。
+
+### 1. 本機匯出
+
+```sh
+npm ci
+
+# 後端連線資訊會在建置時被寫進 bundle，缺少時 AI 認證與資料存取會失效
+export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"
+export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
+
+npm run build:web       # 輸出到 dist/
+npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
+```
+
+`npm run build:pwa` 會在匯出後額外產生 `dist/sw.js`（Workbox 離線快取），
+需要可安裝的 PWA 時再用。
+
+`public/` 內的檔案（`index.html`、`manifest.json`、`robots.txt`、`_redirects`、
+`_headers`、`icons/`）會原樣複製進 `dist/`。
+
+### 2. 部署（`dist/` 是唯一要上傳的目錄）
+
+因為是單頁輸出，主機必須把所有未命中檔案的路徑改寫回 `index.html`，
+否則直接開 `/admin/login` 會 404。各平台設定已附在專案內：
+
+| 平台             | 設定檔                                                   | 說明                                                                  |
+| ---------------- | -------------------------------------------------------- | --------------------------------------------------------------------- |
+| Vercel           | `vercel.json`                                            | 匯入 repo 即可，已含 build 指令、輸出目錄、改寫與快取標頭             |
+| Netlify          | `netlify.toml` + `public/_redirects` + `public/_headers` | 連結 repo 或 `npx netlify deploy --prod --dir dist`                   |
+| Cloudflare Pages | `public/_redirects` + `public/_headers`                  | Build 指令 `npm run build:web`，輸出目錄 `dist`                       |
+| 自架 Nginx       | `deploy/nginx.conf`                                      | 複製 `dist/` 到 `/var/www/instantgig/`，調整 `server_name` 與憑證路徑 |
+
+在平台後台把 `EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY` 設為建置環境變數。
+
+### 3. 管理平台的搜尋引擎與存取
+
+- `public/robots.txt` 禁止收錄 `/admin`、`/admin-dashboard`。
+- 主機端對 `/admin*` 回 `X-Robots-Tag: noindex, nofollow`（見各平台設定檔）。
+- 進入 `/admin` 時前端會插入 `<meta name="robots" content="noindex, nofollow">`。
+- 存取仍需管理員帳密（`lib/stores/adminAuth.ts`），連續 5 次失敗鎖定 60 秒。
+- 想讓管理平台獨立於公開網站，可把同一份 `dist/` 部署到 `admin.instantgig.tw`
+  子網域（DNS 指向該平台後，`deploy/nginx.conf` 的 `server_name` 已是此網域）。
+
 ## How can I make changes to my app?
 
 **Via Bilt (Easiest)**
