@@ -71,7 +71,7 @@ export default function AdminLoginScreen() {
           <BrandLogo size={64} />
           <Text className="text-ink text-[24px] font-bold tracking-tight">管理員專屬平台</Text>
           <Text className="text-muted text-center text-[13px] leading-5">
-            此區僅供即時發營運團隊使用，所有操作都會寫入稽核紀錄。
+            此區僅供即時發營運團隊在網頁版使用，所有操作都會寫入稽核紀錄。
           </Text>
         </View>
 

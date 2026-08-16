@@ -172,14 +172,6 @@ function RootNavigator() {
       <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="admin" />
       <Stack.Screen
-        name="call/[id]"
-        options={{
-          presentation: 'fullScreenModal',
-          animation: 'slide_from_bottom',
-          contentStyle: { backgroundColor: background },
-        }}
-      />
-      <Stack.Screen
         name="bid/[gigId]"
         options={{ presentation: 'modal', contentStyle: { backgroundColor: background } }}
       />

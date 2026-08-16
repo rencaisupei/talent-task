@@ -15,7 +15,7 @@ import {
   Tags,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
@@ -40,6 +40,9 @@ const VERIFICATION_LABEL: Record<VerificationStatus, string> = {
   approved: 'AI 已認證',
   rejected: '複審未通過',
 };
+
+/** 管理平台僅在網頁版提供，手機 App 不顯示任何入口。 */
+const IS_ADMIN_PLATFORM = Platform.OS === 'web';
 
 export default function ProfileScreen() {
   const role = useSessionStore((state) => state.role);
@@ -119,10 +122,10 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable
-          onLongPress={() => router.push('/admin/login')}
+          onLongPress={IS_ADMIN_PLATFORM ? () => router.push('/admin/login') : undefined}
           delayLongPress={800}
-          accessibilityRole="button"
-          accessibilityLabel="帳戶，長按進入管理員登入"
+          accessibilityRole="header"
+          accessibilityLabel="帳戶"
         >
           <Text className="text-ink text-[26px] font-bold tracking-tight">帳戶</Text>
         </Pressable>
@@ -260,7 +263,7 @@ export default function ProfileScreen() {
           <ProfileRow
             icon={<Bell size={17} color={COLORS.ink} strokeWidth={2.1} />}
             label="通知中心"
-            caption="提案、媒合、來電與評價動態"
+            caption="提案、媒合與評價動態"
             onPress={() => router.push('/notifications')}
           />
           <View className="bg-hairline h-px" />
@@ -298,12 +301,12 @@ export default function ProfileScreen() {
             onPress={() => router.push('/privacy')}
           />
           <View className="bg-hairline h-px" />
-          {adminSignedIn ? (
+          {IS_ADMIN_PLATFORM && adminSignedIn ? (
             <>
               <ProfileRow
                 icon={<LayoutDashboard size={17} color={COLORS.brandStrong} strokeWidth={2.1} />}
                 label="管理員專屬平台"
-                caption="使用者、任務、營收與稽核紀錄"
+                caption="使用者、任務、營收與稽核紀錄（僅網頁版）"
                 onPress={() => router.push('/admin')}
               />
               <View className="bg-hairline h-px" />

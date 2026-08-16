@@ -20,6 +20,11 @@ export function countUnread(items: AppNotification[]): number {
   return items.reduce((total, item) => (item.isRead ? total : total + 1), 0);
 }
 
+/** 型別守衛：以執行期檢查取代型別斷言，避免直接把持久化的 unknown 資料斷言成較窄型別。 */
+function hasNotificationItems(value: unknown): value is { items?: AppNotification[] } {
+  return typeof value === 'object' && value !== null;
+}
+
 export const useNotificationStore = create<NotificationState>()(
   persist(
     (set) => ({
@@ -63,7 +68,13 @@ export const useNotificationStore = create<NotificationState>()(
     {
       name: 'instantgig-notifications',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        if (version >= 2 || !hasNotificationItems(persisted)) return persisted;
+        // 語音通話功能已移除，清掉舊的通話通知。
+        const items = (persisted.items ?? []).filter((item) => (item.kind as string) !== 'call');
+        return { ...persisted, items };
+      },
     },
   ),
 );

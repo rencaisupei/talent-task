@@ -18,15 +18,7 @@ import {
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 import { PUSH_CHANNEL_LABEL, type PushChannel } from '@/lib/types';
 
-const CHANNEL_ORDER: PushChannel[] = [
-  'chat',
-  'call',
-  'bid',
-  'match',
-  'review',
-  'moderation',
-  'system',
-];
+const CHANNEL_ORDER: PushChannel[] = ['chat', 'bid', 'match', 'review', 'moderation', 'system'];
 
 export default function NotificationSettingsScreen() {
   const enabled = usePushPrefsStore((state) => state.enabled);
@@ -168,7 +160,7 @@ export default function NotificationSettingsScreen() {
           className="border-hairline rounded-xl border bg-white px-4 py-3.5"
         >
           <Text className="text-brand-strong text-[14px] font-semibold">前往通知中心</Text>
-          <Text className="text-muted mt-0.5 text-[12px]">查看所有提案、來電與審核紀錄</Text>
+          <Text className="text-muted mt-0.5 text-[12px]">查看所有提案、媒合與審核紀錄</Text>
         </Pressable>
       </ScrollView>
     </View>

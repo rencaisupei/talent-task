@@ -147,7 +147,6 @@ export type NotificationKind =
   | 'chat'
   | 'verification'
   | 'system'
-  | 'call'
   | 'moderation';
 
 export interface AppNotification {
@@ -221,38 +220,11 @@ export interface VerificationRequest {
   credentialVerified?: boolean;
 }
 
-export type CallOutcome = 'completed' | 'cancelled' | 'declined' | 'missed';
-
-export const CALL_OUTCOME_LABEL: Record<CallOutcome, string> = {
-  completed: '通話結束',
-  cancelled: '已取消撥號',
-  declined: '對方拒接',
-  missed: '未接來電',
-};
-
-/** 平台語音通話紀錄（通話建立於既有對話之上，不佔用對話配額）。 */
-export interface CallRecord {
-  id: string;
-  conversationId: string;
-  gigId: string;
-  gigTitle: string;
-  callerId: string;
-  callerName: string;
-  calleeId: string;
-  calleeName: string;
-  startedAt: number;
-  connectedAt?: number;
-  endedAt?: number;
-  durationSeconds: number;
-  outcome: CallOutcome;
-}
-
 /** 推播分類開關。 */
-export type PushChannel = 'chat' | 'call' | 'bid' | 'match' | 'review' | 'moderation' | 'system';
+export type PushChannel = 'chat' | 'bid' | 'match' | 'review' | 'moderation' | 'system';
 
 export const PUSH_CHANNEL_LABEL: Record<PushChannel, { title: string; caption: string }> = {
   chat: { title: '新訊息', caption: '對方在對話中傳送訊息時推播' },
-  call: { title: '語音通話', caption: '有人撥打語音電話或未接來電時推播' },
   bid: { title: '提案動態', caption: '收到新提案或提案被修改時推播' },
   match: { title: '媒合結果', caption: '被選定承接或任務完成時推播' },
   review: { title: '評價提醒', caption: '任務完成後的評價提醒' },

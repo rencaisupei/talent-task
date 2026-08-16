@@ -8,13 +8,19 @@ export type PushPermission = 'unknown' | 'granted' | 'denied' | 'unsupported';
 
 const DEFAULT_CHANNELS: Record<PushChannel, boolean> = {
   chat: true,
-  call: true,
   bid: true,
   match: true,
   review: true,
   moderation: true,
   system: true,
 };
+
+const CHANNEL_KEYS: PushChannel[] = ['chat', 'bid', 'match', 'review', 'moderation', 'system'];
+
+/** 型別守衛：以執行期檢查取代型別斷言，避免直接把持久化的 unknown 資料斷言成較窄型別。 */
+function isPartialPushPrefsState(value: unknown): value is Partial<PushPrefsState> {
+  return typeof value === 'object' && value !== null;
+}
 
 interface PushPrefsState {
   hydrated: boolean;
@@ -56,7 +62,17 @@ export const usePushPrefsStore = create<PushPrefsState>()(
     {
       name: 'instantgig-push-prefs',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        if (version >= 2 || !isPartialPushPrefsState(persisted)) return persisted;
+        // v1 有語音通話分類，功能已移除，僅保留現有分類。
+        const legacy = persisted.channels ?? DEFAULT_CHANNELS;
+        const channels = { ...DEFAULT_CHANNELS };
+        for (const channel of CHANNEL_KEYS) {
+          if (typeof legacy[channel] === 'boolean') channels[channel] = legacy[channel];
+        }
+        return { ...persisted, channels };
+      },
       partialize: (state) => ({
         enabled: state.enabled,
         permission: state.permission,

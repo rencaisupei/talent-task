@@ -1,14 +1,6 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Button } from 'heroui-native';
-import {
-  ArrowLeft,
-  Flag,
-  Phone,
-  PhoneMissed,
-  PhoneOutgoing,
-  ShieldCheck,
-  TriangleAlert,
-} from 'lucide-react-native';
+import { ArrowLeft, Flag, ShieldCheck, TriangleAlert } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -26,17 +18,11 @@ import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatClockTime } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
-import { callsForConversation, formatCallDuration, useCallStore } from '@/lib/stores/calls';
 import { useChatStore } from '@/lib/stores/chat';
 import { useSessionStore } from '@/lib/stores/session';
-import { CALL_OUTCOME_LABEL, type CallRecord, type ChatMessage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const REPORT_REASONS = ['要求私下匯款或離開平台', '疑似詐騙或投資話術', '言語騷擾或不當內容'];
-
-type TimelineItem =
-  | { kind: 'message'; key: string; at: number; message: ChatMessage }
-  | { kind: 'call'; key: string; at: number; call: CallRecord };
 
 export default function ChatDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,7 +30,6 @@ export default function ChatDetailScreen() {
   const messagesMap = useChatStore((state) => state.messages);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const reportConversation = useChatStore((state) => state.reportConversation);
-  const calls = useCallStore((state) => state.calls);
 
   const role = useSessionStore((state) => state.role);
   const userId = useSessionStore((state) => state.userId);
@@ -56,24 +41,6 @@ export default function ChatDetailScreen() {
 
   const conversation = conversations.find((item) => item.id === id);
   const thread = useMemo(() => (id ? (messagesMap[id] ?? []) : []), [id, messagesMap]);
-  const conversationCalls = useMemo(() => (id ? callsForConversation(calls, id) : []), [calls, id]);
-
-  const timeline = useMemo<TimelineItem[]>(() => {
-    const items: TimelineItem[] = [
-      ...thread.map(
-        (message): TimelineItem => ({
-          kind: 'message',
-          key: message.id,
-          at: message.at,
-          message,
-        }),
-      ),
-      ...conversationCalls
-        .filter((call) => call.endedAt !== undefined)
-        .map((call): TimelineItem => ({ kind: 'call', key: call.id, at: call.startedAt, call })),
-    ];
-    return items.sort((first, second) => first.at - second.at);
-  }, [thread, conversationCalls]);
 
   if (!conversation) {
     return (
@@ -127,14 +94,6 @@ export default function ChatDetailScreen() {
           </Text>
         </View>
         <Pressable
-          onPress={() => router.push({ pathname: '/call/[id]', params: { id: conversation.id } })}
-          accessibilityRole="button"
-          accessibilityLabel={`撥打語音電話給 ${counterpart}`}
-          className="bg-brand h-9 w-9 items-center justify-center rounded-xl"
-        >
-          <Phone size={17} color={COLORS.white} strokeWidth={2.2} />
-        </Pressable>
-        <Pressable
           onPress={() => setReportOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="檢舉對話"
@@ -147,41 +106,17 @@ export default function ChatDetailScreen() {
       <View className="border-hairline bg-canvas flex-row items-center gap-2 border-b px-5 py-2.5">
         <ShieldCheck size={14} color={COLORS.brandStrong} strokeWidth={2.1} />
         <Text className="text-ink-soft flex-1 text-[11px]">
-          訊息與通話皆由平台建立，請勿私下匯款或離開平台交易。
+          訊息皆由平台建立並自動審核，請勿私下匯款或離開平台交易。
         </Text>
         <StaticTag label={conversation.tag} tone="brand" />
       </View>
 
       <FlatList
-        data={timeline}
-        keyExtractor={(item) => item.key}
+        data={thread}
+        keyExtractor={(item) => item.id}
         contentContainerClassName="px-5 py-4 gap-3"
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
-          if (item.kind === 'call') {
-            const isOutgoing = item.call.callerId === userId;
-            const completed = item.call.outcome === 'completed';
-            return (
-              <View className="items-center">
-                <View className="border-hairline bg-canvas flex-row items-center gap-2 rounded-xl border px-3.5 py-2">
-                  {completed ? (
-                    <PhoneOutgoing size={13} color={COLORS.brandStrong} strokeWidth={2.2} />
-                  ) : (
-                    <PhoneMissed size={13} color={COLORS.coral} strokeWidth={2.2} />
-                  )}
-                  <Text className="text-ink-soft text-[11px]">
-                    {isOutgoing ? '你撥出的語音通話' : '對方撥入的語音通話'}・
-                    {completed
-                      ? formatCallDuration(item.call.durationSeconds)
-                      : CALL_OUTCOME_LABEL[item.call.outcome]}
-                    ・{formatClockTime(item.call.startedAt)}
-                  </Text>
-                </View>
-              </View>
-            );
-          }
-
-          const message = item.message;
+        renderItem={({ item: message }) => {
           const isMine = message.senderId === userId;
           return (
             <View className={cn('max-w-[82%]', isMine ? 'self-end' : 'self-start')}>
@@ -212,7 +147,7 @@ export default function ChatDetailScreen() {
         ListEmptyComponent={
           <EmptyState
             title="開始你們的第一則訊息"
-            caption="也可以直接點右上角的話筒撥打語音電話。"
+            caption="說明需求細節、時間與地點，媒合會更快完成。"
           />
         }
       />

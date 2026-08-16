@@ -6,7 +6,6 @@ import {
   Handshake,
   Inbox,
   MessageCircle,
-  PhoneCall,
   ScanEye,
   Settings,
   ShieldCheck,
@@ -32,7 +31,6 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   chat: '對話訊息',
   verification: '認證審核',
   system: '系統公告',
-  call: '語音通話',
   moderation: '發布審核',
 };
 
@@ -44,8 +42,6 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
   if (kind === 'review') return <Star size={size} color={COLORS.coral} strokeWidth={2.2} />;
   if (kind === 'chat')
     return <MessageCircle size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
-  if (kind === 'call')
-    return <PhoneCall size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
   if (kind === 'moderation') return <ScanEye size={size} color={COLORS.coral} strokeWidth={2.2} />;
   if (kind === 'verification') {
     return <ShieldCheck size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;

@@ -8,7 +8,6 @@ import type { NotificationKind, PushChannel } from '@/lib/types';
 /** 通知分類對應的推播開關。 */
 const CHANNEL_BY_KIND: Record<NotificationKind, PushChannel> = {
   chat: 'chat',
-  call: 'call',
   bid: 'bid',
   match: 'match',
   review: 'review',
@@ -132,7 +131,7 @@ export async function sendTestPush(): Promise<boolean> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '推播測試成功',
-      body: '之後的新訊息、語音來電與審核結果都會這樣通知你。',
+      body: '之後的新訊息、提案動態與審核結果都會這樣通知你。',
       data: { kind: 'system' },
       sound: true,
     },
