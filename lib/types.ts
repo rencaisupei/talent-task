@@ -258,15 +258,27 @@ export const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
   analyst: '數據分析員',
 };
 
+/**
+ * 管理員帳號。密碼從不進入前端：驗證由 admin-auth 後端函式以 PBKDF2 雜湊比對，
+ * 前端只持有一組隨機 session token。
+ */
 export interface AdminAccount {
   id: string;
   email: string;
-  /** 明文比對用；網頁靜態匯出會把它打包進 bundle，真正的防線是 Cloudflare Access 或伺服器端驗證。 */
-  password: string;
   name: string;
   role: AdminRole;
+  isActive: boolean;
   createdAt: number;
-  lastLoginAt?: number;
+  lastLoginAt: number | null;
+}
+
+/** 帳號管理頁的擴充欄位（需要 admins:manage 權限才取得）。 */
+export interface ManagedAdminAccount extends AdminAccount {
+  /** false 代表尚未設定密碼，需以一次性啟用碼首次登入。 */
+  hasPassword: boolean;
+  setupCodeExpiresAt: number | null;
+  lockedUntil: number | null;
+  failedAttempts: number;
 }
 
 /** 管理端使用者總表的一列（客戶與人才共用）。 */
@@ -295,7 +307,8 @@ export type AdminActionKind =
   | 'subscription'
   | 'announcement'
   | 'report'
-  | 'moderation';
+  | 'moderation'
+  | 'account';
 
 export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
   auth: '登入登出',
@@ -306,6 +319,7 @@ export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
   announcement: '公告推播',
   report: '檢舉處理',
   moderation: '發布複審',
+  account: '管理員帳號',
 };
 
 export interface AdminAuditEntry {

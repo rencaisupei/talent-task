@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { ReadOnlyNotice } from '@/components/admin/ReadOnlyNotice';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { RatingStars } from '@/components/RatingStars';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
@@ -23,6 +24,7 @@ import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/format';
 import { useAdminStore } from '@/lib/stores/admin';
 import { useAdminAuditStore } from '@/lib/stores/adminAudit';
+import { useAdminCan } from '@/lib/stores/adminAuth';
 import { useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
 import { findPlatformUser, usePlatformUserStore } from '@/lib/stores/platformUsers';
@@ -64,6 +66,9 @@ export default function AdminUserDetailScreen() {
   const reviews = useReviewStore((state) => state.reviews);
   const auditEntries = useAdminAuditStore((state) => state.entries);
   const logAction = useAuditLogger();
+  const canManageUsers = useAdminCan('users:manage');
+  const canManageRevenue = useAdminCan('revenue:manage');
+  const canReview = useAdminCan('review:manage');
 
   const user = useMemo(() => findPlatformUser(users, id), [id, users]);
   const [note, setNoteDraft] = useState(user?.note ?? '');
@@ -267,18 +272,22 @@ export default function AdminUserDetailScreen() {
               送審 {formatRelativeTime(pendingVerification.submittedAt)}・
               {pendingVerification.note ?? '未附備註'}
             </Text>
-            <View className="flex-row gap-2">
-              <View className="flex-1">
-                <Button size="md" onPress={() => setPending('approve')}>
-                  <Button.Label>核准認證</Button.Label>
-                </Button>
+            {canReview ? (
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Button size="md" onPress={() => setPending('approve')}>
+                    <Button.Label>核准認證</Button.Label>
+                  </Button>
+                </View>
+                <View className="flex-1">
+                  <Button size="md" variant="tertiary" onPress={() => setPending('reject')}>
+                    <Button.Label>拒絕</Button.Label>
+                  </Button>
+                </View>
               </View>
-              <View className="flex-1">
-                <Button size="md" variant="tertiary" onPress={() => setPending('reject')}>
-                  <Button.Label>拒絕</Button.Label>
-                </Button>
-              </View>
-            </View>
+            ) : (
+              <ReadOnlyNotice permission="review:manage" action="核准或拒絕技能認證" />
+            )}
           </View>
         ) : null}
 
@@ -310,13 +319,17 @@ export default function AdminUserDetailScreen() {
               </View>
             ))
           )}
-          <Button
-            size="md"
-            variant="tertiary"
-            onPress={() => setPending(user.isPremium ? 'revoke' : 'grant')}
-          >
-            <Button.Label>{user.isPremium ? '取消進階版' : '手動開通進階版'}</Button.Label>
-          </Button>
+          {canManageRevenue ? (
+            <Button
+              size="md"
+              variant="tertiary"
+              onPress={() => setPending(user.isPremium ? 'revoke' : 'grant')}
+            >
+              <Button.Label>{user.isPremium ? '取消進階版' : '手動開通進階版'}</Button.Label>
+            </Button>
+          ) : (
+            <ReadOnlyNotice permission="revenue:manage" action="開通或取消進階版" />
+          )}
         </View>
 
         <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
@@ -335,14 +348,18 @@ export default function AdminUserDetailScreen() {
               {userReports.filter((report) => !report.resolved).length} 件
             </Text>
           </View>
-          <Button
-            size="md"
-            variant={isBanned ? 'tertiary' : 'primary'}
-            className={isBanned ? undefined : 'bg-coral'}
-            onPress={() => setPending(isBanned ? 'unban' : 'ban')}
-          >
-            <Button.Label>{isBanned ? '解除封禁' : '封禁此帳號'}</Button.Label>
-          </Button>
+          {canManageUsers ? (
+            <Button
+              size="md"
+              variant={isBanned ? 'tertiary' : 'primary'}
+              className={isBanned ? undefined : 'bg-coral'}
+              onPress={() => setPending(isBanned ? 'unban' : 'ban')}
+            >
+              <Button.Label>{isBanned ? '解除封禁' : '封禁此帳號'}</Button.Label>
+            </Button>
+          ) : (
+            <ReadOnlyNotice permission="users:manage" action="封禁或解除封禁帳號" />
+          )}
         </View>
 
         <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
@@ -355,11 +372,16 @@ export default function AdminUserDetailScreen() {
               placeholder="記錄查核結果、聯繫過程或後續追蹤事項"
               numberOfLines={4}
               style={{ minHeight: 92 }}
+              isDisabled={!canManageUsers}
             />
           </TextField>
-          <Button size="md" onPress={handleSaveNote}>
-            <Button.Label>儲存備註</Button.Label>
-          </Button>
+          {canManageUsers ? (
+            <Button size="md" onPress={handleSaveNote}>
+              <Button.Label>儲存備註</Button.Label>
+            </Button>
+          ) : (
+            <ReadOnlyNotice permission="users:manage" action="編輯管理備註" />
+          )}
         </View>
 
         {userReports.length > 0 ? (

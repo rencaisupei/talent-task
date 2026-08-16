@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { ReadOnlyNotice } from '@/components/admin/ReadOnlyNotice';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { KpiCard } from '@/components/KpiCard';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
@@ -17,6 +18,7 @@ import { CATEGORY_FILTER_ALL, usePlatformAnalytics } from '@/lib/analytics';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatDate, formatNumber, formatPercent } from '@/lib/format';
 import { revenueTotals, useRevenueStore } from '@/lib/stores/revenue';
+import { useAdminCan } from '@/lib/stores/adminAuth';
 import { PREMIUM_PRICE_TWD } from '@/lib/stores/session';
 import {
   SUBSCRIPTION_CHANNEL_LABEL,
@@ -35,6 +37,7 @@ export default function AdminRevenueScreen() {
   const revokePremium = useRevenueStore((state) => state.revokePremium);
   const logAction = useAuditLogger();
   const analytics = usePlatformAnalytics(CATEGORY_FILTER_ALL);
+  const canManageRevenue = useAdminCan('revenue:manage');
 
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -142,9 +145,17 @@ export default function AdminRevenueScreen() {
         <View className="gap-3">
           <SectionHeading
             title="訂閱帳務明細"
-            caption="可標記退款或取消，動作會同步使用者端訂閱狀態"
+            caption={
+              canManageRevenue
+                ? '可標記退款或取消，動作會同步使用者端訂閱狀態'
+                : '你的角色為唯讀，僅能檢視帳務明細'
+            }
           />
           <SegmentedTabs options={options} value={filter} onChange={setFilter} />
+
+          {canManageRevenue ? null : (
+            <ReadOnlyNotice permission="revenue:manage" action="標記退款或取消訂閱" />
+          )}
 
           {ledger.length === 0 ? (
             <EmptyState
@@ -186,7 +197,7 @@ export default function AdminRevenueScreen() {
                   ) : null}
                 </View>
 
-                {record.status === 'active' ? (
+                {record.status === 'active' && canManageRevenue ? (
                   <View className="flex-row gap-2">
                     <View className="flex-1">
                       <Button

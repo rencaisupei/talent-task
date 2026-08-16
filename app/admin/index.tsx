@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import { router } from 'expo-router';
 import {
   Ban,
@@ -9,6 +10,7 @@ import {
   ScanEye,
   ScrollText,
   ShieldCheck,
+  UserCog,
   Users,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -21,6 +23,11 @@ import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
 import { useAccessIdentity } from '@/hooks/useAccessIdentity';
 import { endAccessSession } from '@/lib/adminHost';
+import {
+  ADMIN_PERMISSION_LABEL,
+  ADMIN_ROLE_SUMMARY,
+  type AdminPermission,
+} from '@/lib/adminPermissions';
 import { CATEGORY_FILTER_ALL, usePlatformAnalytics } from '@/lib/analytics';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/format';
@@ -35,6 +42,7 @@ import { ADMIN_ACTION_LABEL, ADMIN_ROLE_LABEL } from '@/lib/types';
 
 export default function AdminHomeScreen() {
   const currentAdmin = useAdminAuthStore((state) => state.currentAdmin);
+  const permissions = useAdminAuthStore((state) => state.permissions);
   const signOut = useAdminAuthStore((state) => state.signOut);
 
   const verifications = useAdminStore((state) => state.verifications);
@@ -64,6 +72,92 @@ export default function AdminHomeScreen() {
   const pendingBidReviews = useMemo(() => bidsAwaitingReview(bids).length, [bids]);
 
   const recentEntries = auditEntries.slice(0, 4);
+  const canViewRevenue = permissions.includes('revenue:view');
+  const canViewAudit = permissions.includes('audit:view');
+
+  const modules = useMemo<AdminModule[]>(() => {
+    const all: AdminModule[] = [
+      {
+        key: 'review',
+        permission: 'review:manage',
+        icon: <ScanEye size={17} color={COLORS.coral} strokeWidth={2.1} />,
+        label: 'AI 認證複審中心',
+        caption: `任務 ${pendingGigReviews} 件・提案 ${pendingBidReviews} 份・人才 ${pendingVerifications} 位待複審`,
+        href: '/admin/review',
+      },
+      {
+        key: 'users',
+        permission: 'users:view',
+        icon: <Users size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '使用者管理總表',
+        caption: `${formatNumber(users.length)} 位帳號・停權 ${bannedUserIds.length} 個`,
+        href: '/admin/users',
+      },
+      {
+        key: 'gigs',
+        permission: 'gigs:manage',
+        icon: <ClipboardList size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '任務與內容管理',
+        caption: `${formatNumber(gigs.length)} 件任務・已下架 ${takedownCount} 件`,
+        href: '/admin/gigs',
+      },
+      {
+        key: 'dashboard',
+        permission: 'review:manage',
+        icon: <ShieldCheck size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '審核與安全中心',
+        caption: `待審核 ${pendingVerifications} 件・未處理檢舉 ${openReports} 件`,
+        href: '/admin/dashboard',
+      },
+      {
+        key: 'revenue',
+        permission: 'revenue:view',
+        icon: <CreditCard size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '訂閱與營收管理',
+        caption: `月經常性收入 ${formatCurrency(analytics.mrrEstimate)}`,
+        href: '/admin/revenue',
+      },
+      {
+        key: 'announcements',
+        permission: 'announcements:send',
+        icon: <BellRing size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '系統公告與推播',
+        caption: `${announcements.length} 則公告已發布`,
+        href: '/admin/announcements',
+      },
+      {
+        key: 'accounts',
+        permission: 'admins:manage',
+        icon: <UserCog size={17} color={COLORS.brandStrong} strokeWidth={2.1} />,
+        label: '管理員帳號管理',
+        caption: '新增、停用、調整角色與重設密碼',
+        href: '/admin/accounts',
+      },
+      {
+        key: 'audit',
+        permission: 'audit:view',
+        icon: <ScrollText size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '管理員操作紀錄',
+        caption: `${formatNumber(auditEntries.length)} 筆稽核紀錄`,
+        href: '/admin/audit',
+      },
+    ];
+
+    return all.filter((item) => permissions.includes(item.permission));
+  }, [
+    analytics.mrrEstimate,
+    announcements.length,
+    auditEntries.length,
+    bannedUserIds.length,
+    gigs.length,
+    openReports,
+    pendingBidReviews,
+    pendingGigReviews,
+    pendingVerifications,
+    permissions,
+    takedownCount,
+    users.length,
+  ]);
 
   const handleSignOut = () => setSignOutVisible(true);
 
@@ -77,7 +171,7 @@ export default function AdminHomeScreen() {
 
   const confirmSignOut = (actionId: string) => {
     setSignOutVisible(false);
-    signOut();
+    void signOut();
 
     if (actionId === 'access') {
       endAccessSession();
@@ -160,111 +254,97 @@ export default function AdminHomeScreen() {
             />
           </View>
           <KpiCard
-            label="月經常性收入"
-            value={formatCurrency(analytics.mrrEstimate)}
-            caption={`活躍付費人才 ${formatNumber(analytics.activePremiumTalents)} 位`}
-            tone="brand"
-          />
-          <KpiCard
             label="平台累計註冊用戶"
             value={formatNumber(analytics.totalUsers)}
             caption={`任務累計 ${formatNumber(analytics.totalBroadcastedGigs)} 件・已下架 ${takedownCount} 件`}
             tone="brand"
           />
+          {canViewRevenue ? (
+            <KpiCard
+              label="月經常性收入"
+              value={formatCurrency(analytics.mrrEstimate)}
+              caption={`活躍付費人才 ${formatNumber(analytics.activePremiumTalents)} 位`}
+              tone="brand"
+            />
+          ) : null}
         </View>
 
-        <View className="gap-3">
-          <SectionHeading title="管理模組" caption="所有動作皆記錄操作者與時間" />
-          <View className="border-hairline overflow-hidden rounded-xl border bg-white">
-            <ModuleRow
-              icon={<ScanEye size={17} color={COLORS.coral} strokeWidth={2.1} />}
-              label="AI 認證複審中心"
-              caption={`任務 ${pendingGigReviews} 件・提案 ${pendingBidReviews} 份・人才 ${pendingVerifications} 位待複審`}
-              onPress={() => router.push('/admin/review')}
-            />
-            <Divider />
-            <ModuleRow
-              icon={<Users size={17} color={COLORS.ink} strokeWidth={2.1} />}
-              label="使用者管理總表"
-              caption={`${formatNumber(users.length)} 位帳號・停權 ${bannedUserIds.length} 個`}
-              onPress={() => router.push('/admin/users')}
-            />
-            <Divider />
-            <ModuleRow
-              icon={<ClipboardList size={17} color={COLORS.ink} strokeWidth={2.1} />}
-              label="任務與內容管理"
-              caption={`${formatNumber(gigs.length)} 件任務・已下架 ${takedownCount} 件`}
-              onPress={() => router.push('/admin/gigs')}
-            />
-            <Divider />
-            <ModuleRow
-              icon={<ShieldCheck size={17} color={COLORS.ink} strokeWidth={2.1} />}
-              label="審核與安全中心"
-              caption={`待審核 ${pendingVerifications} 件・未處理檢舉 ${openReports} 件`}
-              onPress={() => router.push('/admin/dashboard')}
-            />
-            <Divider />
-            <ModuleRow
-              icon={<CreditCard size={17} color={COLORS.ink} strokeWidth={2.1} />}
-              label="訂閱與營收管理"
-              caption={`月經常性收入 ${formatCurrency(analytics.mrrEstimate)}`}
-              onPress={() => router.push('/admin/revenue')}
-            />
-            <Divider />
-            <ModuleRow
-              icon={<BellRing size={17} color={COLORS.ink} strokeWidth={2.1} />}
-              label="系統公告與推播"
-              caption={`${announcements.length} 則公告已發布`}
-              onPress={() => router.push('/admin/announcements')}
-            />
-            <Divider />
-            <ModuleRow
-              icon={<ScrollText size={17} color={COLORS.ink} strokeWidth={2.1} />}
-              label="管理員操作紀錄"
-              caption={`${formatNumber(auditEntries.length)} 筆稽核紀錄`}
-              onPress={() => router.push('/admin/audit')}
-            />
+        {currentAdmin === null ? null : (
+          <View className="border-hairline gap-2 rounded-xl border bg-white p-4">
+            <View className="flex-row items-center gap-2">
+              <UserCog size={15} color={COLORS.brandStrong} strokeWidth={2.2} />
+              <Text className="text-ink text-[14px] font-semibold">
+                你的角色：{ADMIN_ROLE_LABEL[currentAdmin.role]}
+              </Text>
+            </View>
+            <Text className="text-muted text-[12px] leading-5">
+              {ADMIN_ROLE_SUMMARY[currentAdmin.role]}
+            </Text>
+            <View className="mt-1 flex-row flex-wrap gap-1.5">
+              {permissions.map((permission) => (
+                <StaticTag key={permission} label={ADMIN_PERMISSION_LABEL[permission]} />
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         <View className="gap-3">
-          <SectionHeading
-            title="最新管理動作"
-            caption="依時間排序"
-            right={
-              <Pressable
-                onPress={() => router.push('/admin/audit')}
-                accessibilityRole="button"
-                className="flex-row items-center gap-1"
-              >
-                <Text className="text-brand-strong text-[13px] font-semibold">全部紀錄</Text>
-                <ChevronRight size={14} color={COLORS.brandStrong} strokeWidth={2.2} />
-              </Pressable>
-            }
-          />
-          <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
-            {recentEntries.map((entry) => (
-              <View key={entry.id} className="flex-row items-start gap-3">
-                <View className="bg-canvas h-8 w-8 items-center justify-center rounded-xl">
-                  {entry.kind === 'ban' ? (
-                    <Ban size={15} color={COLORS.coral} strokeWidth={2.2} />
-                  ) : (
-                    <ShieldCheck size={15} color={COLORS.brandStrong} strokeWidth={2.2} />
-                  )}
-                </View>
-                <View className="flex-1">
-                  <Text className="text-ink text-[13px] leading-5 font-semibold">
-                    {entry.summary}
-                  </Text>
-                  <Text className="text-muted mt-0.5 text-[11px]">
-                    {entry.adminName}・{formatRelativeTime(entry.at)}
-                  </Text>
-                </View>
-                <StaticTag label={ADMIN_ACTION_LABEL[entry.kind]} />
+          <SectionHeading title="管理模組" caption="只顯示你的角色可執行的模組" />
+          <View className="border-hairline overflow-hidden rounded-xl border bg-white">
+            {modules.map((module, index) => (
+              <View key={module.key}>
+                {index === 0 ? null : <Divider />}
+                <ModuleRow
+                  icon={module.icon}
+                  label={module.label}
+                  caption={module.caption}
+                  onPress={() => router.push(module.href)}
+                />
               </View>
             ))}
           </View>
         </View>
+
+        {!canViewAudit ? null : (
+          <View className="gap-3">
+            <SectionHeading
+              title="最新管理動作"
+              caption="依時間排序"
+              right={
+                <Pressable
+                  onPress={() => router.push('/admin/audit')}
+                  accessibilityRole="button"
+                  className="flex-row items-center gap-1"
+                >
+                  <Text className="text-brand-strong text-[13px] font-semibold">全部紀錄</Text>
+                  <ChevronRight size={14} color={COLORS.brandStrong} strokeWidth={2.2} />
+                </Pressable>
+              }
+            />
+            <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
+              {recentEntries.map((entry) => (
+                <View key={entry.id} className="flex-row items-start gap-3">
+                  <View className="bg-canvas h-8 w-8 items-center justify-center rounded-xl">
+                    {entry.kind === 'ban' ? (
+                      <Ban size={15} color={COLORS.coral} strokeWidth={2.2} />
+                    ) : (
+                      <ShieldCheck size={15} color={COLORS.brandStrong} strokeWidth={2.2} />
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-ink text-[13px] leading-5 font-semibold">
+                      {entry.summary}
+                    </Text>
+                    <Text className="text-muted mt-0.5 text-[11px]">
+                      {entry.adminName}・{formatRelativeTime(entry.at)}
+                    </Text>
+                  </View>
+                  <StaticTag label={ADMIN_ACTION_LABEL[entry.kind]} />
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       <ConfirmSheet
@@ -285,6 +365,15 @@ export default function AdminHomeScreen() {
 
 function Divider() {
   return <View className="bg-hairline h-px" />;
+}
+
+interface AdminModule {
+  key: string;
+  permission: AdminPermission;
+  icon: React.ReactNode;
+  label: string;
+  caption: string;
+  href: Href;
 }
 
 interface ModuleRowProps {

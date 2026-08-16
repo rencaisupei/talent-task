@@ -2,123 +2,200 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { findAdminAccount, isAdminAccountStillValid } from '@/lib/adminAccounts';
+import {
+  adminChangePassword,
+  adminCompleteSetup,
+  adminFetchSession,
+  adminLogin,
+  adminLogout,
+  type AdminAuthOutcome,
+  type AdminSessionPayload,
+} from '@/lib/adminApi';
+import type { AdminPermission } from '@/lib/adminPermissions';
+import { IS_BILT_CONFIGURED } from '@/lib/bilt';
 import { useAdminAuditStore } from '@/lib/stores/adminAudit';
 import { ADMIN_ROLE_LABEL, type AdminAccount } from '@/lib/types';
 
-const ADMIN_ROLE_STRINGS: ReadonlySet<string> = new Set(['owner', 'moderator', 'analyst']);
+/** checking = 正在向後端確認持久化的 token，畫面應顯示載入狀態。 */
+export type AdminAuthStatus = 'checking' | 'signed-out' | 'signed-in';
 
-/** 驗證持久化的資料形狀是否符合 AdminAccount，避免對不明資料做不安全的型別斷言。 */
-function isAdminAccountShape(value: unknown): value is AdminAccount {
-  if (typeof value !== 'object' || value === null) return false;
-  if (!('id' in value) || typeof value.id !== 'string') return false;
-  if (!('email' in value) || typeof value.email !== 'string') return false;
-  if (!('password' in value) || typeof value.password !== 'string') return false;
-  if (!('name' in value) || typeof value.name !== 'string') return false;
-  if (!('role' in value) || typeof value.role !== 'string' || !ADMIN_ROLE_STRINGS.has(value.role)) {
-    return false;
-  }
-  if (!('createdAt' in value) || typeof value.createdAt !== 'number') return false;
-  return true;
+const EMPTY_PERMISSIONS: readonly AdminPermission[] = [];
+
+function readPersistedToken(persisted: unknown): string | null {
+  if (typeof persisted !== 'object' || persisted === null || !('token' in persisted)) return null;
+  const { token } = persisted;
+  return typeof token === 'string' && token.length >= 32 ? token : null;
 }
-
-/** 從持久化資料中安全取出 currentAdmin（形狀不符則視為未登入）。 */
-function readPersistedCurrentAdmin(persisted: unknown): AdminAccount | null {
-  if (typeof persisted !== 'object' || persisted === null || !('currentAdmin' in persisted)) {
-    return null;
-  }
-  const { currentAdmin } = persisted;
-  return isAdminAccountShape(currentAdmin) ? currentAdmin : null;
-}
-
-export type AdminSignInResult = 'ok' | 'invalid' | 'locked';
-
-/** 連續失敗次數上限與鎖定時間（本機驗證的基本防護）。 */
-export const ADMIN_LOCK_THRESHOLD = 5;
-export const ADMIN_LOCK_MS = 60_000;
 
 interface AdminAuthState {
   hydrated: boolean;
+  status: AdminAuthStatus;
+  /** 隨機 session token；資料庫只存它的 SHA-256，前端從不持有密碼或雜湊。 */
+  token: string | null;
   currentAdmin: AdminAccount | null;
-  failedAttempts: number;
-  lockedUntil: number | null;
+  permissions: readonly AdminPermission[];
+  /** 後端無法連線或未設定時的說明，供登入頁顯示。 */
+  connectionError: string | null;
   markHydrated: () => void;
-  signIn: (email: string, password: string) => AdminSignInResult;
-  signOut: () => void;
+  refreshSession: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<AdminAuthOutcome>;
+  completeSetup: (
+    email: string,
+    setupCode: string,
+    newPassword: string,
+  ) => Promise<AdminAuthOutcome>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AdminAuthOutcome>;
+  signOut: () => Promise<void>;
 }
 
 /**
- * 管理員登入狀態。帳密清單來自 lib/adminAccounts.ts（程式碼即唯一來源），
- * 這裡只持久化「目前登入的是誰」，因此改動清單後立即生效。
+ * 管理員登入狀態。帳密驗證全部在 admin-auth 後端函式進行：
+ * 帳號存在 admin_accounts、密碼以 PBKDF2 雜湊，前端只持久化一組 session token。
  */
 export const useAdminAuthStore = create<AdminAuthState>()(
   persist(
-    (set, get) => ({
-      hydrated: false,
-      currentAdmin: null,
-      failedAttempts: 0,
-      lockedUntil: null,
-
-      markHydrated: () => set({ hydrated: true }),
-
-      signIn: (email, password) => {
-        const { failedAttempts, lockedUntil } = get();
-        if (lockedUntil !== null && lockedUntil > Date.now()) return 'locked';
-
-        const account = findAdminAccount(email, password);
-
-        if (account === null) {
-          const attempts = failedAttempts + 1;
-          set({
-            failedAttempts: attempts,
-            lockedUntil: attempts >= ADMIN_LOCK_THRESHOLD ? Date.now() + ADMIN_LOCK_MS : null,
-          });
-          return attempts >= ADMIN_LOCK_THRESHOLD ? 'locked' : 'invalid';
-        }
-
-        const signedIn: AdminAccount = { ...account, lastLoginAt: Date.now() };
-        set({ currentAdmin: signedIn, failedAttempts: 0, lockedUntil: null });
-
-        useAdminAuditStore.getState().log({
-          adminId: signedIn.id,
-          adminName: signedIn.name,
-          kind: 'auth',
-          summary: `管理員登入平台（${ADMIN_ROLE_LABEL[signedIn.role]}）`,
+    (set, get) => {
+      const applySession = (session: AdminSessionPayload) => {
+        set({
+          status: 'signed-in',
+          token: session.token,
+          currentAdmin: session.admin,
+          permissions: session.permissions,
+          connectionError: null,
         });
+      };
 
-        return 'ok';
-      },
+      const clearSession = (connectionError: string | null) => {
+        set({
+          status: 'signed-out',
+          token: null,
+          currentAdmin: null,
+          permissions: EMPTY_PERMISSIONS,
+          connectionError,
+        });
+      };
 
-      signOut: () => {
-        const admin = get().currentAdmin;
-        if (admin) {
+      const handleOutcome = (outcome: AdminAuthOutcome): AdminAuthOutcome => {
+        if (outcome.kind === 'ok') {
+          applySession(outcome.session);
           useAdminAuditStore.getState().log({
-            adminId: admin.id,
-            adminName: admin.name,
+            adminId: outcome.session.admin.id,
+            adminName: outcome.session.admin.name,
             kind: 'auth',
-            summary: '管理員登出平台',
+            summary: `管理員登入平台（${ADMIN_ROLE_LABEL[outcome.session.admin.role]}）`,
           });
+        } else if (outcome.kind === 'unavailable') {
+          set({ connectionError: outcome.message });
         }
-        set({ currentAdmin: null, failedAttempts: 0, lockedUntil: null });
-      },
-    }),
+        return outcome;
+      };
+
+      return {
+        hydrated: false,
+        status: 'checking',
+        token: null,
+        currentAdmin: null,
+        permissions: EMPTY_PERMISSIONS,
+        connectionError: null,
+
+        markHydrated: () => set({ hydrated: true }),
+
+        refreshSession: async () => {
+          if (!IS_BILT_CONFIGURED) {
+            clearSession(
+              '尚未設定後端連線（EXPO_PUBLIC_BILT_URL 與 EXPO_PUBLIC_BILT_ANON_KEY），無法驗證管理員身分。',
+            );
+            return;
+          }
+
+          const token = get().token;
+          if (token === null) {
+            clearSession(null);
+            return;
+          }
+
+          const result = await adminFetchSession(token);
+          if (result.kind === 'ok') {
+            set({
+              status: 'signed-in',
+              currentAdmin: result.admin,
+              permissions: result.permissions,
+              connectionError: null,
+            });
+            return;
+          }
+
+          if (result.kind === 'expired') {
+            clearSession(null);
+            return;
+          }
+
+          // 連線問題不清掉 token，恢復連線後重新驗證即可繼續。
+          set({
+            status: 'signed-out',
+            currentAdmin: null,
+            permissions: EMPTY_PERMISSIONS,
+            connectionError: result.message,
+          });
+        },
+
+        signIn: async (email, password) => handleOutcome(await adminLogin(email, password)),
+
+        completeSetup: async (email, setupCode, newPassword) =>
+          handleOutcome(await adminCompleteSetup(email, setupCode, newPassword)),
+
+        changePassword: async (currentPassword, newPassword) => {
+          const token = get().token;
+          if (token === null) {
+            return { kind: 'rejected', message: '登入狀態已過期，請重新登入。' };
+          }
+
+          const outcome = await adminChangePassword(token, currentPassword, newPassword);
+          if (outcome.kind === 'ok') {
+            // 變更密碼會撤銷其他工作階段，這裡換成伺服器新發的 token。
+            set({ token: outcome.session.token, connectionError: null });
+            useAdminAuditStore.getState().log({
+              adminId: outcome.session.admin.id,
+              adminName: outcome.session.admin.name,
+              kind: 'account',
+              summary: '變更自己的管理員密碼（其他裝置已強制登出）',
+            });
+          }
+          return outcome;
+        },
+
+        signOut: async () => {
+          const { token, currentAdmin } = get();
+          if (currentAdmin !== null) {
+            useAdminAuditStore.getState().log({
+              adminId: currentAdmin.id,
+              adminName: currentAdmin.name,
+              kind: 'auth',
+              summary: '管理員登出平台',
+            });
+          }
+
+          clearSession(null);
+          if (token !== null) await adminLogout(token);
+        },
+      };
+    },
     {
       name: 'instantgig-admin-auth',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
-      partialize: (state) => ({ currentAdmin: state.currentAdmin }),
-      migrate: (persisted) => {
-        return { currentAdmin: readPersistedCurrentAdmin(persisted) };
-      },
-      /** 已登入的帳號若已從程式碼清單移除或改過密碼，重新載入時一律登出。 */
-      merge: (persisted, current) => {
-        const restored = readPersistedCurrentAdmin(persisted);
-        const stillValid = restored != null && isAdminAccountStillValid(restored);
-        return { ...current, currentAdmin: stillValid ? restored : null };
-      },
+      version: 3,
+      partialize: (state) => ({ token: state.token }),
+      /** v2 以前把帳號（含明文密碼）存在瀏覽器，一律作廢並要求重新登入。 */
+      migrate: () => ({ token: null }),
+      merge: (persisted, current) => ({ ...current, token: readPersistedToken(persisted) }),
       onRehydrateStorage: () => (state) => {
         state?.markHydrated();
       },
     },
   ),
 );
+
+/** 目前登入的管理員是否具備某項權限（介面顯示用；授權由後端再檢查一次）。 */
+export function useAdminCan(permission: AdminPermission): boolean {
+  return useAdminAuthStore((state) => state.permissions.includes(permission));
+}

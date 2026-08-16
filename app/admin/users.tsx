@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { ReadOnlyNotice } from '@/components/admin/ReadOnlyNotice';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { EmptyState } from '@/components/SectionHeading';
 import { SegmentedTabs, type SegmentOption } from '@/components/SegmentedTabs';
@@ -14,6 +15,7 @@ import { useAuditLogger } from '@/hooks/useAuditLogger';
 import { COLORS } from '@/lib/colors';
 import { formatDate, formatNumber } from '@/lib/format';
 import { useAdminStore } from '@/lib/stores/admin';
+import { useAdminCan } from '@/lib/stores/adminAuth';
 import { usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { useRevenueStore } from '@/lib/stores/revenue';
 import { useSessionStore } from '@/lib/stores/session';
@@ -27,6 +29,7 @@ export default function AdminUsersScreen() {
   const grantPremium = useRevenueStore((state) => state.grantPremium);
   const revokePremium = useRevenueStore((state) => state.revokePremium);
   const logAction = useAuditLogger();
+  const canManageRevenue = useAdminCan('revenue:manage');
 
   const localName = useSessionStore((state) => state.displayName);
   const localRole = useSessionStore((state) => state.role);
@@ -134,12 +137,18 @@ export default function AdminUsersScreen() {
                 {localName}・{localRole === 'client' ? '尋找專家' : '我要接案'}・
                 {localPremium ? '進階版使用中' : '免費版'}
               </Text>
-              <Button size="md" variant="tertiary" onPress={() => setConfirmLocal(true)}>
-                <Button.Label>{localPremium ? '取消進階版' : '手動開通進階版'}</Button.Label>
-              </Button>
-              <Text className="text-muted text-[11px] leading-4">
-                此動作會即時反映在使用者端的對話配額與訂閱狀態。
-              </Text>
+              {canManageRevenue ? (
+                <>
+                  <Button size="md" variant="tertiary" onPress={() => setConfirmLocal(true)}>
+                    <Button.Label>{localPremium ? '取消進階版' : '手動開通進階版'}</Button.Label>
+                  </Button>
+                  <Text className="text-muted text-[11px] leading-4">
+                    此動作會即時反映在使用者端的對話配額與訂閱狀態。
+                  </Text>
+                </>
+              ) : (
+                <ReadOnlyNotice permission="revenue:manage" action="開通或取消進階版" />
+              )}
             </View>
           </View>
         }

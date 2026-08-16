@@ -112,10 +112,13 @@ Bilt will handle the build and provide you with download links or submission-rea
 
 1. Cloudflare 儀表板 → **Compute (Workers)** → Create → **Import a repository**
    → 授權後選這個 repo。
-2. 只填這幾欄，其他保持預設，**環境變數可以先不設**：
+2. 填這幾欄，其他保持預設：
    - Project name：`instantgig`（要與 `wrangler.toml` 的 `name` 一致）
    - Build command：`npm run build:web`
    - Deploy command：`npx wrangler deploy`（預設值，不用改）
+   - Build variables（**必填**，管理員登入要用）：
+     `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`、
+     `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
 3. 按 **Create and deploy**，等狀態跑到 Success。網址就是
    `https://instantgig.<你的子網域>.workers.dev`，打開會直接進管理員登入頁。
 
@@ -124,21 +127,22 @@ Bilt will handle the build and provide you with download links or submission-rea
 輸出目錄與 SPA fallback 都寫在 `wrangler.toml` 的 `[assets]`（`directory = "./dist"`、
 `not_found_handling = "single-page-application"`），所以儀表板不用填輸出目錄。
 
-上線後可以晚點再處理的兩件事：
+上線後要接著處理的兩件事：
 
-- **沒設環境變數不會壞**：`EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY` 缺少時，
-  發布內容的 AI 審核會自動改用裝置端規則檢查，其餘功能不受影響（資料本來就存在裝置上）。
-  想改用伺服器端審核，照第 2 節第 5 步補上兩個變數再重新部署。
+- **環境變數是必要的**：管理員帳密驗證在後端函式 `admin-auth`（見第 9 節），
+  前端要靠 `EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY` 才能呼叫它。
+  沒設的話登入頁會直接顯示「尚未設定後端連線」，任何人都登不進去。
+  這兩個值是**建置時**寫進 bundle 的，補設後要重新觸發建置。
 - **整站只有管理員帳密保護**：`workers.dev` 網址是公開的，任何人開都會看到管理員登入頁。
-  想在網域層再加一道驗證是第 7 節。
+  想在網域層再加一道驗證是第 7 節（建議做）。
 
 ### 1. 本機匯出
 
 ```sh
 npm ci
 
-# 後端連線資訊會在建置時寫進 bundle；不設也能建置與執行，
-# 只是 AI 審核會退回裝置端規則檢查
+# 後端連線資訊會在建置時寫進 bundle。管理員登入需要它（帳密驗證在後端函式），
+# 沒設就只能看到「尚未設定後端連線」的登入頁
 export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"
 export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
 
@@ -180,8 +184,9 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
    - Deploy command：`npx wrangler deploy`（預設值）
    - Root directory：留空
    - 不需要填輸出目錄，它在 `wrangler.toml` 的 `[assets] directory` 裡
-5. **Build variables**（選配）：不設也能建置成功並正常上線，AI 審核會改用裝置端規則。
-   要用伺服器端 AI 審核時，到 Worker → Settings → **Build** → Variables and Secrets 設定：
+5. **Build variables**（**必填**）：管理員登入與帳號管理都要呼叫後端函式，
+   缺少這兩個變數的建置會產出一個沒人能登入的網站。到 Worker → Settings →
+   **Build** → Variables and Secrets 設定：
    - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
    - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
    - 這兩個值是**建置時**寫進 bundle 的，必須設在 Build 區塊（不是執行時的 Worker
@@ -207,7 +212,7 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
   沒有 `_expo/` 目錄**：表示 `public/` 複製完後 JS 打包就中斷了（多半是上一項，
   或 `JavaScript heap out of memory`）。正常的 `dist/index.html` 會被注入
   `<script src="/_expo/static/js/web/entry-*.js">`，且 `%LANG_ISO_CODE%` 已被取代。
-- `EXPO_PUBLIC_*` 設在執行時變數而不是 Build 變數，建置時讀不到（該環境的 AI 審核會退回裝置端規則）。
+- `EXPO_PUBLIC_*` 設在執行時變數而不是 Build 變數，建置時讀不到（登入頁會顯示「尚未設定後端連線」）。
 - `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
 - `workers.dev` 網址與每個預覽版本網址都是公開的管理入口（只剩帳密保護），
   上線前務必照第 7 節一起用 Access 鎖住，或直接關閉 `workers.dev` 路由。
@@ -372,15 +377,19 @@ dig TXT instantgig.tw +short
   **不在 Cloudflare Registrar 支援的 TLD 清單內**，註冊只能留在原註冊商，DNS 託管在
   Cloudflare 即可。
 
-### 7. 用 Cloudflare Access 保護管理網站（選配，免費）
+### 7. 用 Cloudflare Access 保護管理網站（建議，免費）
 
 管理網站用 Cloudflare Zero Trust 的 **Access** 在邊緣擋下未授權請求：免費方案含 50 位
 使用者，未通過驗證的人連 HTML 與 JS 都拿不到。因為託管已在 Cloudflare，
 自訂網域本來就是 Proxied，不需要額外調整 DNS。網頁版整站都是管理後台，
-所以這道保護要套在整個網站上。
+所以這道保護要套在**每一個能開到網站的主機名稱**上（自訂網域、`workers.dev`、預覽網址）。
+
+Access 與管理員帳密是互補的兩層，不是二選一：Access 決定「誰的裝置能拿到網頁」，
+管理員帳密與角色（第 9 節）決定「登入後能做什麼」。
 
 前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（見第 6 節），且 `admin` 已在 Worker
-的 Domains & Routes 顯示 Active。
+的 Domains & Routes 顯示 Active。只用 `workers.dev` 也能做，把第 3 步的 hostname 換成
+`instantgig.<子網域>.workers.dev` 即可。
 
 1. **開通 Zero Trust**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡但
    50 位使用者內不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。
@@ -392,11 +401,14 @@ dig TXT instantgig.tw +short
    - Application name：`InstantGig Admin`
    - Session Duration：`24 hours`（可依需求縮短）
    - Public hostname：Subdomain `admin`、Domain `instantgig.tw`、Path 留空
+   - 若 apex 與 `www` 也綁在這個 Worker 上，用 **Add a public hostname** 把
+     `instantgig.tw` 與 `www.instantgig.tw` 一併加進同一個應用程式（整站都是後台）。
 4. **新增 Allow 政策**：
    - Policy name：`Admin allowlist`、Action：`Allow`
    - Include → Selector `Emails`，填入允許進入的信箱（多筆逐一新增）；
      想放行整個公司網域可改用 `Emails ending in` → `@instantgig.tw`
    - 存檔後不要再加任何 Bypass 政策，否則等於沒鎖。
+   - 建議讓這份信箱白名單與 `admin_accounts` 的管理員信箱一致，離職時兩邊一起移除。
 5. **檢查 admin 記錄是 Proxied**：DNS → `admin` 的 CNAME 應該已是**橘雲（Proxied）**
    （Workers 自訂網域的預設狀態）。Access 只能保護經過 Cloudflare 代理的主機名稱。
 6. **設定 SSL 模式**：SSL/TLS → Overview → 選 **Full (strict)**。
@@ -409,14 +421,16 @@ dig TXT instantgig.tw +short
      套用同一條 Allow 政策。
 8. **驗證**：用無痕視窗開 `https://admin.instantgig.tw` → 出現 Cloudflare 驗證碼畫面 →
    收信輸入 6 位碼 → 才會看到管理員登入頁，接著仍需輸入管理員帳密（雙層驗證）。
+   登入頁與主控台會出現「Cloudflare Access 已驗證」與你的信箱；沒看到就表示這個主機名稱
+   還沒被 Access 應用程式涵蓋。也可以直接開 `/cdn-cgi/access/get-identity` 確認回傳 JSON。
 
 應用內對應行為（已實作）：
 
 - `hooks/useAccessIdentity.ts` 會讀取 Cloudflare 的 `/cdn-cgi/access/get-identity`，
   在管理主控台與登入頁顯示「Cloudflare Access 已驗證」與該信箱；沒有 Access 保護時
   自動隱藏，不影響本機或 `workers.dev` 直連的行為。
-- 管理主控台的登出改為兩個選項：僅登出管理帳號，或連同 Cloudflare 連線一起結束
-  （導向 `/cdn-cgi/access/logout`，下次進入要重新驗證）。
+- 管理主控台的登出改為兩個選項：僅登出管理帳號（撤銷後端 session token），或連同
+  Cloudflare 連線一起結束（導向 `/cdn-cgi/access/logout`，下次進入要重新驗證）。
 - `/cdn-cgi/` 由 Cloudflare 邊緣處理，不會進到靜態資產的 SPA fallback，也不受
   `public/_redirects` 影響。
 
@@ -431,43 +445,82 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
   `public/index.html` 另有 `<meta name="robots" content="noindex, nofollow">`。
   不需要再設 Cloudflare 的 Transform Rules。
 - 進入 `/admin` 時前端還會插入一次 `<meta name="robots">`，涵蓋只讀執行後 DOM 的爬蟲。
-- 存取有兩道關卡：Cloudflare Access（網域層，見第 7 節）與管理員帳密
-  （清單在 `lib/adminAccounts.ts`，驗證在 `lib/stores/adminAuth.ts`，連續 5 次失敗鎖定
-  60 秒）。未設定 Access 時網域本身是公開的，只剩帳密保護，而帳密會被打包進 JS bundle
-  （見第 9 節）。
+- 存取有兩道關卡：Cloudflare Access（網域層，見第 7 節）與管理員帳密（伺服器端驗證，
+  見第 9 節：帳號存在資料庫、密碼以 PBKDF2 雜湊、連續 5 次失敗鎖 5 分鐘）。
+  未設定 Access 時網域本身是公開的，只剩帳密保護。
 
-### 9. 管理員帳號與密碼
+### 9. 管理員帳號、密碼與權限
 
-帳密清單只有一個地方：**`lib/adminAccounts.ts`** 的 `ADMIN_ACCOUNTS`。
+帳密**不在程式碼裡**。驗證全部在後端函式 `admin-auth`（bilt-cloud edge function）進行，
+前端只持有一組隨機 session token。
 
-```ts
-{
-  id: 'admin_ops',            // 不可與其他筆重複，稽核紀錄會用它
-  email: 'ops@instantgig.tw', // 登入帳號，比對時忽略大小寫
-  password: 'ChangeMe2026!',  // 明文比對
-  name: '營運 陳彥',           // 主控台與稽核紀錄顯示的名字
-  role: 'moderator',          // owner / moderator / analyst，目前只影響顯示文字
-  createdAt: Date.UTC(2026, 7, 1),
-}
-```
+**資料表**（RLS 沒有任何政策，anon key 讀不到任何一列，只有函式的 service key 能存取）
 
-- **新增管理員**：在陣列尾端加一筆，push 後重新部署即生效。
-- **移除管理員**：刪掉該筆。該帳號原本已登入的瀏覽器在下次載入時會被登出
-  （`lib/stores/adminAuth.ts` 會拿持久化的登入資訊回頭比對程式碼清單）。
-- **改密碼**：直接改字串，效果同上（等於強制該帳號重新登入）。
-- `role` 目前只是顯示用標籤，不會限制任何管理頁面。需要「分析員不能封禁帳號」這類權限
-  分級要另外實作。
-- 登入頁的「一鍵填入」清單只在 `__DEV__`（本機開發）顯示，正式建置不會出現。
+| 資料表               | 內容                                                                              |
+| -------------------- | --------------------------------------------------------------------------------- |
+| `admin_accounts`     | 信箱、顯示名稱、角色、`password_hash`、一次性啟用碼、啟用狀態、失敗次數與鎖定時間 |
+| `admin_sessions`     | token 的 SHA-256、對應管理員、到期時間（12 小時，每次驗證會延長）                 |
+| `admin_login_events` | 登入成功／失敗／鎖定／改密碼等事件，供帳號管理頁顯示                              |
 
-**要不要雜湊？** 在目前架構下雜湊沒有實質效果：網頁版是靜態匯出，驗證在瀏覽器裡執行，
-雜湊值與比對邏輯一樣會被打包進 JS，攻擊者不必解雜湊，直接改前端狀態就能繞過。
-真正有效的順序是：
+密碼以 **PBKDF2-SHA256（210,000 輪 + 16 bytes 隨機 salt）** 雜湊，格式為
+`pbkdf2-sha256$<輪數>$<salt>$<hash>`；驗證用常數時間比較。資料庫外洩也拿不到明文，
+更拿不到可直接使用的 token。
 
-1. **Cloudflare Access**（第 7 節）—— 不用寫程式，未通過驗證的人連 HTML/JS 都拿不到。
-   這是目前最划算的一層，管理員帳密退化成第二道確認。
-2. **伺服器端驗證** —— 帳號存資料庫、密碼存 bcrypt/argon2 雜湊，登入改呼叫後端函式簽發
-   權杖。這才需要雜湊，也才擋得住「直接改前端」。
-3. 不論走哪條路，都不要把正式密碼留在 git 歷史裡；換過的舊密碼視同已洩漏。
+**在畫面上管理帳號（日常做法）**
+
+以總管理員登入 → 主控台 → **管理員帳號管理**（`app/admin/accounts.tsx`）：
+
+- **新增管理員**：填信箱、顯示名稱、角色。初始密碼欄**建議留空**，系統會產生一次性
+  啟用碼（例如 `K7QM-3F9T-XPWR`，14 天有效）。把啟用碼交給對方，對方在登入頁的密碼欄
+  輸入啟用碼 → 系統要求他設定自己的新密碼 → 啟用碼即失效。這樣你不會知道對方的密碼。
+- **改角色**：直接切換該帳號的角色，對方的登入狀態會立刻被撤銷，需重新登入。
+- **停用／啟用**：停用會撤銷所有 session，帳號無法登入（保留紀錄）。不能停用自己，
+  也不能讓平台失去最後一位啟用中的總管理員。
+- **重設密碼**（忘記密碼時用）：清除該帳號密碼並產生新啟用碼，同時撤銷其所有 session。
+- **刪除帳號**：不能刪自己，也不能刪最後一位啟用中的總管理員。
+- **變更我的密碼**：需輸入目前密碼；成功後其他裝置上的 session 全部失效。
+- 頁面下方是伺服器端的**登入紀錄**（含密碼錯誤與鎖定事件）。
+
+**首次登入用的啟用碼**
+
+原本寫在程式碼裡的三個帳號已改建到 `admin_accounts`，並以原本的密碼字串當作
+一次性啟用碼（90 天有效）：`admin@instantgig.tw`（總管理員）、
+`review@instantgig.tw`（審核專員）、`data@instantgig.tw`（數據分析員）。
+第一次登入時輸入舊密碼，系統會要求設定新密碼，之後舊字串就失效。
+新密碼規則：至少 10 個字元，且要有英文與數字。
+
+**角色與權限**
+
+| 權限                  | 總管理員 owner | 審核專員 moderator | 數據分析員 analyst |
+| --------------------- | -------------- | ------------------ | ------------------ |
+| AI 認證複審與檢舉處理 | ✓              | ✓                  |                    |
+| 檢視使用者總表        | ✓              | ✓                  | ✓                  |
+| 封禁、解禁與帳號備註  | ✓              | ✓                  |                    |
+| 任務下架與內容管理    | ✓              | ✓                  |                    |
+| 檢視訂閱與營收帳務    | ✓              |                    | ✓                  |
+| 開通、取消與退款訂閱  | ✓              |                    |                    |
+| 系統公告與推播        | ✓              |                    |                    |
+| 稽核與登入紀錄        | ✓              | ✓                  | ✓                  |
+| 管理員帳號管理        | ✓              |                    |                    |
+
+- 主控台只列出該角色可用的模組；直接輸入沒權限的網址會看到「權限不足」畫面
+  （`app/admin/_layout.tsx` 的 `ROUTE_PERMISSION`）。
+- 頁面內的破壞性動作另有第二層判斷，沒權限時按鈕換成唯讀提示
+  （`components/admin/ReadOnlyNotice.tsx`）。
+- 要調整角色能做什麼：改 `lib/adminPermissions.ts` 的 `ADMIN_ROLE_PERMISSIONS`。
+  介面權限以這份表為準；後端函式另有一份最小權限表，只用來守自己負責的動作
+  （帳號管理限 owner、登入紀錄限有稽核權限者）—— 新增涉及後端的權限時兩邊都要改。
+
+**這樣安全嗎**
+
+- 密碼不再出現在 JS bundle 裡，改前端狀態也拿不到有效 token（token 由伺服器簽發並存 hash）。
+- 剩下的風險是「拿到有效 token 的瀏覽器」：token 存在 `AsyncStorage`／localStorage，
+  12 小時未使用即過期，改密碼或被停用會立刻失效。要更嚴格就縮短
+  函式裡的 `SESSION_HOURS`。
+- 目前一般使用者的資料（任務、對話、評價）仍存在各自裝置上，管理頁的封禁／下架等動作
+  只影響開啟該頁的瀏覽器。要讓管理動作對所有使用者生效，得先把這些資料搬上後端。
+- 不要把啟用碼與登入網址寫在同一封信裡；離職時同步移除 `admin_accounts` 的帳號與
+  Cloudflare Access 白名單。
 
 ## How can I make changes to my app?
 
