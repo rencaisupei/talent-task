@@ -261,7 +261,7 @@ export const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
 export interface AdminAccount {
   id: string;
   email: string;
-  /** 本機示範驗證用；接後端後改為伺服器端雜湊驗證。 */
+  /** 明文比對用；網頁靜態匯出會把它打包進 bundle，真正的防線是 Cloudflare Access 或伺服器端驗證。 */
   password: string;
   name: string;
   role: AdminRole;

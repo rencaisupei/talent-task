@@ -6,7 +6,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } fro
 
 import { BrandLogo } from '@/components/BrandLogo';
 import { useAccessIdentity } from '@/hooks/useAccessIdentity';
-import { SEED_ADMIN_ACCOUNTS } from '@/lib/adminSeed';
+import { ADMIN_ACCOUNTS } from '@/lib/adminAccounts';
 import { COLORS } from '@/lib/colors';
 import { ADMIN_LOCK_THRESHOLD, useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { ADMIN_ROLE_LABEL } from '@/lib/types';
@@ -146,38 +146,40 @@ export default function AdminLoginScreen() {
           </Button>
         </View>
 
-        <View className="border-hairline bg-canvas gap-3 rounded-xl border p-4">
-          <View className="flex-row items-center gap-2">
-            <KeyRound size={15} color={COLORS.ink} strokeWidth={2.2} />
-            <Text className="text-ink text-[14px] font-semibold">示範管理員帳號</Text>
+        {!__DEV__ ? null : (
+          <View className="border-hairline bg-canvas gap-3 rounded-xl border p-4">
+            <View className="flex-row items-center gap-2">
+              <KeyRound size={15} color={COLORS.ink} strokeWidth={2.2} />
+              <Text className="text-ink text-[14px] font-semibold">開發模式帳號快速填入</Text>
+            </View>
+            {ADMIN_ACCOUNTS.map((account) => (
+              <Pressable
+                key={account.id}
+                onPress={() => {
+                  setEmail(account.email);
+                  setPassword(account.password);
+                  setError(null);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`填入 ${account.name} 帳號`}
+                className="border-hairline flex-row items-center gap-3 rounded-xl border bg-white px-3 py-2.5"
+              >
+                <View className="flex-1">
+                  <Text className="text-ink text-[13px] font-semibold">
+                    {account.name}・{ADMIN_ROLE_LABEL[account.role]}
+                  </Text>
+                  <Text className="text-muted mt-0.5 text-[12px]">
+                    {account.email}／{account.password}
+                  </Text>
+                </View>
+                <Text className="text-brand-strong text-[12px] font-semibold">一鍵填入</Text>
+              </Pressable>
+            ))}
+            <Text className="text-muted text-[11px] leading-4">
+              此區塊只在開發模式顯示，正式建置不會出現。帳密清單在 lib/adminAccounts.ts。
+            </Text>
           </View>
-          {SEED_ADMIN_ACCOUNTS.map((account) => (
-            <Pressable
-              key={account.id}
-              onPress={() => {
-                setEmail(account.email);
-                setPassword(account.password);
-                setError(null);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`填入 ${account.name} 帳號`}
-              className="border-hairline flex-row items-center gap-3 rounded-xl border bg-white px-3 py-2.5"
-            >
-              <View className="flex-1">
-                <Text className="text-ink text-[13px] font-semibold">
-                  {account.name}・{ADMIN_ROLE_LABEL[account.role]}
-                </Text>
-                <Text className="text-muted mt-0.5 text-[12px]">
-                  {account.email}／{account.password}
-                </Text>
-              </View>
-              <Text className="text-brand-strong text-[12px] font-semibold">一鍵填入</Text>
-            </Pressable>
-          ))}
-          <Text className="text-muted text-[11px] leading-4">
-            示範資料存放於本機；接後端後改為伺服器端帳號與雜湊密碼驗證。
-          </Text>
-        </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

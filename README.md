@@ -432,8 +432,42 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
   不需要再設 Cloudflare 的 Transform Rules。
 - 進入 `/admin` 時前端還會插入一次 `<meta name="robots">`，涵蓋只讀執行後 DOM 的爬蟲。
 - 存取有兩道關卡：Cloudflare Access（網域層，見第 7 節）與管理員帳密
-  （`lib/stores/adminAuth.ts`，連續 5 次失敗鎖定 60 秒）。未設定 Access 時網域本身是
-  公開的，只剩帳密保護。
+  （清單在 `lib/adminAccounts.ts`，驗證在 `lib/stores/adminAuth.ts`，連續 5 次失敗鎖定
+  60 秒）。未設定 Access 時網域本身是公開的，只剩帳密保護，而帳密會被打包進 JS bundle
+  （見第 9 節）。
+
+### 9. 管理員帳號與密碼
+
+帳密清單只有一個地方：**`lib/adminAccounts.ts`** 的 `ADMIN_ACCOUNTS`。
+
+```ts
+{
+  id: 'admin_ops',            // 不可與其他筆重複，稽核紀錄會用它
+  email: 'ops@instantgig.tw', // 登入帳號，比對時忽略大小寫
+  password: 'ChangeMe2026!',  // 明文比對
+  name: '營運 陳彥',           // 主控台與稽核紀錄顯示的名字
+  role: 'moderator',          // owner / moderator / analyst，目前只影響顯示文字
+  createdAt: Date.UTC(2026, 7, 1),
+}
+```
+
+- **新增管理員**：在陣列尾端加一筆，push 後重新部署即生效。
+- **移除管理員**：刪掉該筆。該帳號原本已登入的瀏覽器在下次載入時會被登出
+  （`lib/stores/adminAuth.ts` 會拿持久化的登入資訊回頭比對程式碼清單）。
+- **改密碼**：直接改字串，效果同上（等於強制該帳號重新登入）。
+- `role` 目前只是顯示用標籤，不會限制任何管理頁面。需要「分析員不能封禁帳號」這類權限
+  分級要另外實作。
+- 登入頁的「一鍵填入」清單只在 `__DEV__`（本機開發）顯示，正式建置不會出現。
+
+**要不要雜湊？** 在目前架構下雜湊沒有實質效果：網頁版是靜態匯出，驗證在瀏覽器裡執行，
+雜湊值與比對邏輯一樣會被打包進 JS，攻擊者不必解雜湊，直接改前端狀態就能繞過。
+真正有效的順序是：
+
+1. **Cloudflare Access**（第 7 節）—— 不用寫程式，未通過驗證的人連 HTML/JS 都拿不到。
+   這是目前最划算的一層，管理員帳密退化成第二道確認。
+2. **伺服器端驗證** —— 帳號存資料庫、密碼存 bcrypt/argon2 雜湊，登入改呼叫後端函式簽發
+   權杖。這才需要雜湊，也才擋得住「直接改前端」。
+3. 不論走哪條路，都不要把正式密碼留在 git 歷史裡；換過的舊密碼視同已洩漏。
 
 ## How can I make changes to my app?
 

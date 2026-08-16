@@ -1,7 +1,6 @@
 import { PLATFORM_BASELINE, SEED_GIGS, SEED_TALENTS } from '@/lib/seed';
 import { PREMIUM_PRICE_TWD } from '@/lib/stores/session';
 import {
-  type AdminAccount,
   type AdminAuditEntry,
   type Announcement,
   type AnnouncementAudience,
@@ -14,37 +13,6 @@ import {
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const NOW = Date.UTC(2026, 7, 14, 4, 0, 0);
-
-/**
- * 管理員專屬平台的示範帳號（本機驗證）。
- * 接後端後改為伺服器端帳號與雜湊密碼，畫面不需調整。
- */
-export const SEED_ADMIN_ACCOUNTS: AdminAccount[] = [
-  {
-    id: 'admin_owner',
-    email: 'admin@instantgig.tw',
-    password: 'Instant2026!',
-    name: '平台總管理員',
-    role: 'owner',
-    createdAt: NOW - 400 * DAY,
-  },
-  {
-    id: 'admin_reviewer',
-    email: 'review@instantgig.tw',
-    password: 'Review2026!',
-    name: '審核專員 林昀',
-    role: 'moderator',
-    createdAt: NOW - 180 * DAY,
-  },
-  {
-    id: 'admin_analyst',
-    email: 'data@instantgig.tw',
-    password: 'Data2026!',
-    name: '數據分析員 何柏',
-    role: 'analyst',
-    createdAt: NOW - 96 * DAY,
-  },
-];
 
 /** 客戶列：由示範任務推導（同一客戶累計發布件數與最早發布時間）。 */
 const CLIENT_USERS: PlatformUser[] = (() => {
