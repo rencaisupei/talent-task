@@ -153,7 +153,7 @@ Settings → Domains 依序加入三個網域，Vercel 會顯示各自要填的 
 - 子網域一定用 CNAME，apex（`instantgig.tw`）只能用 A 記錄，不要對 apex 設 CNAME。
 - DNS 託管在 Cloudflare 時，先把三筆記錄都設為 **DNS only**（灰雲），等 Vercel 的
   Domains 頁面顯示 Valid Configuration、憑證簽發完成再往下做。
-- 之後若要用 Cloudflare Access 保護管理平台（見第 6 節），只把 `admin` 這一筆改為
+- 之後若要用 Cloudflare Access 保護管理平台（見第 6、7 節），只把 `admin` 這一筆改為
   **Proxied**（橘雲）；`instantgig.tw` 與 `www` 保持 DNS only，避免主站走雙層 CDN。
 - DNS 生效後 Vercel 會自動簽發憑證，Domains 頁面顯示 Valid Configuration 即完成。
 
@@ -180,14 +180,105 @@ Settings → Domains 依序加入三個網域，Vercel 會顯示各自要填的 
 因為是單頁輸出，任何主機都必須把未命中檔案的路徑改寫回 `index.html`，
 否則直接開 `/admin/login` 會 404。
 
-### 6. 用 Cloudflare Access 保護 `admin.instantgig.tw`（免費）
+### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（Access 的前置作業）
+
+Cloudflare Access 只能保護「經過 Cloudflare 代理」的主機名稱，所以 `instantgig.tw` 的
+DNS 必須由 Cloudflare 託管。這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
+（HiNet／PChome／Gandi／GoDaddy 等），只把「由誰回答 DNS 查詢」換成 Cloudflare，不影響
+網域到期日與續費對象。
+
+**步驟 0：先備份現有 DNS 記錄（最重要）**
+
+到目前的 DNS 供應商後台，把所有記錄抄下來或匯出 zone file，尤其是這些容易被忘記、
+一漏就出事的：
+
+| 記錄                     | 影響                        |
+| ------------------------ | --------------------------- |
+| `MX` + `TXT`(SPF/DKIM)   | 漏掉會直接收不到／寄不出信  |
+| `TXT` `_dmarc`           | 郵件驗證                    |
+| `CNAME` 第三方驗證用記錄 | Google Search Console、金流、憑證驗證 |
+| 其他子網域 A／CNAME      | 舊站、測試環境、郵件主機    |
+
+同時把主要記錄的 **TTL 調低到 300 秒**，等 1～2 小時再往下做，切換時的空窗會更短。
+
+**步驟 1：在 Cloudflare 新增網域**
+
+1. 註冊／登入 Cloudflare → Add a site → 輸入 `instantgig.tw`。
+2. 方案選 **Free**。
+3. Cloudflare 會自動掃描現有記錄。掃描不保證完整，**逐筆比對步驟 0 的清單**，缺的手動補上。
+4. 依第 3 節的表格確認 Vercel 需要的三筆記錄存在：apex 用 A、`www` 與 `admin` 用 CNAME。
+5. 這個階段先把**所有記錄設為 DNS only（灰雲）**，包含 `admin`。等一切正常後再回來改 `admin`。
+
+**步驟 2：關閉舊供應商的 DNSSEC**
+
+若舊供應商有開 DNSSEC，一定要先在**註冊商後台移除 DS 記錄**並等它失效，才換
+nameserver；否則 DNSSEC 驗證會失敗，網域會整站解析不到。之後要在 Cloudflare 重新啟用
+DNSSEC，是 DNS → Settings → DNSSEC → Enable，再把 Cloudflare 給的 DS 值填回註冊商。
+
+**步驟 3：在註冊商改 nameserver**
+
+Cloudflare 會給兩筆專屬 nameserver（形如 `xxx.ns.cloudflare.com`）。到註冊商後台的
+「名稱伺服器／DNS 設定」把原本的兩筆換成這兩筆，只留 Cloudflare 的。
+
+`.tw` 網域的實務差異：
+
+- 多數 `.tw` 註冊商（HiNet、PChome、Gandi 等）都支援自訂 nameserver，但入口名稱不一，
+  可能叫「DNS 代管設定」、「名稱伺服器變更」或需要另外申請。
+- 部分 `.tw` 註冊商的 nameserver 變更**不是即時生效**，需人工審核或每日批次更新，
+  實際可能等 1～24 小時；TWNIC 端更新後全球快取還要再等舊 TTL 過期。
+- 若註冊商要求填 nameserver 的 IP（glue record），Cloudflare 的 nameserver 不需要也不該填，
+  留空即可。
+
+**步驟 4：等生效並驗證**
+
+Cloudflare 的 Overview 顯示 **Active** 就是生效了（通常數小時內，最長 24 小時，
+Cloudflare 也會寄信通知）。生效後檢查這幾件事：
+
+```sh
+# nameserver 是否已指向 Cloudflare
+dig NS instantgig.tw +short
+
+# 主站與子網域是否都解得到
+dig instantgig.tw +short
+dig www.instantgig.tw +short
+dig admin.instantgig.tw +short
+
+# 郵件記錄有沒有漏
+dig MX instantgig.tw +short
+dig TXT instantgig.tw +short
+```
+
+再用瀏覽器實測 `https://instantgig.tw`、`https://www.instantgig.tw`、
+`https://admin.instantgig.tw` 三者都正常，Vercel 的 Domains 頁面對三個網域都顯示
+**Valid Configuration**。**寄一封測試信到你的網域信箱**確認郵件沒斷。
+
+**步驟 5：設定 SSL 與開始接 Access**
+
+1. Cloudflare → SSL/TLS → Overview → 選 **Full (strict)**（Vercel 端有有效憑證，
+   不要用 Flexible，會造成無限轉址）。
+2. `instantgig.tw` 與 `www` 保持 **DNS only**，避免主站走 Cloudflare + Vercel 雙層 CDN。
+3. 只把 `admin` 改成 **Proxied（橘雲）**，然後照第 7 節設定 Cloudflare Access。
+
+**容易踩到的地雷**
+
+- **漏抄 MX／SPF**：這是轉 DNS 最常見的事故，信會直接掉。務必在切換前抄完、切換後測試。
+- **舊供應商別馬上退租**：nameserver 生效前舊區域還在服務，至少留一週再關閉。
+- **apex 不能用 CNAME**：`instantgig.tw` 用 A 記錄，值照 Vercel Domains 畫面顯示的填。
+- **Proxied 與憑證的順序**：Vercel 憑證還沒簽好就先開橘雲，會看到 525／526。
+  先 DNS only 等 Valid Configuration，再改 Proxied。
+- **Cloudflare 的 Email Routing 若沒要用就別開**，它會改寫 MX 記錄。
+- **轉 DNS ≠ 轉註冊商**：如果你之後想把註冊也搬到 Cloudflare Registrar，`.tw` 目前
+  **不在 Cloudflare Registrar 支援的 TLD 清單內**，註冊只能留在原註冊商，DNS 託管在
+  Cloudflare 即可。
+
+### 7. 用 Cloudflare Access 保護 `admin.instantgig.tw`（免費）
 
 Vercel 的 Deployment Protection 是**專案層級**設定，無法只鎖單一網域，而且要保護正式
 網域必須加購 Advanced Deployment Protection（Pro 方案每月 US$150）。因此管理網域改用
 Cloudflare Zero Trust 的 **Access** 在 Cloudflare 邊緣擋下未授權請求：免費方案含 50 位
 使用者，主網域完全不受影響，未通過驗證的人連 HTML 與 JS 都拿不到。
 
-前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（Nameserver 指向 Cloudflare）。
+前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（Nameserver 指向 Cloudflare，見第 6 節）。
 
 1. **開通 Zero Trust**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡但
    50 位使用者內不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。
@@ -226,13 +317,13 @@ Cloudflare Zero Trust 的 **Access** 在 Cloudflare 邊緣擋下未授權請求�
 Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 `CF-Access-Client-Id` / `CF-Access-Client-Secret` 標頭即可。
 
-### 7. 管理平台的搜尋引擎與存取
+### 8. 管理平台的搜尋引擎與存取
 
 - `public/robots.txt` 禁止收錄 `/admin`、`/admin-dashboard`。
 - `admin.instantgig.tw` 的 `/robots.txt` 會被改寫成 `public/admin-robots.txt`
   （整站 `Disallow: /`），且該網域所有回應都帶 `X-Robots-Tag: noindex, nofollow`。
 - 進入 `/admin` 時前端另會插入 `<meta name="robots" content="noindex, nofollow">`。
-- 存取有兩道關卡：Cloudflare Access（網域層，見第 6 節）與管理員帳密
+- 存取有兩道關卡：Cloudflare Access（網域層，見第 7 節）與管理員帳密
   （`lib/stores/adminAuth.ts`，連續 5 次失敗鎖定 60 秒）。未設定 Access 時網域本身是
   公開的，只剩帳密保護。
 
