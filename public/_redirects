@@ -1,5 +1,7 @@
-# SPA fallback for Netlify and Cloudflare Pages.
+# SPA fallback for Cloudflare Pages.
 # Copied verbatim into dist/ by `expo export -p web`.
 # Real files in dist/ (JS bundles, icons, manifest.json) are served first;
 # anything else falls through to the single-page entry document.
+# Cloudflare Access endpoints under /cdn-cgi/ are handled at the edge and never
+# reach Pages routing, so this catch-all does not shadow them.
 /*    /index.html    200

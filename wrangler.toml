@@ -1,0 +1,13 @@
+# Cloudflare Pages config for the Expo Web static export.
+#
+#   npm run build:web            # writes the SPA bundle to dist/
+#   npm run deploy:web           # build + upload as the production deployment
+#   npm run deploy:web:preview   # build + upload as a preview deployment
+#
+# `name` must match the Pages project created in the Cloudflare dashboard.
+# SPA routing, cache and noindex headers live in public/_redirects and
+# public/_headers (copied verbatim into dist/ by the export).
+
+name = "instantgig"
+compatibility_date = "2025-11-01"
+pages_build_output_dir = "dist"

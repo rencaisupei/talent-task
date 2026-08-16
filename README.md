@@ -120,42 +120,58 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 `public/` 內的檔案（`index.html`、`manifest.json`、`robots.txt`、`admin-robots.txt`、
 `_redirects`、`_headers`、`icons/`）會原樣複製進 `dist/`。
 
-### 2. 部署到 Vercel（建議方式）
+### 2. 部署到 Cloudflare Pages（建議方式）
 
-一個 Vercel 專案同時服務兩個網域：`instantgig.tw` 是一般使用者網站，
-`admin.instantgig.tw` 只提供管理平台。`vercel.json` 已含建置指令、輸出目錄、
-SPA 改寫、快取與 `noindex` 標頭，匯入後不需再調整。
+託管、DNS 與管理平台的存取保護全部在 Cloudflare：一個 Pages 專案同時服務兩個網域，
+`instantgig.tw` 是一般使用者網站，`admin.instantgig.tw` 只提供管理平台。
+`wrangler.toml` 指定專案名稱與輸出目錄；SPA 改寫、快取與 `noindex` 標頭由
+`public/_redirects` 與 `public/_headers` 提供（匯出時原樣複製進 `dist/`）。
 
-1. 在 [vercel.com/new](https://vercel.com/new) 匯入這個 repo。Framework Preset 選
-   **Other**；Build Command 與 Output Directory 會由 `vercel.json` 帶入
-   （`npm run build:web` → `dist`）。
-2. Settings → Environment Variables 新增（Production 與 Preview 都要）：
+**方式 A：連結 Git 自動部署（建議）**
+
+1. Cloudflare 儀表板 → Workers & Pages → Create → **Pages** → Connect to Git，
+   選這個 repo，專案名稱建議 `instantgig`（要與 `wrangler.toml` 的 `name` 一致）。
+2. Build 設定：
+   - Framework preset：**None**
+   - Build command：`npm run build:web`
+   - Build output directory：`dist`
+   - Root directory：留空
+3. Environment variables（Production 與 Preview 都要各設一份）：
    - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
    - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
+   - `NODE_VERSION` = `20.19.4`（Pages 預設 Node 版本較舊，不設會建置失敗）
    - 選填：`EXPO_PUBLIC_ADMIN_HOST`（管理網域，預設 `admin.instantgig.tw`，
      多個以逗號分隔）
-3. Deploy。之後每次 push 到主分支就會自動重新部署；本機臨時部署可用
-   `npm run deploy:web`（正式）或 `npm run deploy:web:preview`（預覽）。
+4. Save and Deploy。之後每次 push 到 production 分支就自動重新部署，其他分支產生預覽網址。
+
+**方式 B：本機用 Wrangler 直接上傳**
+
+```sh
+npx wrangler login
+npm run deploy:web          # 建置後上傳為正式部署
+npm run deploy:web:preview  # 建置後上傳為預覽部署
+```
 
 ### 3. 綁定網域與 DNS
 
-Settings → Domains 依序加入三個網域，Vercel 會顯示各自要填的 DNS 值（照畫面顯示的填，
-下表是常見值）：
+前置條件：`instantgig.tw` 的 DNS 已由 Cloudflare 託管（尚未轉移請先做第 6 節）。
 
-| 網域                  | 記錄類型 | 名稱／Host | 值                                       | 用途                     |
-| --------------------- | -------- | ---------- | ---------------------------------------- | ------------------------ |
-| `instantgig.tw`       | A        | `@`        | Vercel 在 Domains 畫面顯示的 IP          | 一般使用者網站（主網域） |
-| `www.instantgig.tw`   | CNAME    | `www`      | 專案專屬值，如 `xxxx.vercel-dns-017.com` | 轉址到主網域             |
-| `admin.instantgig.tw` | CNAME    | `admin`    | 與 `www` 相同的專案專屬值                | 管理員專屬平台           |
+在 Pages 專案 → **Custom domains** → Set up a custom domain，依序加入三個網域。
+網域的 zone 在同一個 Cloudflare 帳號時，DNS 記錄會自動建立：
+
+| 網域                  | 記錄類型              | 名稱／Host | 值                    | 用途                     |
+| --------------------- | --------------------- | ---------- | --------------------- | ------------------------ |
+| `instantgig.tw`       | CNAME（自動 flatten） | `@`        | `<project>.pages.dev` | 一般使用者網站（主網域） |
+| `www.instantgig.tw`   | CNAME                 | `www`      | `<project>.pages.dev` | 別名／轉址來源           |
+| `admin.instantgig.tw` | CNAME                 | `admin`    | `<project>.pages.dev` | 管理員專屬平台           |
 
 注意事項：
 
-- 子網域一定用 CNAME，apex（`instantgig.tw`）只能用 A 記錄，不要對 apex 設 CNAME。
-- DNS 託管在 Cloudflare 時，先把三筆記錄都設為 **DNS only**（灰雲），等 Vercel 的
-  Domains 頁面顯示 Valid Configuration、憑證簽發完成再往下做。
-- 之後若要用 Cloudflare Access 保護管理平台（見第 6、7 節），只把 `admin` 這一筆改為
-  **Proxied**（橘雲）；`instantgig.tw` 與 `www` 保持 DNS only，避免主站走雙層 CDN。
-- DNS 生效後 Vercel 會自動簽發憑證，Domains 頁面顯示 Valid Configuration 即完成。
+- apex 用 CNAME 沒問題，Cloudflare 會自動 CNAME flattening，不需要 A 記錄。
+- 三筆都必須是 **Proxied（橘雲）**。Pages 自訂網域一律經過 Cloudflare 代理，
+  這也是 Access 能只保護 `admin` 的原因；設成 DNS only 會驗證不通過。
+- 憑證由 Cloudflare 自動簽發，Custom domains 顯示 **Active** 即完成。
+- 想讓 `www` 301 到 apex，用 Rules → **Redirect Rules** 設一條（Pages 本身不做主機轉址）。
 
 ### 4. 管理網域的行為
 
@@ -171,19 +187,20 @@ Settings → Domains 依序加入三個網域，Vercel 會顯示各自要填的 
 
 ### 5. 其他主機（備用設定）
 
-| 平台             | 設定檔                                                   | 說明                                                                  |
-| ---------------- | -------------------------------------------------------- | --------------------------------------------------------------------- |
-| Netlify          | `netlify.toml` + `public/_redirects` + `public/_headers` | 連結 repo 或 `npx netlify deploy --prod --dir dist`                   |
-| Cloudflare Pages | `public/_redirects` + `public/_headers`                  | Build 指令 `npm run build:web`，輸出目錄 `dist`                       |
-| 自架 Nginx       | `deploy/nginx.conf`                                      | 複製 `dist/` 到 `/var/www/instantgig/`，調整 `server_name` 與憑證路徑 |
+| 平台       | 設定檔              | 說明                                                                  |
+| ---------- | ------------------- | --------------------------------------------------------------------- |
+| 自架 Nginx | `deploy/nginx.conf` | 複製 `dist/` 到 `/var/www/instantgig/`，調整 `server_name` 與憑證路徑 |
+
+`public/_redirects` 與 `public/_headers` 是 Cloudflare Pages 格式（Netlify 也讀同一份），
+換主機時只要確認該主機支援這兩個檔案，或改用該主機自己的設定方式。
 
 因為是單頁輸出，任何主機都必須把未命中檔案的路徑改寫回 `index.html`，
 否則直接開 `/admin/login` 會 404。
 
-### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（Access 的前置作業）
+### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（部署與 Access 的前置作業）
 
-Cloudflare Access 只能保護「經過 Cloudflare 代理」的主機名稱，所以 `instantgig.tw` 的
-DNS 必須由 Cloudflare 託管。這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
+Cloudflare Pages 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloudflare 託管。
+這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
 （HiNet／PChome／Gandi／GoDaddy 等），只把「由誰回答 DNS 查詢」換成 Cloudflare，不影響
 網域到期日與續費對象。
 
@@ -192,12 +209,12 @@ DNS 必須由 Cloudflare 託管。這裡是**轉 DNS 託管**，不是轉移網�
 到目前的 DNS 供應商後台，把所有記錄抄下來或匯出 zone file，尤其是這些容易被忘記、
 一漏就出事的：
 
-| 記錄                     | 影響                        |
-| ------------------------ | --------------------------- |
-| `MX` + `TXT`(SPF/DKIM)   | 漏掉會直接收不到／寄不出信  |
-| `TXT` `_dmarc`           | 郵件驗證                    |
+| 記錄                     | 影響                                  |
+| ------------------------ | ------------------------------------- |
+| `MX` + `TXT`(SPF/DKIM)   | 漏掉會直接收不到／寄不出信            |
+| `TXT` `_dmarc`           | 郵件驗證                              |
 | `CNAME` 第三方驗證用記錄 | Google Search Console、金流、憑證驗證 |
-| 其他子網域 A／CNAME      | 舊站、測試環境、郵件主機    |
+| 其他子網域 A／CNAME      | 舊站、測試環境、郵件主機              |
 
 同時把主要記錄的 **TTL 調低到 300 秒**，等 1～2 小時再往下做，切換時的空窗會更短。
 
@@ -206,8 +223,9 @@ DNS 必須由 Cloudflare 託管。這裡是**轉 DNS 託管**，不是轉移網�
 1. 註冊／登入 Cloudflare → Add a site → 輸入 `instantgig.tw`。
 2. 方案選 **Free**。
 3. Cloudflare 會自動掃描現有記錄。掃描不保證完整，**逐筆比對步驟 0 的清單**，缺的手動補上。
-4. 依第 3 節的表格確認 Vercel 需要的三筆記錄存在：apex 用 A、`www` 與 `admin` 用 CNAME。
-5. 這個階段先把**所有記錄設為 DNS only（灰雲）**，包含 `admin`。等一切正常後再回來改 `admin`。
+4. 網站上線用的三筆記錄不用手動建：轉移完成後在 Pages 專案加自訂網域（第 3 節），
+   Cloudflare 會自動寫入 `@`、`www`、`admin` 的 CNAME。
+5. 這個階段其他記錄先維持與舊供應商一致即可；郵件與第三方驗證記錄照抄，不要改成 Proxied。
 
 **步驟 2：關閉舊供應商的 DNSSEC**
 
@@ -249,23 +267,22 @@ dig TXT instantgig.tw +short
 ```
 
 再用瀏覽器實測 `https://instantgig.tw`、`https://www.instantgig.tw`、
-`https://admin.instantgig.tw` 三者都正常，Vercel 的 Domains 頁面對三個網域都顯示
-**Valid Configuration**。**寄一封測試信到你的網域信箱**確認郵件沒斷。
+`https://admin.instantgig.tw` 三者都正常，Pages 專案的 Custom domains 對三個網域都顯示
+**Active**。**寄一封測試信到你的網域信箱**確認郵件沒斷。
 
 **步驟 5：設定 SSL 與開始接 Access**
 
-1. Cloudflare → SSL/TLS → Overview → 選 **Full (strict)**（Vercel 端有有效憑證，
-   不要用 Flexible，會造成無限轉址）。
-2. `instantgig.tw` 與 `www` 保持 **DNS only**，避免主站走 Cloudflare + Vercel 雙層 CDN。
-3. 只把 `admin` 改成 **Proxied（橘雲）**，然後照第 7 節設定 Cloudflare Access。
+1. Cloudflare → SSL/TLS → Overview → 選 **Full (strict)**（不要用 Flexible，會造成無限轉址）。
+2. 三個網域都保持 **Proxied（橘雲）**，這是 Pages 自訂網域的正常狀態。
+3. 接著照第 7 節在 `admin.instantgig.tw` 上設定 Cloudflare Access。
 
 **容易踩到的地雷**
 
 - **漏抄 MX／SPF**：這是轉 DNS 最常見的事故，信會直接掉。務必在切換前抄完、切換後測試。
 - **舊供應商別馬上退租**：nameserver 生效前舊區域還在服務，至少留一週再關閉。
-- **apex 不能用 CNAME**：`instantgig.tw` 用 A 記錄，值照 Vercel Domains 畫面顯示的填。
-- **Proxied 與憑證的順序**：Vercel 憑證還沒簽好就先開橘雲，會看到 525／526。
-  先 DNS only 等 Valid Configuration，再改 Proxied。
+- **郵件與驗證記錄不要開 Proxied**：`MX` 不能代理，郵件主機的 A／CNAME 保持 DNS only。
+- **Pages 自訂網域驗證中先別動 DNS**：Cloudflare 自動建立的 CNAME 不要改成 DNS only 或改值，
+  否則 Custom domains 會退回 Pending。
 - **Cloudflare 的 Email Routing 若沒要用就別開**，它會改寫 MX 記錄。
 - **轉 DNS ≠ 轉註冊商**：如果你之後想把註冊也搬到 Cloudflare Registrar，`.tw` 目前
   **不在 Cloudflare Registrar 支援的 TLD 清單內**，註冊只能留在原註冊商，DNS 託管在
@@ -273,12 +290,12 @@ dig TXT instantgig.tw +short
 
 ### 7. 用 Cloudflare Access 保護 `admin.instantgig.tw`（免費）
 
-Vercel 的 Deployment Protection 是**專案層級**設定，無法只鎖單一網域，而且要保護正式
-網域必須加購 Advanced Deployment Protection（Pro 方案每月 US$150）。因此管理網域改用
-Cloudflare Zero Trust 的 **Access** 在 Cloudflare 邊緣擋下未授權請求：免費方案含 50 位
-使用者，主網域完全不受影響，未通過驗證的人連 HTML 與 JS 都拿不到。
+管理網域用 Cloudflare Zero Trust 的 **Access** 在邊緣擋下未授權請求：免費方案含 50 位
+使用者，主網域完全不受影響，未通過驗證的人連 HTML 與 JS 都拿不到。因為託管已在
+Cloudflare Pages，`admin` 本來就是 Proxied，不需要額外調整 DNS。
 
-前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（Nameserver 指向 Cloudflare，見第 6 節）。
+前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（見第 6 節），且 `admin` 已在 Pages
+的 Custom domains 顯示 Active。
 
 1. **開通 Zero Trust**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡但
    50 位使用者內不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。
@@ -295,12 +312,14 @@ Cloudflare Zero Trust 的 **Access** 在 Cloudflare 邊緣擋下未授權請求�
    - Include → Selector `Emails`，填入允許進入的信箱（多筆逐一新增）；
      想放行整個公司網域可改用 `Emails ending in` → `@instantgig.tw`
    - 存檔後不要再加任何 Bypass 政策，否則等於沒鎖。
-5. **把 admin 記錄改成 Proxied**：DNS → 找到 `admin` 的 CNAME → 把灰雲點成
-   **橘雲（Proxied）**。Access 只能保護經過 Cloudflare 代理的主機名稱。
-6. **設定 SSL 模式**：SSL/TLS → Overview → 選 **Full (strict)**。若切換後出現 526／525
-   錯誤，多半是憑證還沒簽好：先把 `admin` 改回 DNS only，等 Vercel Domains 顯示
-   Valid Configuration 再改回 Proxied。
-7. **驗證**：用無痕視窗開 `https://admin.instantgig.tw` → 出現 Cloudflare 驗證碼畫面 →
+5. **檢查 admin 記錄是 Proxied**：DNS → `admin` 的 CNAME 應該已是**橘雲（Proxied）**
+   （Pages 自訂網域的預設狀態）。Access 只能保護經過 Cloudflare 代理的主機名稱。
+6. **設定 SSL 模式**：SSL/TLS → Overview → 選 **Full (strict)**。
+7. **一併鎖住 `*.pages.dev`**：Pages 專案的 `<project>.pages.dev` 與預覽網址也能開到
+   `/admin`，只剩帳密保護。要一起擋：Pages 專案 → Settings → **Enable access policy**
+   （保護預覽部署），並在 Zero Trust 再建一個 Self-hosted 應用程式把 hostname 設為
+   `<project>.pages.dev`，套用同一條 Allow 政策。
+8. **驗證**：用無痕視窗開 `https://admin.instantgig.tw` → 出現 Cloudflare 驗證碼畫面 →
    收信輸入 6 位碼 → 才會看到管理員登入頁，接著仍需輸入管理員帳密（雙層驗證）。
    另外開 `https://instantgig.tw` 確認主站沒有被擋。
 
@@ -308,10 +327,11 @@ Cloudflare Zero Trust 的 **Access** 在 Cloudflare 邊緣擋下未授權請求�
 
 - `hooks/useAccessIdentity.ts` 會讀取 Cloudflare 的 `/cdn-cgi/access/get-identity`，
   在管理主控台與登入頁顯示「Cloudflare Access 已驗證」與該信箱；沒有 Access 保護時
-  自動隱藏，不影響本機或 Vercel 直連的行為。
+  自動隱藏，不影響本機或 `pages.dev` 直連的行為。
 - 管理主控台的登出改為兩個選項：僅登出管理帳號，或連同 Cloudflare 連線一起結束
   （導向 `/cdn-cgi/access/logout`，下次進入要重新驗證）。
-- `vercel.json` 的 SPA 改寫已排除 `/cdn-cgi/`，避免這些端點被改寫成 `index.html`。
+- `/cdn-cgi/` 由 Cloudflare 邊緣處理，不會進到 Pages 的 SPA 改寫，`public/_redirects`
+  的 catch-all 不會蓋掉這些端點。
 
 需要自動化（監控、E2E 測試）通過 Access 時，用 Zero Trust → Access → Service Auth 建立
 Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
@@ -319,9 +339,17 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 
 ### 8. 管理平台的搜尋引擎與存取
 
-- `public/robots.txt` 禁止收錄 `/admin`、`/admin-dashboard`。
-- `admin.instantgig.tw` 的 `/robots.txt` 會被改寫成 `public/admin-robots.txt`
-  （整站 `Disallow: /`），且該網域所有回應都帶 `X-Robots-Tag: noindex, nofollow`。
+- `public/robots.txt` 禁止收錄 `/admin`、`/admin-dashboard`；`public/_headers` 讓
+  `/admin` 與 `/admin/*` 的回應帶 `X-Robots-Tag: noindex, nofollow`。
+- Cloudflare Pages 的 `_headers` 只能比對路徑，不能比對主機名稱，所以「整個 admin 網域
+  noindex」與 `/robots.txt` 換成 `admin-robots.txt` 這兩件事改成 zone 層級的 Rules：
+  1. Rules → **Transform Rules** → Modify Response Header → Add：
+     條件 `Hostname equals admin.instantgig.tw`，動作 Set static
+     `X-Robots-Tag` = `noindex, nofollow`。
+  2. Rules → Transform Rules → **Rewrite URL** → Add：
+     條件 `Hostname equals admin.instantgig.tw and URI Path equals /robots.txt`，
+     Path → Rewrite to static `/admin-robots.txt`（`public/admin-robots.txt` 為整站
+     `Disallow: /`）。
 - 進入 `/admin` 時前端另會插入 `<meta name="robots" content="noindex, nofollow">`。
 - 存取有兩道關卡：Cloudflare Access（網域層，見第 7 節）與管理員帳密
   （`lib/stores/adminAuth.ts`，連續 5 次失敗鎖定 60 秒）。未設定 Access 時網域本身是

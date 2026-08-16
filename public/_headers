@@ -1,5 +1,9 @@
-# Response headers for Netlify and Cloudflare Pages.
+# Response headers for Cloudflare Pages.
 # Copied verbatim into dist/ by `expo export -p web`.
+#
+# Pages rules match on PATH only — they cannot target a single hostname.
+# The admin-domain-wide `X-Robots-Tag` and the `/robots.txt` -> `/admin-robots.txt`
+# swap are configured as zone-level Rules in Cloudflare (see README section 8).
 
 /*
   X-Content-Type-Options: nosniff
