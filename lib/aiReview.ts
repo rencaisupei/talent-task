@@ -28,6 +28,10 @@ interface RawReviewResponse {
   engine?: unknown;
 }
 
+function readField(source: Record<string, unknown>, key: keyof RawReviewResponse): unknown {
+  return source[key];
+}
+
 function toDecision(value: unknown, fallbackScore: number): AiReviewDecision {
   if (value === 'approved' || value === 'review' || value === 'rejected') return value;
   if (fallbackScore >= 60) return 'rejected';
@@ -74,17 +78,20 @@ export async function runAiReview(input: AiReviewInput): Promise<AiReviewResult>
       return offlineReview(input);
     }
 
-    const raw = data as RawReviewResponse;
-    const riskScore = Math.max(0, Math.min(100, Math.round(Number(raw.riskScore ?? 0))));
-    const reasons = toStringList(raw.reasons);
+    const raw: Record<string, unknown> = { ...data };
+    const riskScore = Math.max(
+      0,
+      Math.min(100, Math.round(Number(readField(raw, 'riskScore') ?? 0))),
+    );
+    const reasons = toStringList(readField(raw, 'reasons'));
 
     return {
       target: input.target,
-      decision: toDecision(raw.decision, riskScore),
+      decision: toDecision(readField(raw, 'decision'), riskScore),
       riskScore,
       reasons: reasons.length > 0 ? reasons : ['未偵測到詐騙或違規特徵'],
-      flaggedTerms: toStringList(raw.flaggedTerms),
-      engine: toEngine(raw.engine),
+      flaggedTerms: toStringList(readField(raw, 'flaggedTerms')),
+      engine: toEngine(readField(raw, 'engine')),
       reviewedAt: Date.now(),
     };
   } catch {

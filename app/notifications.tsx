@@ -44,7 +44,8 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
   if (kind === 'review') return <Star size={size} color={COLORS.coral} strokeWidth={2.2} />;
   if (kind === 'chat')
     return <MessageCircle size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
-  if (kind === 'call') return <PhoneCall size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
+  if (kind === 'call')
+    return <PhoneCall size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;
   if (kind === 'moderation') return <ScanEye size={size} color={COLORS.coral} strokeWidth={2.2} />;
   if (kind === 'verification') {
     return <ShieldCheck size={size} color={COLORS.brandStrong} strokeWidth={2.2} />;

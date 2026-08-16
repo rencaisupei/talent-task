@@ -5,6 +5,7 @@ import {
   ClipboardList,
   CreditCard,
   KeyRound,
+  ScanEye,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -24,6 +25,7 @@ import { ADMIN_ACTION_LABEL, type AdminActionKind, type AdminAuditEntry } from '
 type AuditFilter = 'all' | AdminActionKind;
 
 const FILTER_ORDER: AdminActionKind[] = [
+  'moderation',
   'verification',
   'ban',
   'gig',
@@ -36,6 +38,7 @@ const FILTER_ORDER: AdminActionKind[] = [
 function iconFor(kind: AdminActionKind) {
   const icons: Record<AdminActionKind, React.ReactNode> = {
     ban: <Ban size={15} color={COLORS.coral} strokeWidth={2.2} />,
+    moderation: <ScanEye size={15} color={COLORS.coral} strokeWidth={2.2} />,
     verification: <ShieldCheck size={15} color={COLORS.brandStrong} strokeWidth={2.2} />,
     gig: <ClipboardList size={15} color={COLORS.ink} strokeWidth={2.2} />,
     subscription: <CreditCard size={15} color={COLORS.ink} strokeWidth={2.2} />,

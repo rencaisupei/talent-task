@@ -31,7 +31,7 @@ import {
   type GigFilters,
 } from '@/lib/gigFilters';
 import { CATEGORY_COUNT } from '@/lib/omniTags';
-import { useBidStore } from '@/lib/stores/bids';
+import { isBidVisible, useBidStore } from '@/lib/stores/bids';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { useSavedStore } from '@/lib/stores/saved';
 import { useSessionStore } from '@/lib/stores/session';
@@ -241,7 +241,7 @@ function ClientHome() {
   const pendingBids = useMemo(
     () =>
       bids
-        .filter((bid) => bid.clientId === userId && bid.status === 'pending')
+        .filter((bid) => bid.clientId === userId && bid.status === 'pending' && isBidVisible(bid))
         .sort((a, b) => b.createdAt - a.createdAt),
     [bids, userId],
   );

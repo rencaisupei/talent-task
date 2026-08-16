@@ -13,12 +13,13 @@ import { SegmentedTabs } from '@/components/SegmentedTabs';
 import { StaticTag } from '@/components/TagChip';
 import { useAuditLogger } from '@/hooks/useAuditLogger';
 import { COLORS } from '@/lib/colors';
-import { formatNumber, formatRelativeTime } from '@/lib/format';
+import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/format';
 import { useAdminStore } from '@/lib/stores/admin';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
+import { bidsAwaitingReview, useBidStore } from '@/lib/stores/bids';
 import { gigsAwaitingReview, useGigStore } from '@/lib/stores/gigs';
 
-type ReviewTab = 'gigs' | 'talents' | 'credentials';
+type ReviewTab = 'gigs' | 'bids' | 'talents' | 'credentials';
 
 const REJECT_REASONS = [
   '疑似假急件詐騙',
@@ -28,7 +29,14 @@ const REJECT_REASONS = [
 ];
 
 interface PendingAction {
-  kind: 'gig-approve' | 'gig-reject' | 'talent-approve' | 'talent-reject' | 'credential';
+  kind:
+    | 'gig-approve'
+    | 'gig-reject'
+    | 'bid-approve'
+    | 'bid-reject'
+    | 'talent-approve'
+    | 'talent-reject'
+    | 'credential';
   id: string;
   label: string;
   verified?: boolean;
@@ -39,6 +47,10 @@ export default function AdminReviewScreen() {
   const gigs = useGigStore((state) => state.gigs);
   const approveGigReview = useGigStore((state) => state.approveGigReview);
   const rejectGigReview = useGigStore((state) => state.rejectGigReview);
+
+  const bids = useBidStore((state) => state.bids);
+  const approveBidReview = useBidStore((state) => state.approveBidReview);
+  const rejectBidReview = useBidStore((state) => state.rejectBidReview);
 
   const verifications = useAdminStore((state) => state.verifications);
   const approveVerification = useAdminStore((state) => state.approveVerification);
@@ -51,6 +63,7 @@ export default function AdminReviewScreen() {
   const [pending, setPending] = useState<PendingAction | null>(null);
 
   const pendingGigs = useMemo(() => gigsAwaitingReview(gigs), [gigs]);
+  const pendingBids = useMemo(() => bidsAwaitingReview(bids), [bids]);
   const pendingTalents = useMemo(
     () => verifications.filter((item) => item.status === 'pending'),
     [verifications],
@@ -92,6 +105,27 @@ export default function AdminReviewScreen() {
       });
     }
 
+    if (pending.kind === 'bid-approve') {
+      approveBidReview(pending.id, adminIdentity);
+      logAction({
+        kind: 'moderation',
+        summary: '複審放行提案：報價內容確認無誤',
+        targetId: pending.id,
+        targetLabel: pending.label,
+      });
+    }
+
+    if (pending.kind === 'bid-reject') {
+      const reason = REJECT_REASONS.includes(actionId) ? actionId : REJECT_REASONS[0];
+      rejectBidReview(pending.id, { ...adminIdentity, note: reason });
+      logAction({
+        kind: 'moderation',
+        summary: `複審退回提案：${reason}`,
+        targetId: pending.id,
+        targetLabel: pending.label,
+      });
+    }
+
     if (pending.kind === 'talent-approve') {
       approveVerification(pending.id);
       logAction({
@@ -127,8 +161,12 @@ export default function AdminReviewScreen() {
   };
 
   const sheetActions = () => {
-    if (pending?.kind === 'gig-reject') {
-      return REJECT_REASONS.map((reason) => ({ id: reason, label: reason, tone: 'danger' as const }));
+    if (pending?.kind === 'gig-reject' || pending?.kind === 'bid-reject') {
+      return REJECT_REASONS.map((reason) => ({
+        id: reason,
+        label: reason,
+        tone: 'danger' as const,
+      }));
     }
     if (pending?.kind === 'talent-reject') {
       return [{ id: 'confirm', label: '確認退回', tone: 'danger' as const }];
@@ -141,7 +179,11 @@ export default function AdminReviewScreen() {
       case 'gig-approve':
         return '放行這筆任務？';
       case 'gig-reject':
-        return '選擇退回原因';
+        return '選擇任務退回原因';
+      case 'bid-approve':
+        return '放行這份提案？';
+      case 'bid-reject':
+        return '選擇提案退回原因';
       case 'talent-approve':
         return '放行這位人才資料？';
       case 'talent-reject':
@@ -169,21 +211,32 @@ export default function AdminReviewScreen() {
           />
           <KpiCard
             className="flex-1"
+            label="待複審提案"
+            value={formatNumber(pendingBids.length)}
+            caption="客戶尚看不到"
+            tone="coral"
+          />
+        </View>
+        <View className="flex-row gap-3">
+          <KpiCard
+            className="flex-1"
             label="待複審人才"
             value={formatNumber(pendingTalents.length)}
             caption="資料需人工確認"
             tone="coral"
           />
+          <KpiCard
+            className="flex-1"
+            label="證照待驗證"
+            value={formatNumber(credentialQueue.length)}
+            caption="加分項，非必要條件"
+          />
         </View>
-        <KpiCard
-          label="證照待驗證（加分項）"
-          value={formatNumber(credentialQueue.length)}
-          caption="證照非接案必要條件，驗證後給予信任度加分"
-        />
 
         <SegmentedTabs
           options={[
             { id: 'gigs', label: '任務複審', count: pendingGigs.length },
+            { id: 'bids', label: '提案複審', count: pendingBids.length },
             { id: 'talents', label: '人才複審', count: pendingTalents.length },
             { id: 'credentials', label: '證照加分', count: credentialQueue.length },
           ]}
@@ -193,10 +246,7 @@ export default function AdminReviewScreen() {
 
         {tab === 'gigs' ? (
           <View className="gap-4">
-            <SectionHeading
-              title="等待複審的任務"
-              caption="放行後才會出現在人才任務牆與地圖。"
-            />
+            <SectionHeading title="等待複審的任務" caption="放行後才會出現在人才任務牆與地圖。" />
             {pendingGigs.length === 0 ? (
               <EmptyState
                 title="沒有待複審的任務"
@@ -247,6 +297,84 @@ export default function AdminReviewScreen() {
                         }
                       >
                         <Button.Label>退回不上架</Button.Label>
+                      </Button>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
+
+        {tab === 'bids' ? (
+          <View className="gap-4">
+            <SectionHeading
+              title="等待複審的提案"
+              caption="放行後客戶才會在任務詳情看到這份報價。"
+            />
+            {pendingBids.length === 0 ? (
+              <EmptyState
+                title="沒有待複審的提案"
+                caption="所有提案都已通過即時認證。"
+                icon={<ShieldCheck size={22} color={COLORS.brand} strokeWidth={2.1} />}
+              />
+            ) : (
+              pendingBids.map((bid) => (
+                <View key={bid.id} className="border-hairline gap-3 rounded-xl border bg-white p-4">
+                  <View className="flex-row items-start gap-2">
+                    <View className="flex-1">
+                      <Text className="text-ink text-[15px] font-semibold">{bid.talentName}</Text>
+                      <Text className="text-muted mt-0.5 text-[12px]">
+                        {bid.talentRegion}・{bid.etaLabel}・送出 {formatRelativeTime(bid.createdAt)}
+                      </Text>
+                    </View>
+                    <StaticTag
+                      label={bid.quote === null ? '價格面議' : formatCurrency(bid.quote)}
+                      tone="brand"
+                    />
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: '/gig/[id]', params: { id: bid.gigId } })
+                    }
+                    accessibilityRole="button"
+                  >
+                    <Text numberOfLines={1} className="text-ink-soft text-[12px]">
+                      任務：{bid.gigTitle}
+                    </Text>
+                  </Pressable>
+                  <Text className="text-ink-soft text-[13px] leading-5">{bid.message}</Text>
+
+                  {bid.review ? <AiReviewCard result={bid.review.ai} title="AI 判定結果" /> : null}
+
+                  <View className="flex-row gap-2">
+                    <View className="flex-1">
+                      <Button
+                        size="md"
+                        onPress={() =>
+                          setPending({
+                            kind: 'bid-approve',
+                            id: bid.id,
+                            label: `${bid.talentName}／${bid.gigTitle}`,
+                          })
+                        }
+                      >
+                        <Button.Label>放行提案</Button.Label>
+                      </Button>
+                    </View>
+                    <View className="flex-1">
+                      <Button
+                        size="md"
+                        variant="tertiary"
+                        onPress={() =>
+                          setPending({
+                            kind: 'bid-reject',
+                            id: bid.id,
+                            label: `${bid.talentName}／${bid.gigTitle}`,
+                          })
+                        }
+                      >
+                        <Button.Label>退回提案</Button.Label>
                       </Button>
                     </View>
                   </View>

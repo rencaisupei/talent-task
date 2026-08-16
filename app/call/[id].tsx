@@ -73,7 +73,7 @@ export default function VoiceCallScreen() {
 
   // 建立通話紀錄並模擬對方接聽。
   useEffect(() => {
-    if (!conversation || callIdRef.current !== null) return;
+    if (!conversation || callIdRef.current !== null) return undefined;
     const record = startCall({
       conversation,
       callerId: userId,
@@ -89,15 +89,7 @@ export default function VoiceCallScreen() {
     }, ANSWER_DELAY);
 
     return () => clearTimeout(timer);
-  }, [
-    conversation,
-    counterpartId,
-    counterpartName,
-    displayName,
-    markConnected,
-    startCall,
-    userId,
-  ]);
+  }, [conversation, counterpartId, counterpartName, displayName, markConnected, startCall, userId]);
 
   // 通話計時。
   useEffect(() => {
@@ -181,7 +173,9 @@ export default function VoiceCallScreen() {
         <View className="w-full gap-3">
           <Button
             size="lg"
-            onPress={() => router.replace({ pathname: '/chat/[id]', params: { id: conversation.id } })}
+            onPress={() =>
+              router.replace({ pathname: '/chat/[id]', params: { id: conversation.id } })
+            }
           >
             <Button.Label>回到對話</Button.Label>
           </Button>

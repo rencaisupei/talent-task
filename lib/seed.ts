@@ -3,6 +3,7 @@ import { regionCoordinate, TAIWAN_REGIONS } from '@/lib/regions';
 import { moderateText } from '@/lib/moderation';
 import {
   type AbuseReport,
+  type AiReviewResult,
   type AppNotification,
   type Bid,
   type BudgetLevelId,
@@ -588,6 +589,23 @@ export const SEED_NOTIFICATIONS: AppNotification[] = [
   },
 ];
 
+function talentAiReview(
+  riskScore: number,
+  reasons: string[],
+  flaggedTerms: string[],
+  submittedAt: number,
+): AiReviewResult {
+  return {
+    target: 'talent',
+    decision: riskScore >= 60 ? 'rejected' : 'review',
+    riskScore,
+    reasons,
+    flaggedTerms,
+    engine: 'rules',
+    reviewedAt: submittedAt,
+  };
+}
+
 export const SEED_VERIFICATIONS: VerificationRequest[] = [
   {
     id: 'ver_1',
@@ -597,7 +615,13 @@ export const SEED_VERIFICATIONS: VerificationRequest[] = [
     tags: ['水電工程', '漏水抓漏', '壁癌根治'],
     submittedAt: NOW - 5 * HOUR,
     status: 'pending',
-    note: '已上傳甲級技術士證照與工程行登記證',
+    note: 'AI 認證未通過：服務說明含站外聯絡方式，需人工確認',
+    aiReview: talentAiReview(
+      35,
+      ['內容含個人聯絡資訊，建議改由平台對話聯繫'],
+      ['加我line'],
+      NOW - 5 * HOUR,
+    ),
   },
   {
     id: 'ver_2',
@@ -607,7 +631,13 @@ export const SEED_VERIFICATIONS: VerificationRequest[] = [
     tags: ['介面體驗設計', '品牌識別標誌'],
     submittedAt: NOW - 11 * HOUR,
     status: 'pending',
-    note: '作品集連結與設計協會會員證',
+    note: 'AI 認證未通過：作品說明含誇大收益字樣，需人工確認',
+    aiReview: talentAiReview(
+      30,
+      ['疑似誇大收益或投資話術（命中 保證獲利）'],
+      ['保證獲利'],
+      NOW - 11 * HOUR,
+    ),
   },
   {
     id: 'ver_3',
@@ -617,7 +647,13 @@ export const SEED_VERIFICATIONS: VerificationRequest[] = [
     tags: ['到府月嫂護理', '緊急居家看護'],
     submittedAt: NOW - 26 * HOUR,
     status: 'pending',
-    note: '護理師執業執照，需核對照片與本人',
+    note: 'AI 認證未通過：醫療照護類服務需人工確認資格描述',
+    aiReview: talentAiReview(
+      32,
+      ['醫療照護類服務描述需人工確認', '內容含個人聯絡資訊'],
+      [],
+      NOW - 26 * HOUR,
+    ),
   },
   {
     id: 'ver_4',
@@ -627,7 +663,13 @@ export const SEED_VERIFICATIONS: VerificationRequest[] = [
     tags: ['寵物美容洗澡', '寵物行為訓練'],
     submittedAt: NOW - 2 * DAY,
     status: 'pending',
-    note: '寵物美容乙級證書',
+    note: 'AI 認證未通過：服務說明要求先付訂金，需人工確認',
+    aiReview: talentAiReview(
+      45,
+      ['要求預付款項或提供金融個資（命中 先付訂金）'],
+      ['先付訂金'],
+      NOW - 2 * DAY,
+    ),
   },
   {
     id: 'ver_5',
@@ -637,7 +679,8 @@ export const SEED_VERIFICATIONS: VerificationRequest[] = [
     tags: ['中英商務翻譯', '技術文件撰寫'],
     submittedAt: NOW - 3 * DAY,
     status: 'pending',
-    note: '口筆譯認證與過往稿件',
+    note: 'AI 認證未通過：內容引導至站外交易，需人工確認',
+    aiReview: talentAiReview(38, ['引導離開平台私下交易（命中 站外）'], ['站外'], NOW - 3 * DAY),
   },
 ];
 

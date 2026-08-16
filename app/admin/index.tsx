@@ -26,6 +26,7 @@ import { useAdminStore } from '@/lib/stores/admin';
 import { useAdminAuditStore } from '@/lib/stores/adminAudit';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useAnnouncementStore } from '@/lib/stores/announcements';
+import { bidsAwaitingReview, useBidStore } from '@/lib/stores/bids';
 import { gigsAwaitingReview, useGigStore } from '@/lib/stores/gigs';
 import { usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { ADMIN_ACTION_LABEL, ADMIN_ROLE_LABEL } from '@/lib/types';
@@ -39,6 +40,7 @@ export default function AdminHomeScreen() {
   const bannedUserIds = useAdminStore((state) => state.bannedUserIds);
   const users = usePlatformUserStore((state) => state.users);
   const gigs = useGigStore((state) => state.gigs);
+  const bids = useBidStore((state) => state.bids);
   const announcements = useAnnouncementStore((state) => state.announcements);
   const auditEntries = useAdminAuditStore((state) => state.entries);
 
@@ -56,6 +58,7 @@ export default function AdminHomeScreen() {
     [gigs],
   );
   const pendingGigReviews = useMemo(() => gigsAwaitingReview(gigs).length, [gigs]);
+  const pendingBidReviews = useMemo(() => bidsAwaitingReview(bids).length, [bids]);
 
   const recentEntries = auditEntries.slice(0, 4);
 
@@ -145,7 +148,7 @@ export default function AdminHomeScreen() {
             <ModuleRow
               icon={<ScanEye size={17} color={COLORS.coral} strokeWidth={2.1} />}
               label="AI 認證複審中心"
-              caption={`待複審任務 ${pendingGigReviews} 件・待複審人才 ${pendingVerifications} 位`}
+              caption={`任務 ${pendingGigReviews} 件・提案 ${pendingBidReviews} 份・人才 ${pendingVerifications} 位待複審`}
               onPress={() => router.push('/admin/review')}
             />
             <Divider />

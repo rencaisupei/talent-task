@@ -71,7 +71,7 @@ export default function PublishScreen() {
     if (!detailTouched) setDetail(detailTemplate(nextTag, region));
   };
 
-  const useDeviceLocation = async () => {
+  const detectLocation = async () => {
     setLocating(true);
     setLocationNotice(null);
     try {
@@ -261,7 +261,7 @@ export default function PublishScreen() {
 
         <View className="gap-3">
           <Pressable
-            onPress={() => void useDeviceLocation()}
+            onPress={() => void detectLocation()}
             accessibilityRole="button"
             className="border-brand/25 bg-brand-soft flex-row items-center justify-between rounded-xl border px-4 py-3.5"
           >
@@ -353,7 +353,11 @@ export default function PublishScreen() {
             </Text>
           </View>
         ) : null}
-        <Button size="lg" isDisabled={!canPublish || reviewing} onPress={() => void handlePublish()}>
+        <Button
+          size="lg"
+          isDisabled={!canPublish || reviewing}
+          onPress={() => void handlePublish()}
+        >
           <Button.Label>
             {reviewing
               ? '認證中…'

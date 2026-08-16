@@ -212,12 +212,37 @@ export default function BidScreen() {
         <View className="border-hairline bg-canvas flex-row items-start gap-2 rounded-xl border px-4 py-3">
           <Info size={15} color={COLORS.muted} strokeWidth={2.1} />
           <Text className="text-ink-soft flex-1 text-[12px] leading-5">
-            投遞提案不佔用對話配額。請勿在提案中提供銀行帳號或要求私下交易，所有內容皆會經伺服器端審核。
+            投遞提案不佔用對話配額。提案送出前會經過即時認證，請勿提供銀行帳號或要求私下交易。
           </Text>
         </View>
 
-        <Button size="lg" isDisabled={!canSubmit} onPress={handleSubmit}>
-          <Button.Label>{existing ? '更新提案' : '送出提案'}</Button.Label>
+        {flagged ? (
+          <View className="gap-3">
+            <AiReviewCard result={flagged} title="提案已送交管理員複審" />
+            <Text className="text-ink-soft text-[12px] leading-5">
+              複審通過後客戶才會看到這份提案；你也可以修改內容後重新送出。
+            </Text>
+            <Button
+              size="lg"
+              variant="tertiary"
+              onPress={() => goBackOrReplace({ pathname: '/gig/[id]', params: { id: gig.id } })}
+            >
+              <Button.Label>返回任務詳情</Button.Label>
+            </Button>
+          </View>
+        ) : null}
+
+        {reviewing ? (
+          <View className="flex-row items-center justify-center gap-2">
+            <Spinner size="sm" />
+            <Text className="text-brand-strong text-[13px] font-semibold">即時認證中…</Text>
+          </View>
+        ) : null}
+
+        <Button size="lg" isDisabled={!canSubmit || reviewing} onPress={() => void handleSubmit()}>
+          <Button.Label>
+            {reviewing ? '認證中…' : existing ? '認證並更新提案' : '認證並送出提案'}
+          </Button.Label>
         </Button>
       </ScrollView>
     </KeyboardAvoidingView>

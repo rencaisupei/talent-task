@@ -56,10 +56,7 @@ export default function ChatDetailScreen() {
 
   const conversation = conversations.find((item) => item.id === id);
   const thread = useMemo(() => (id ? (messagesMap[id] ?? []) : []), [id, messagesMap]);
-  const conversationCalls = useMemo(
-    () => (id ? callsForConversation(calls, id) : []),
-    [calls, id],
-  );
+  const conversationCalls = useMemo(() => (id ? callsForConversation(calls, id) : []), [calls, id]);
 
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [

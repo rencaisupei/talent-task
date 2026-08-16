@@ -552,7 +552,11 @@ export default function GigDetailScreen() {
         title={confirmText.title}
         message={confirmText.message}
         actions={[
-          { id: 'confirm', label: confirmText.label, tone: confirmText.danger ? 'danger' : 'primary' },
+          {
+            id: 'confirm',
+            label: confirmText.label,
+            tone: confirmText.danger ? 'danger' : 'primary',
+          },
         ]}
         onSelect={runConfirm}
         onCancel={() => setConfirm(null)}

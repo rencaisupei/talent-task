@@ -205,7 +205,8 @@ export default function SkillCertificationScreen() {
         <View className="border-brand/25 bg-brand-soft flex-row items-start gap-2 rounded-xl border px-4 py-3">
           <Sparkles size={16} color={COLORS.brandStrong} strokeWidth={2.1} />
           <Text className="text-ink-soft flex-1 text-[12px] leading-5">
-            送出後會立即進行 AI 認證：通過就能馬上接案，未通過則轉由管理員複審。證照為選填加分項，不影響能否接案。
+            送出後會立即進行 AI
+            認證：通過就能馬上接案，未通過則轉由管理員複審。證照為選填加分項，不影響能否接案。
           </Text>
         </View>
 

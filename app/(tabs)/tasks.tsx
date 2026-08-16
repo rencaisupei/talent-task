@@ -226,6 +226,14 @@ function TalentTasks() {
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <View className="pb-3">
+              {item.review?.state === 'pending' ? (
+                <View className="border-coral/25 bg-coral-soft mb-2 flex-row items-center gap-1.5 self-start rounded-lg border px-2.5 py-1">
+                  <ScanEye size={12} color={COLORS.coral} strokeWidth={2.2} />
+                  <Text className="text-coral text-[11px] font-semibold">
+                    認證複審中，客戶尚未看到
+                  </Text>
+                </View>
+              ) : null}
               <BidCard bid={item} showGigTitle onPressGig={() => openGig(item.gigId)} />
             </View>
           )}
