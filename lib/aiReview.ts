@@ -1,4 +1,4 @@
-import { bilt } from '@/lib/bilt';
+import { getBiltClient } from '@/lib/bilt';
 import { detectScamTerms } from '@/lib/moderation';
 import type {
   AiReviewDecision,
@@ -72,8 +72,11 @@ function offlineReview(input: AiReviewInput): AiReviewResult {
 
 /** 呼叫伺服器端即時審核；連線失敗時退回裝置端規則備援。 */
 export async function runAiReview(input: AiReviewInput): Promise<AiReviewResult> {
+  const client = getBiltClient();
+  if (client === null) return offlineReview(input);
+
   try {
-    const { data, error } = await bilt.functions.invoke('ai-review', { body: input });
+    const { data, error } = await client.functions.invoke('ai-review', { body: input });
     if (error || data === null || typeof data !== 'object') {
       return offlineReview(input);
     }

@@ -101,12 +101,38 @@ Bilt will handle the build and provide you with download links or submission-rea
 管理員專屬平台只在網頁版提供（`app/admin/`），手機 App 不顯示任何入口。網頁版就是這個
 Expo 專案以 `web.output: 'single'`（SPA）匯出的靜態網站。
 
+### 0. 最少步驟上線（全在瀏覽器，不用碰 DNS）
+
+只是想先讓網站上線、拿到一個能分享的網址，照下面三步就夠了。第 3、6、7 節都是選配，
+晚點再做也不影響已經上線的網站。
+
+前置：程式碼要在 GitHub（在 Bilt 專案設定裡把專案連到 GitHub，一次性動作）。
+
+1. Cloudflare 儀表板 → **Workers & Pages** → Create → **Pages** 分頁 → **Connect to Git**
+   → 授權後選這個 repo。
+2. 只填三個欄位，其他保持預設，**環境變數可以先不設**：
+   - Framework preset：`None`
+   - Build command：`npm run build:web`
+   - Build output directory：`dist`
+3. 按 **Save and Deploy**，等狀態跑到 Success。網址就是 `https://<專案名稱>.pages.dev`。
+
+之後每次改動同步到 GitHub，Cloudflare 會自動重新建置，不需要再進儀表板。
+
+上線後可以晚點再處理的兩件事：
+
+- **沒設環境變數不會壞**：`EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY` 缺少時，
+  發布內容的 AI 審核會自動改用裝置端規則檢查，其餘功能不受影響（資料本來就存在裝置上）。
+  想改用伺服器端審核，照第 2 節第 5 步補上兩個變數再 Retry deployment。
+- **`/admin` 只有管理員帳密保護**：`pages.dev` 網址是公開的，管理平台仍需帳密才能進入。
+  想在網域層再加一道驗證是第 7 節。
+
 ### 1. 本機匯出
 
 ```sh
 npm ci
 
-# 後端連線資訊會在建置時被寫進 bundle，缺少時 AI 認證與資料存取會失效
+# 後端連線資訊會在建置時寫進 bundle；不設也能建置與執行，
+# 只是 AI 審核會退回裝置端規則檢查
 export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"
 export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
 
@@ -143,8 +169,9 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
    - Build command：`npm run build:web`
    - Build output directory：`dist`
    - Root directory：留空
-5. **Environment variables**：展開 Build 設定裡的 Environment variables，
-   **Production 與 Preview 兩組都要各設一份**：
+5. **Environment variables**（選配）：不設也能建置成功並正常上線，AI 審核會改用裝置端規則。
+   要用伺服器端 AI 審核時，展開 Build 設定裡的 Environment variables，
+   **Production 與 Preview 兩組都各設一份**：
    - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
    - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
    - 選填 `EXPO_PUBLIC_ADMIN_HOST`：管理網域，預設 `admin.instantgig.tw`，
@@ -159,7 +186,7 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 
 建置失敗時看 Deployments → 該筆 → Build log，常見原因：
 
-- `EXPO_PUBLIC_*` 只設在 Production，Preview 建置就會缺值（AI 認證與資料存取失效）。
+- `EXPO_PUBLIC_*` 只設在 Production，Preview 建置就會缺值（該環境的 AI 審核會退回裝置端規則）。
 - Build output directory 打成 `dist/` 以外的值，或 Framework preset 沒選 None。
 - `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
 - `<project>.pages.dev` 與預覽網址也能開 `/admin`（只剩帳密保護），
@@ -181,7 +208,7 @@ npm run deploy:web:preview  # 建置後上傳為預覽部署
 
 `wrangler.toml` 已指定輸出目錄，指令不要再附加 `dist` 參數。
 
-### 3. 綁定網域與 DNS
+### 3. 綁定網域與 DNS（選配，先用 pages.dev 也可以）
 
 前置條件：`instantgig.tw` 的 DNS 已由 Cloudflare 託管（尚未轉移請先做第 6 節）。
 
@@ -226,7 +253,7 @@ npm run deploy:web:preview  # 建置後上傳為預覽部署
 因為是單頁輸出，任何主機都必須把未命中檔案的路徑改寫回 `index.html`，
 否則直接開 `/admin/login` 會 404。
 
-### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（部署與 Access 的前置作業）
+### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（只有要用自訂網域或 Access 時才需要）
 
 Cloudflare Pages 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloudflare 託管。
 這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
@@ -317,7 +344,7 @@ dig TXT instantgig.tw +short
   **不在 Cloudflare Registrar 支援的 TLD 清單內**，註冊只能留在原註冊商，DNS 託管在
   Cloudflare 即可。
 
-### 7. 用 Cloudflare Access 保護 `admin.instantgig.tw`（免費）
+### 7. 用 Cloudflare Access 保護 `admin.instantgig.tw`（選配，免費）
 
 管理網域用 Cloudflare Zero Trust 的 **Access** 在邊緣擋下未授權請求：免費方案含 50 位
 使用者，主網域完全不受影響，未通過驗證的人連 HTML 與 JS 都拿不到。因為託管已在
