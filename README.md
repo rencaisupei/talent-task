@@ -380,49 +380,80 @@ dig TXT instantgig.tw +short
 ### 7. 用 Cloudflare Access 保護管理網站（建議，免費）
 
 管理網站用 Cloudflare Zero Trust 的 **Access** 在邊緣擋下未授權請求：免費方案含 50 位
-使用者，未通過驗證的人連 HTML 與 JS 都拿不到。因為託管已在 Cloudflare，
-自訂網域本來就是 Proxied，不需要額外調整 DNS。網頁版整站都是管理後台，
-所以這道保護要套在**每一個能開到網站的主機名稱**上（自訂網域、`workers.dev`、預覽網址）。
+使用者，未通過驗證的人連 HTML 與 JS 都拿不到。
 
 Access 與管理員帳密是互補的兩層，不是二選一：Access 決定「誰的裝置能拿到網頁」，
 管理員帳密與角色（第 9 節）決定「登入後能做什麼」。
 
-前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（見第 6 節），且 `admin` 已在 Worker
-的 Domains & Routes 顯示 Active。只用 `workers.dev` 也能做，把第 3 步的 hostname 換成
-`instantgig.<子網域>.workers.dev` 即可。
+**共同前置**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡，50 位使用者內
+不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。接著到
+Zero Trust → Settings → Authentication → Login methods，確認 **One-time PIN**
+（Email 驗證碼）已啟用；要用 Google 帳號登入就再新增 Google identity provider。
 
-1. **開通 Zero Trust**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡但
-   50 位使用者內不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。
-2. **設定登入方式**：Zero Trust → Settings → Authentication → Login methods，確認
-   **One-time PIN**（Email 驗證碼）已啟用。要用 Google 帳號登入就再新增 Google
-   identity provider。
-3. **新增 Access 應用程式**：Zero Trust → Access → Applications → Add an application →
-   **Self-hosted**
-   - Application name：`InstantGig Admin`
-   - Session Duration：`24 hours`（可依需求縮短）
-   - Public hostname：Subdomain `admin`、Domain `instantgig.tw`、Path 留空
-   - 若 apex 與 `www` 也綁在這個 Worker 上，用 **Add a public hostname** 把
-     `instantgig.tw` 與 `www.instantgig.tw` 一併加進同一個應用程式（整站都是後台）。
-4. **新增 Allow 政策**：
-   - Policy name：`Admin allowlist`、Action：`Allow`
-   - Include → Selector `Emails`，填入允許進入的信箱（多筆逐一新增）；
-     想放行整個公司網域可改用 `Emails ending in` → `@instantgig.tw`
-   - 存檔後不要再加任何 Bypass 政策，否則等於沒鎖。
-   - 建議讓這份信箱白名單與 `admin_accounts` 的管理員信箱一致，離職時兩邊一起移除。
-5. **檢查 admin 記錄是 Proxied**：DNS → `admin` 的 CNAME 應該已是**橘雲（Proxied）**
-   （Workers 自訂網域的預設狀態）。Access 只能保護經過 Cloudflare 代理的主機名稱。
-6. **設定 SSL 模式**：SSL/TLS → Overview → 選 **Full (strict)**。
-7. **一併處理 `workers.dev` 與預覽網址**：Worker 的 `instantgig.<子網域>.workers.dev`
-   與每個預覽版本網址也能開到 `/admin`，只剩帳密保護。兩種做法：
-   - 最乾脆：Worker → Settings → Domains & Routes → 把 `workers.dev` 路由 **Disable**，
-     並關閉 Preview URLs。
-   - 想留著用：在 Zero Trust 再建一個 Self-hosted 應用程式，hostname 設為
-     `instantgig.<子網域>.workers.dev`（預覽網址用 `*.workers.dev` 通用比對），
-     套用同一條 Allow 政策。
-8. **驗證**：用無痕視窗開 `https://admin.instantgig.tw` → 出現 Cloudflare 驗證碼畫面 →
-   收信輸入 6 位碼 → 才會看到管理員登入頁，接著仍需輸入管理員帳密（雙層驗證）。
-   登入頁與主控台會出現「Cloudflare Access 已驗證」與你的信箱；沒看到就表示這個主機名稱
-   還沒被 Access 應用程式涵蓋。也可以直接開 `/cdn-cgi/access/get-identity` 確認回傳 JSON。
+兩種做法選一種。整站都是後台，通常選 A。
+
+#### 做法 A：保護整個 Worker（建議，一次涵蓋所有入口）
+
+一個開關就同時保護自訂網域、`workers.dev` 與所有預覽網址，不需要 DNS 已轉移，
+也不用逐個主機名稱設定。
+
+1. Cloudflare 儀表板 → **Workers & Pages** → 選 `instantgig` → **Access** 分頁。
+2. 按 **Protect this Worker behind Access**。
+3. Traffic scope 選 **All traffic**（`Previews only` 只保護預覽網址，正式網址仍公開）。
+4. Authentication policy 選現成政策，或用內建的兩個選項：
+   - **Cloudflare account**：只有這個 Cloudflare 帳號的成員能登入（人少時最省事）。
+   - **Email domain**：填 `instantgig.tw`，該網域的信箱驗證後即可進入。
+5. 檢查 Session duration（預設 24 小時，可縮短），按 **Apply Access**。
+6. 想改成「逐一列出信箱」的白名單：到 Zero Trust → Access → Applications → 開剛才
+   自動建立的應用程式 → 編輯政策 → Include 改 Selector `Emails`，逐筆填入信箱。
+   建議這份名單與 `admin_accounts` 的管理員信箱一致，離職時兩邊一起移除。
+7. 不要為這個 Worker 加任何 **Bypass** 政策（Access 分頁的「make this Worker public」
+   也是 bypass），否則等於沒鎖。
+
+#### 做法 B：只保護某一個主機名稱（Self-hosted application）
+
+只想鎖 `admin.instantgig.tw`、或未來同一個 Worker 上還有公開路徑時用這種。
+前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（見第 6 節），且 `admin` 已在 Worker 的
+Domains & Routes 顯示 **Active**（Workers 自訂網域一律 Proxied，Access 才保護得到）。
+
+1. Zero Trust → Access → Applications → **Add an application** → **Self-hosted**。
+2. Application name：`InstantGig Admin`；Session Duration：`24 hours`。
+3. Public hostname：Subdomain `admin`、Domain `instantgig.tw`、Path 留空。
+   若還有其他主機名稱指向這個 Worker（apex、`www`、`instantgig.<子網域>.workers.dev`），
+   用 **Add a public hostname** 一併加進同一個應用程式 —— 沒被列入的主機名稱不受保護。
+4. 新增 Allow 政策：Policy name `Admin allowlist`、Action **Allow**、Include → Selector
+   `Emails` 逐筆填信箱（或 `Emails ending in` → `@instantgig.tw`）。存檔後不要再加
+   Bypass 政策。
+5. SSL/TLS → Overview → 選 **Full (strict)**。
+6. 這種做法**不會**自動涵蓋預覽網址。要嘛到 Worker → Settings → Domains & Routes 把
+   `workers.dev` 路由 Disable、Preview URLs 關閉，要嘛改用做法 A。
+
+#### 驗證是否生效
+
+用**無痕視窗**逐項確認（不同項目對應不同設定）：
+
+| 測試                                                | 預期                                                 | 失敗代表                                     |
+| --------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| 開管理網址                                          | 先出現 Cloudflare 驗證畫面，收信輸入 6 位碼才進網站  | 這個主機名稱沒被 Access 涵蓋                 |
+| 通過驗證後                                          | 才看到管理員登入頁，仍需輸入管理員帳密               | 應用程式設成 Bypass                          |
+| 登入頁／主控台                                      | 顯示「Cloudflare Access 已驗證」與你的信箱           | 身分端點沒回 JSON（保護可能仍有效，見下方）  |
+| 直接開 `/cdn-cgi/access/get-identity`               | 回傳含 `email` 的 JSON                               | 同上                                         |
+| 用不在白名單的信箱驗證                              | 顯示拒絕存取                                         | 政策範圍太寬（例如 Email domain 填錯）       |
+| 開 `instantgig.<子網域>.workers.dev` 與任一預覽網址 | 同樣要求驗證                                         | 做法 B 沒加該 hostname，或沒關掉這些入口     |
+| 主控台 →「登出並結束 Cloudflare 連線」              | 導向 Cloudflare 登出頁，再開網站要重新驗證           | `/cdn-cgi/` 被其他規則攔截                   |
+
+應用內對應行為（已實作）：
+
+- `hooks/useAccessIdentity.ts` 會讀取 Cloudflare 的 `/cdn-cgi/access/get-identity`，
+  在管理主控台與登入頁顯示「Cloudflare Access 已驗證」與該信箱；沒有 Access 保護時
+  自動隱藏，不影響本機或 `workers.dev` 直連的行為。
+- 管理主控台的登出改為兩個選項：僅登出管理帳號（撤銷後端 session token），或連同
+  Cloudflare 連線一起結束（導向 `/cdn-cgi/access/logout`，下次進入要重新驗證）。
+- `/cdn-cgi/` 由 Cloudflare 邊緣處理，不會進到靜態資產的 SPA fallback，也不受
+  `public/_redirects` 影響。
+- 「Cloudflare Access 已驗證」橫幅只是提示，**不是保護是否生效的判斷依據** ——
+  真正的判斷是「未驗證的無痕視窗開不開得了網站」。橫幅沒出現但驗證畫面有出現，
+  代表保護生效、只是身分端點沒回 JSON。
 
 應用內對應行為（已實作）：
 
