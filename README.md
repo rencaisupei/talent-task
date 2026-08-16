@@ -110,23 +110,26 @@ Bilt will handle the build and provide you with download links or submission-rea
 
 前置：程式碼要在 GitHub（在 Bilt 專案設定裡把專案連到 GitHub，一次性動作）。
 
-1. Cloudflare 儀表板 → **Workers & Pages** → Create → **Pages** 分頁 → **Connect to Git**
+1. Cloudflare 儀表板 → **Compute (Workers)** → Create → **Import a repository**
    → 授權後選這個 repo。
-2. 只填三個欄位，其他保持預設，**環境變數可以先不設**：
-   - Framework preset：`None`
+2. 只填這幾欄，其他保持預設，**環境變數可以先不設**：
+   - Project name：`instantgig`（要與 `wrangler.toml` 的 `name` 一致）
    - Build command：`npm run build:web`
-   - Build output directory：`dist`
-3. 按 **Save and Deploy**，等狀態跑到 Success。網址就是 `https://<專案名稱>.pages.dev`，
-   打開會直接進管理員登入頁。
+   - Deploy command：`npx wrangler deploy`（預設值，不用改）
+3. 按 **Create and deploy**，等狀態跑到 Success。網址就是
+   `https://instantgig.<你的子網域>.workers.dev`，打開會直接進管理員登入頁。
 
-之後每次改動同步到 GitHub，Cloudflare 會自動重新建置，不需要再進儀表板。
+之後每次改動同步到 GitHub，Cloudflare 會自動重新建置並部署，不需要再進儀表板。
+
+輸出目錄與 SPA fallback 都寫在 `wrangler.toml` 的 `[assets]`（`directory = "./dist"`、
+`not_found_handling = "single-page-application"`），所以儀表板不用填輸出目錄。
 
 上線後可以晚點再處理的兩件事：
 
 - **沒設環境變數不會壞**：`EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY` 缺少時，
   發布內容的 AI 審核會自動改用裝置端規則檢查，其餘功能不受影響（資料本來就存在裝置上）。
-  想改用伺服器端審核，照第 2 節第 5 步補上兩個變數再 Retry deployment。
-- **整站只有管理員帳密保護**：`pages.dev` 網址是公開的，任何人開都會看到管理員登入頁。
+  想改用伺服器端審核，照第 2 節第 5 步補上兩個變數再重新部署。
+- **整站只有管理員帳密保護**：`workers.dev` 網址是公開的，任何人開都會看到管理員登入頁。
   想在網域層再加一道驗證是第 7 節。
 
 ### 1. 本機匯出
@@ -149,44 +152,51 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 `public/` 內的檔案（`index.html`、`manifest.json`、`robots.txt`、`_redirects`、
 `_headers`、`icons/`）會原樣複製進 `dist/`。
 
-### 2. 部署到 Cloudflare Pages（建議方式）
+### 2. 部署到 Cloudflare Workers（建議方式）
 
-託管、DNS 與管理平台的存取保護全部在 Cloudflare：一個 Pages 專案服務單一管理網站。
-`wrangler.toml` 指定專案名稱與輸出目錄；SPA 改寫、快取與整站 `noindex` 標頭由
-`public/_redirects` 與 `public/_headers` 提供（匯出時原樣複製進 `dist/`）。
+託管、DNS 與管理平台的存取保護全部在 Cloudflare：一個 Worker 以靜態資產的方式服務單一
+管理網站。`wrangler.toml` 指定 Worker 名稱、資產目錄（`dist/`）與 SPA fallback；
+`/` → `/admin` 轉址、快取與整站 `noindex` 標頭由 `public/_redirects` 與 `public/_headers`
+提供（匯出時原樣複製進 `dist/`，Workers 與 Pages 都讀這兩個檔案）。
+
+> Cloudflare 新版儀表板的「Import a repository」建立的是 **Worker**（建置後執行
+> Deploy command `npx wrangler deploy`），不是 Pages 專案。本 repo 的 `wrangler.toml`
+> 就是為這個流程寫的。若 log 出現
+> `Missing entry-point to Worker script or to assets directory`，代表 `wrangler.toml`
+> 缺少 `[assets] directory`（Pages 用的 `pages_build_output_dir` 對 `wrangler deploy` 無效）。
 
 **方式 A：連結 Git 自動部署（建議）**
 
-前置：repo 已推到 GitHub 或 GitLab，且根目錄有 `package-lock.json`（Pages 會用 `npm ci`）。
+前置：repo 已推到 GitHub 或 GitLab，且根目錄有 `package-lock.json`（建置會用 `npm ci`）。
 
-1. **建立專案**：Cloudflare 儀表板 → Compute (Workers) → Workers & Pages →
-   Create → **Pages** 分頁 → Connect to Git → 授權 GitHub／GitLab →
-   選這個 repo（可只授權單一 repo）。
-2. **專案名稱**填 `instantgig`，要與 `wrangler.toml` 的 `name` 一致，否則本機
-   `npm run deploy:web` 會上傳到另一個專案。這個名稱同時決定
-   `<project>.pages.dev` 網址。
+1. **建立專案**：Cloudflare 儀表板 → Compute (Workers) → Create →
+   **Import a repository** → 授權 GitHub／GitLab → 選這個 repo（可只授權單一 repo）。
+2. **Worker 名稱**填 `instantgig`，要與 `wrangler.toml` 的 `name` 一致，否則本機
+   `npm run deploy:web` 會部署到另一個 Worker。這個名稱同時決定
+   `instantgig.<子網域>.workers.dev` 網址。
 3. **Production branch** 選正式分支（通常 `main`）。
 4. **Build settings**：
-   - Framework preset：**None**（選 Expo 之類的 preset 會覆寫指令）
    - Build command：`npm run build:web`
-   - Build output directory：`dist`
+   - Deploy command：`npx wrangler deploy`（預設值）
    - Root directory：留空
-5. **Environment variables**（選配）：不設也能建置成功並正常上線，AI 審核會改用裝置端規則。
-   要用伺服器端 AI 審核時，展開 Build 設定裡的 Environment variables，
-   **Production 與 Preview 兩組都各設一份**：
+   - 不需要填輸出目錄，它在 `wrangler.toml` 的 `[assets] directory` 裡
+5. **Build variables**（選配）：不設也能建置成功並正常上線，AI 審核會改用裝置端規則。
+   要用伺服器端 AI 審核時，到 Worker → Settings → **Build** → Variables and Secrets 設定：
    - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
    - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
+   - 這兩個值是**建置時**寫進 bundle 的，必須設在 Build 區塊（不是執行時的 Worker
+     變數），改完要重新觸發一次建置才會生效。
    - Node 版本由 repo 根目錄的 `.node-version`（`20.19.4`）決定，不必再設
      `NODE_VERSION`；若要臨時換版，設 `NODE_VERSION` 會覆寫該檔案。
-6. **Save and Deploy**，等第一次建置跑完（Building → Deploying → Success）。
-   完成後先用 `https://<project>.pages.dev` 開啟確認會進到管理員登入頁。
-7. 之後每次 push 到 production 分支自動重新部署；其他分支與 PR 會產生預覽網址。
-   改了環境變數要重新 deploy（Deployments → 最新一筆 → Retry deployment）才會生效，
-   因為值是在建置時寫進 bundle 的。
+6. **Create and deploy**，等第一次建置跑完（Building → Deploying → Success）。
+   完成後先用 `https://instantgig.<子網域>.workers.dev` 開啟確認會進到管理員登入頁。
+7. 之後每次 push 到 production 分支自動重新建置並部署；其他分支與 PR 會產生預覽版本網址。
 
-建置失敗時看 Deployments → 該筆 → Build log，常見原因：
+建置或部署失敗時看 Deployments → 該筆 → Build log，常見原因：
 
-- **`Cannot find module '@babel/core'` / `tailwindcss`**：Pages 環境變數設了
+- **`Missing entry-point to Worker script or to assets directory`**：`wrangler.toml`
+  沒有 `[assets] directory`，或 Deploy command 被改成 `wrangler deploy` 以外的東西。
+- **`Cannot find module '@babel/core'` / `tailwindcss`**：建置環境設了
   `NODE_ENV=production` 時，npm 會跳過 `devDependencies`。因此 Metro 打包必需的
   `@babel/core`、`@babel/runtime`、`babel-plugin-react-compiler`、`tailwindcss`
   （uniwind 需要）、`typescript`（expo-router typedRoutes 需要）都放在
@@ -197,47 +207,55 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
   沒有 `_expo/` 目錄**：表示 `public/` 複製完後 JS 打包就中斷了（多半是上一項，
   或 `JavaScript heap out of memory`）。正常的 `dist/index.html` 會被注入
   `<script src="/_expo/static/js/web/entry-*.js">`，且 `%LANG_ISO_CODE%` 已被取代。
-- `EXPO_PUBLIC_*` 只設在 Production，Preview 建置就會缺值（該環境的 AI 審核會退回裝置端規則）。
-- Build output directory 打成 `dist/` 以外的值，或 Framework preset 沒選 None。
+- `EXPO_PUBLIC_*` 設在執行時變數而不是 Build 變數，建置時讀不到（該環境的 AI 審核會退回裝置端規則）。
 - `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
-- `<project>.pages.dev` 與每個 PR 的預覽網址都是公開的管理入口（只剩帳密保護），
-  上線前務必照第 7 節一起用 Access 鎖住。
+- `workers.dev` 網址與每個預覽版本網址都是公開的管理入口（只剩帳密保護），
+  上線前務必照第 7 節一起用 Access 鎖住，或直接關閉 `workers.dev` 路由。
 
-**方式 B：本機用 Wrangler 直接上傳**
+**方式 B：本機用 Wrangler 直接部署**
 
-Pages 專案要先存在（可用方式 A 建立，或在儀表板選 Direct Upload 建同名專案）。
-本機上傳不會讀 Pages 後台的環境變數，`EXPO_PUBLIC_*` 必須在自己的 shell 匯出。
+本機部署不會讀儀表板的建置變數，`EXPO_PUBLIC_*` 必須在自己的 shell 匯出。
 
 ```sh
 export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"
 export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
 
 npx wrangler login
-npm run deploy:web          # 建置後上傳為正式部署
-npm run deploy:web:preview  # 建置後上傳為預覽部署
+npm run deploy:web          # 建置後部署為線上版本
+npm run deploy:web:preview  # 建置後只上傳預覽版本，不接線上流量
 ```
 
-`wrangler.toml` 已指定輸出目錄，指令不要再附加 `dist` 參數。
+`wrangler.toml` 已指定資產目錄，指令不要再附加 `dist` 或 `--assets` 參數。
 
-### 3. 綁定網域與 DNS（選配，先用 pages.dev 也可以）
+**若你想改用 Cloudflare Pages**
+
+Pages 仍可用，但要把 `wrangler.toml` 的 `[assets]` 區塊換回
+`pages_build_output_dir = "dist"`，`package.json` 的 deploy 指令換回
+`wrangler pages deploy --branch=main`，並在儀表板選 Pages → Connect to Git
+（Framework preset `None`、Build command `npm run build:web`、Build output directory `dist`）。
+兩者不能共存於同一份 `wrangler.toml`。
+
+### 3. 綁定網域與 DNS（選配，先用 workers.dev 也可以）
 
 前置條件：`instantgig.tw` 的 DNS 已由 Cloudflare 託管（尚未轉移請先做第 6 節）。
 
-這個 Pages 專案是管理後台，因此只需要一個網域。在 Pages 專案 → **Custom domains** →
-Set up a custom domain 加入 `admin.instantgig.tw`；網域的 zone 在同一個 Cloudflare 帳號時，
+這個網站是管理後台，因此只需要一個網域。在 Worker → Settings → **Domains & Routes** →
+Add → **Custom domain** 加入 `admin.instantgig.tw`；網域的 zone 在同一個 Cloudflare 帳號時，
 DNS 記錄會自動建立：
 
-| 網域                  | 記錄類型 | 名稱／Host | 值                    | 用途           |
-| --------------------- | -------- | ---------- | --------------------- | -------------- |
-| `admin.instantgig.tw` | CNAME    | `admin`    | `<project>.pages.dev` | 管理員專屬平台 |
+| 網域                  | 記錄類型 | 名稱／Host | 值                     | 用途           |
+| --------------------- | -------- | ---------- | ---------------------- | -------------- |
+| `admin.instantgig.tw` | CNAME    | `admin`    | 由 Cloudflare 自動填入 | 管理員專屬平台 |
 
 注意事項：
 
-- **不要**把 `instantgig.tw` 或 `www` 指到這個專案，否則主網域會變成管理後台入口。
+- **不要**把 `instantgig.tw` 或 `www` 指到這個 Worker，否則主網域會變成管理後台入口。
   apex 與 `www` 留給未來的行銷頁或直接不設。
-- 這筆記錄必須是 **Proxied（橘雲）**。Pages 自訂網域一律經過 Cloudflare 代理，
-  這也是 Access 能保護它的原因；設成 DNS only 會驗證不通過。
-- 憑證由 Cloudflare 自動簽發，Custom domains 顯示 **Active** 即完成。
+- 這筆記錄必須是 **Proxied（橘雲）**。Workers 自訂網域一律經過 Cloudflare 代理，
+  這也是 Access 能保護它的原因。
+- 憑證由 Cloudflare 自動簽發，Domains & Routes 顯示 **Active** 即完成。
+- 綁好自訂網域後，建議到同一頁把 `workers.dev` 路由關閉（Disable），
+  避免多一個沒被 Access 保護的公開入口。
 
 ### 4. 網頁版的路由行為
 
@@ -258,15 +276,17 @@ DNS 記錄會自動建立：
 | ---------- | ------------------- | --------------------------------------------------------------------- |
 | 自架 Nginx | `deploy/nginx.conf` | 複製 `dist/` 到 `/var/www/instantgig/`，調整 `server_name` 與憑證路徑 |
 
-`public/_redirects` 與 `public/_headers` 是 Cloudflare Pages 格式（Netlify 也讀同一份），
-換主機時只要確認該主機支援這兩個檔案，或改用該主機自己的設定方式。
+`public/_redirects` 與 `public/_headers` 是 Cloudflare 格式（Workers 靜態資產與 Pages 都讀
+同一份，Netlify 也相容），換主機時只要確認該主機支援這兩個檔案，或改用該主機自己的設定方式。
 
 因為是單頁輸出，任何主機都必須把未命中檔案的路徑改寫回 `index.html`，
-否則直接開 `/admin/login` 會 404。
+否則直接開 `/admin/login` 會 404。Cloudflare 這邊是靠 `wrangler.toml` 的
+`assets.not_found_handling = "single-page-application"`（不是 `_redirects` 的 catch-all —
+Cloudflare 的轉址規則就算命中真實檔案也會執行，catch-all 會蓋掉 `/_expo/` 的 JS bundle）。
 
 ### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（只有要用自訂網域或 Access 時才需要）
 
-Cloudflare Pages 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloudflare 託管。
+Cloudflare 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloudflare 託管。
 這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
 （HiNet／PChome／Gandi／GoDaddy 等），只把「由誰回答 DNS 查詢」換成 Cloudflare，不影響
 網域到期日與續費對象。
@@ -331,13 +351,13 @@ dig MX instantgig.tw +short
 dig TXT instantgig.tw +short
 ```
 
-再用瀏覽器實測 `https://admin.instantgig.tw` 正常，Pages 專案的 Custom domains 顯示
+再用瀏覽器實測 `https://admin.instantgig.tw` 正常，Worker 的 Domains & Routes 顯示
 **Active**。**寄一封測試信到你的網域信箱**確認郵件沒斷。
 
 **步驟 5：設定 SSL 與開始接 Access**
 
 1. Cloudflare → SSL/TLS → Overview → 選 **Full (strict)**（不要用 Flexible，會造成無限轉址）。
-2. `admin` 保持 **Proxied（橘雲）**，這是 Pages 自訂網域的正常狀態。
+2. `admin` 保持 **Proxied（橘雲）**，這是 Workers 自訂網域的正常狀態。
 3. 接著照第 7 節在 `admin.instantgig.tw` 上設定 Cloudflare Access。
 
 **容易踩到的地雷**
@@ -345,8 +365,8 @@ dig TXT instantgig.tw +short
 - **漏抄 MX／SPF**：這是轉 DNS 最常見的事故，信會直接掉。務必在切換前抄完、切換後測試。
 - **舊供應商別馬上退租**：nameserver 生效前舊區域還在服務，至少留一週再關閉。
 - **郵件與驗證記錄不要開 Proxied**：`MX` 不能代理，郵件主機的 A／CNAME 保持 DNS only。
-- **Pages 自訂網域驗證中先別動 DNS**：Cloudflare 自動建立的 CNAME 不要改成 DNS only 或改值，
-  否則 Custom domains 會退回 Pending。
+- **自訂網域驗證中先別動 DNS**：Cloudflare 自動建立的 CNAME 不要改成 DNS only 或改值，
+  否則自訂網域會退回 Pending。
 - **Cloudflare 的 Email Routing 若沒要用就別開**，它會改寫 MX 記錄。
 - **轉 DNS ≠ 轉註冊商**：如果你之後想把註冊也搬到 Cloudflare Registrar，`.tw` 目前
   **不在 Cloudflare Registrar 支援的 TLD 清單內**，註冊只能留在原註冊商，DNS 託管在
@@ -355,12 +375,12 @@ dig TXT instantgig.tw +short
 ### 7. 用 Cloudflare Access 保護管理網站（選配，免費）
 
 管理網站用 Cloudflare Zero Trust 的 **Access** 在邊緣擋下未授權請求：免費方案含 50 位
-使用者，未通過驗證的人連 HTML 與 JS 都拿不到。因為託管已在 Cloudflare Pages，
+使用者，未通過驗證的人連 HTML 與 JS 都拿不到。因為託管已在 Cloudflare，
 自訂網域本來就是 Proxied，不需要額外調整 DNS。網頁版整站都是管理後台，
 所以這道保護要套在整個網站上。
 
-前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（見第 6 節），且 `admin` 已在 Pages
-的 Custom domains 顯示 Active。
+前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（見第 6 節），且 `admin` 已在 Worker
+的 Domains & Routes 顯示 Active。
 
 1. **開通 Zero Trust**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡但
    50 位使用者內不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。
@@ -378,12 +398,15 @@ dig TXT instantgig.tw +short
      想放行整個公司網域可改用 `Emails ending in` → `@instantgig.tw`
    - 存檔後不要再加任何 Bypass 政策，否則等於沒鎖。
 5. **檢查 admin 記錄是 Proxied**：DNS → `admin` 的 CNAME 應該已是**橘雲（Proxied）**
-   （Pages 自訂網域的預設狀態）。Access 只能保護經過 Cloudflare 代理的主機名稱。
+   （Workers 自訂網域的預設狀態）。Access 只能保護經過 Cloudflare 代理的主機名稱。
 6. **設定 SSL 模式**：SSL/TLS → Overview → 選 **Full (strict)**。
-7. **一併鎖住 `*.pages.dev`**：Pages 專案的 `<project>.pages.dev` 與預覽網址也能開到
-   `/admin`，只剩帳密保護。要一起擋：Pages 專案 → Settings → **Enable access policy**
-   （保護預覽部署），並在 Zero Trust 再建一個 Self-hosted 應用程式把 hostname 設為
-   `<project>.pages.dev`，套用同一條 Allow 政策。
+7. **一併處理 `workers.dev` 與預覽網址**：Worker 的 `instantgig.<子網域>.workers.dev`
+   與每個預覽版本網址也能開到 `/admin`，只剩帳密保護。兩種做法：
+   - 最乾脆：Worker → Settings → Domains & Routes → 把 `workers.dev` 路由 **Disable**，
+     並關閉 Preview URLs。
+   - 想留著用：在 Zero Trust 再建一個 Self-hosted 應用程式，hostname 設為
+     `instantgig.<子網域>.workers.dev`（預覽網址用 `*.workers.dev` 通用比對），
+     套用同一條 Allow 政策。
 8. **驗證**：用無痕視窗開 `https://admin.instantgig.tw` → 出現 Cloudflare 驗證碼畫面 →
    收信輸入 6 位碼 → 才會看到管理員登入頁，接著仍需輸入管理員帳密（雙層驗證）。
 
@@ -391,11 +414,11 @@ dig TXT instantgig.tw +short
 
 - `hooks/useAccessIdentity.ts` 會讀取 Cloudflare 的 `/cdn-cgi/access/get-identity`，
   在管理主控台與登入頁顯示「Cloudflare Access 已驗證」與該信箱；沒有 Access 保護時
-  自動隱藏，不影響本機或 `pages.dev` 直連的行為。
+  自動隱藏，不影響本機或 `workers.dev` 直連的行為。
 - 管理主控台的登出改為兩個選項：僅登出管理帳號，或連同 Cloudflare 連線一起結束
   （導向 `/cdn-cgi/access/logout`，下次進入要重新驗證）。
-- `/cdn-cgi/` 由 Cloudflare 邊緣處理，不會進到 Pages 的 SPA 改寫，`public/_redirects`
-  的 catch-all 不會蓋掉這些端點。
+- `/cdn-cgi/` 由 Cloudflare 邊緣處理，不會進到靜態資產的 SPA fallback，也不受
+  `public/_redirects` 影響。
 
 需要自動化（監控、E2E 測試）通過 Access 時，用 Zero Trust → Access → Service Auth 建立
 Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶

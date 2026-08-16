@@ -1,13 +1,21 @@
-# Cloudflare Pages config for the Expo Web static export.
+# Cloudflare Workers (static assets) config for the Expo Web static export.
 #
 #   npm run build:web            # writes the SPA bundle to dist/
-#   npm run deploy:web           # build + upload as the production deployment
-#   npm run deploy:web:preview   # build + upload as a preview deployment
+#   npm run deploy:web           # build + deploy as the live version
+#   npm run deploy:web:preview   # build + upload a preview version (no live traffic)
 #
-# `name` must match the Pages project created in the Cloudflare dashboard.
-# SPA routing, cache and noindex headers live in public/_redirects and
-# public/_headers (copied verbatim into dist/ by the export).
+# This is an assets-only Worker: there is no `main` entry point, Cloudflare just
+# serves dist/ from the edge. `not_found_handling` gives the single-page-app
+# fallback so deep links such as /admin/login resolve to index.html instead of
+# 404. Response headers and the / -> /admin redirect live in public/_headers and
+# public/_redirects, which the export copies verbatim into dist/.
+#
+# `name` must match the Worker created in the Cloudflare dashboard, otherwise a
+# local `npm run deploy:web` publishes to a different Worker.
 
 name = "instantgig"
 compatibility_date = "2025-11-01"
-pages_build_output_dir = "dist"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

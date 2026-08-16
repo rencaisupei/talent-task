@@ -1,4 +1,4 @@
-# SPA fallback for Cloudflare Pages.
+# Edge redirects for the admin-only web deployment.
 # Copied verbatim into dist/ by `expo export -p web`.
 #
 # The web build is the admin platform only, so the root path is sent straight to
@@ -6,8 +6,9 @@
 # the bundle loads.
 /    /admin    302
 
-# Real files in dist/ (JS bundles, icons, manifest.json) are served first;
-# anything else falls through to the single-page entry document.
-# Cloudflare Access endpoints under /cdn-cgi/ are handled at the edge and never
-# reach Pages routing, so this catch-all does not shadow them.
-/*    /index.html    200
+# Do NOT add a `/* /index.html 200` catch-all here: redirect rules are applied
+# even when a real asset matches the request, so a catch-all would shadow the
+# hashed JS bundles under /_expo/. The SPA fallback comes from
+# `assets.not_found_handling = "single-page-application"` in wrangler.toml
+# instead (Cloudflare Pages does the same fallback automatically when the
+# deployment has no 404.html).

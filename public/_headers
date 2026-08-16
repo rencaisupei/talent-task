@@ -1,4 +1,4 @@
-# Response headers for Cloudflare Pages.
+# Response headers for Cloudflare static hosting (Workers static assets / Pages).
 # Copied verbatim into dist/ by `expo export -p web`.
 #
 # The whole web deployment is the admin platform (the consumer app ships as the

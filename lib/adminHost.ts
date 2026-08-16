@@ -17,7 +17,7 @@ export function isAdminPath(pathname: string): boolean {
 /**
  * Cloudflare Access（Zero Trust）在受保護網域上提供的端點。
  * 網站掛上 Access 應用程式後，這兩個路徑由 Cloudflare 邊緣直接處理，
- * 不會進到 Cloudflare Pages 的靜態資源與 SPA 改寫。
+ * 不會進到靜態資源服務與 SPA fallback。
  */
 export const ACCESS_IDENTITY_PATH = '/cdn-cgi/access/get-identity';
 export const ACCESS_LOGOUT_PATH = '/cdn-cgi/access/logout';
