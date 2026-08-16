@@ -15,11 +15,12 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
-import { ConfirmSheet } from '@/components/ConfirmSheet';
+import { ConfirmSheet, type ConfirmAction } from '@/components/ConfirmSheet';
 import { KpiCard } from '@/components/KpiCard';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
-import { IS_ADMIN_HOST } from '@/lib/adminHost';
+import { useAccessIdentity } from '@/hooks/useAccessIdentity';
+import { endAccessSession, IS_ADMIN_HOST } from '@/lib/adminHost';
 import { CATEGORY_FILTER_ALL, usePlatformAnalytics } from '@/lib/analytics';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/format';
@@ -46,6 +47,7 @@ export default function AdminHomeScreen() {
   const auditEntries = useAdminAuditStore((state) => state.entries);
 
   const analytics = usePlatformAnalytics(CATEGORY_FILTER_ALL);
+  const accessIdentity = useAccessIdentity();
 
   const [signOutVisible, setSignOutVisible] = useState(false);
 
@@ -65,9 +67,23 @@ export default function AdminHomeScreen() {
 
   const handleSignOut = () => setSignOutVisible(true);
 
-  const confirmSignOut = () => {
+  const signOutActions: ConfirmAction[] =
+    accessIdentity === null
+      ? [{ id: 'local', label: '確認登出', tone: 'danger' }]
+      : [
+          { id: 'local', label: '僅登出管理帳號', tone: 'neutral' },
+          { id: 'access', label: '登出並結束 Cloudflare 連線', tone: 'danger' },
+        ];
+
+  const confirmSignOut = (actionId: string) => {
     setSignOutVisible(false);
     signOut();
+
+    if (actionId === 'access') {
+      endAccessSession();
+      return;
+    }
+
     router.replace('/admin/login');
   };
 
@@ -98,6 +114,19 @@ export default function AdminHomeScreen() {
         contentContainerClassName="px-5 py-5 pb-12 gap-5"
         showsVerticalScrollIndicator={false}
       >
+        {accessIdentity === null ? null : (
+          <View className="border-brand/25 bg-brand-soft flex-row items-center gap-3 rounded-xl border px-4 py-3">
+            <ShieldCheck size={16} color={COLORS.brandStrong} strokeWidth={2.2} />
+            <View className="flex-1">
+              <Text className="text-ink text-[13px] font-semibold">Cloudflare Access 已驗證</Text>
+              <Text className="text-muted mt-0.5 text-[12px]">
+                {accessIdentity.name ? `${accessIdentity.name}・` : ''}
+                {accessIdentity.email}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View className="gap-3">
           <View className="flex-row gap-3">
             <KpiCard
@@ -241,8 +270,12 @@ export default function AdminHomeScreen() {
       <ConfirmSheet
         visible={signOutVisible}
         title="登出管理後台？"
-        message="將回到管理員登入頁，一般使用者介面不受影響。"
-        actions={[{ id: 'confirm', label: '確認登出', tone: 'danger' }]}
+        message={
+          accessIdentity === null
+            ? '將回到管理員登入頁，一般使用者介面不受影響。'
+            : '僅登出管理帳號會停在登入頁；結束 Cloudflare 連線會連同網域驗證一起清除，下次進入需重新收取驗證碼。'
+        }
+        actions={signOutActions}
         onSelect={confirmSignOut}
         onCancel={() => setSignOutVisible(false)}
       />

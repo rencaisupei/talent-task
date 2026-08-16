@@ -11,7 +11,7 @@
       "destination": "/admin-robots.txt"
     },
     {
-      "source": "/((?!_expo/|assets/|icons/|favicon|manifest\\.json|robots\\.txt|admin-robots\\.txt|sw\\.js|workbox-).*)",
+      "source": "/((?!_expo/|assets/|icons/|cdn-cgi/|favicon|manifest\\.json|robots\\.txt|admin-robots\\.txt|sw\\.js|workbox-).*)",
       "destination": "/index.html"
     }
   ],

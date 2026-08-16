@@ -151,8 +151,10 @@ Settings → Domains 依序加入三個網域，Vercel 會顯示各自要填的 
 注意事項：
 
 - 子網域一定用 CNAME，apex（`instantgig.tw`）只能用 A 記錄，不要對 apex 設 CNAME。
-- 若 DNS 託管在 Cloudflare，這三筆記錄要設為 **DNS only**（灰雲），避免雙層 CDN 造成
-  憑證與快取問題。
+- DNS 託管在 Cloudflare 時，先把三筆記錄都設為 **DNS only**（灰雲），等 Vercel 的
+  Domains 頁面顯示 Valid Configuration、憑證簽發完成再往下做。
+- 之後若要用 Cloudflare Access 保護管理平台（見第 6 節），只把 `admin` 這一筆改為
+  **Proxied**（橘雲）；`instantgig.tw` 與 `www` 保持 DNS only，避免主站走雙層 CDN。
 - DNS 生效後 Vercel 會自動簽發憑證，Domains 頁面顯示 Valid Configuration 即完成。
 
 ### 4. 管理網域的行為
@@ -178,15 +180,61 @@ Settings → Domains 依序加入三個網域，Vercel 會顯示各自要填的 
 因為是單頁輸出，任何主機都必須把未命中檔案的路徑改寫回 `index.html`，
 否則直接開 `/admin/login` 會 404。
 
-### 6. 管理平台的搜尋引擎與存取
+### 6. 用 Cloudflare Access 保護 `admin.instantgig.tw`（免費）
+
+Vercel 的 Deployment Protection 是**專案層級**設定，無法只鎖單一網域，而且要保護正式
+網域必須加購 Advanced Deployment Protection（Pro 方案每月 US$150）。因此管理網域改用
+Cloudflare Zero Trust 的 **Access** 在 Cloudflare 邊緣擋下未授權請求：免費方案含 50 位
+使用者，主網域完全不受影響，未通過驗證的人連 HTML 與 JS 都拿不到。
+
+前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（Nameserver 指向 Cloudflare）。
+
+1. **開通 Zero Trust**：Cloudflare 儀表板 → Zero Trust → 選 Free 方案（需綁信用卡但
+   50 位使用者內不收費）→ 設定 team 名稱（會產生 `<team>.cloudflareaccess.com`）。
+2. **設定登入方式**：Zero Trust → Settings → Authentication → Login methods，確認
+   **One-time PIN**（Email 驗證碼）已啟用。要用 Google 帳號登入就再新增 Google
+   identity provider。
+3. **新增 Access 應用程式**：Zero Trust → Access → Applications → Add an application →
+   **Self-hosted**
+   - Application name：`InstantGig Admin`
+   - Session Duration：`24 hours`（可依需求縮短）
+   - Public hostname：Subdomain `admin`、Domain `instantgig.tw`、Path 留空
+4. **新增 Allow 政策**：
+   - Policy name：`Admin allowlist`、Action：`Allow`
+   - Include → Selector `Emails`，填入允許進入的信箱（多筆逐一新增）；
+     想放行整個公司網域可改用 `Emails ending in` → `@instantgig.tw`
+   - 存檔後不要再加任何 Bypass 政策，否則等於沒鎖。
+5. **把 admin 記錄改成 Proxied**：DNS → 找到 `admin` 的 CNAME → 把灰雲點成
+   **橘雲（Proxied）**。Access 只能保護經過 Cloudflare 代理的主機名稱。
+6. **設定 SSL 模式**：SSL/TLS → Overview → 選 **Full (strict)**。若切換後出現 526／525
+   錯誤，多半是憑證還沒簽好：先把 `admin` 改回 DNS only，等 Vercel Domains 顯示
+   Valid Configuration 再改回 Proxied。
+7. **驗證**：用無痕視窗開 `https://admin.instantgig.tw` → 出現 Cloudflare 驗證碼畫面 →
+   收信輸入 6 位碼 → 才會看到管理員登入頁，接著仍需輸入管理員帳密（雙層驗證）。
+   另外開 `https://instantgig.tw` 確認主站沒有被擋。
+
+應用內對應行為（已實作）：
+
+- `hooks/useAccessIdentity.ts` 會讀取 Cloudflare 的 `/cdn-cgi/access/get-identity`，
+  在管理主控台與登入頁顯示「Cloudflare Access 已驗證」與該信箱；沒有 Access 保護時
+  自動隱藏，不影響本機或 Vercel 直連的行為。
+- 管理主控台的登出改為兩個選項：僅登出管理帳號，或連同 Cloudflare 連線一起結束
+  （導向 `/cdn-cgi/access/logout`，下次進入要重新驗證）。
+- `vercel.json` 的 SPA 改寫已排除 `/cdn-cgi/`，避免這些端點被改寫成 `index.html`。
+
+需要自動化（監控、E2E 測試）通過 Access 時，用 Zero Trust → Access → Service Auth 建立
+Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
+`CF-Access-Client-Id` / `CF-Access-Client-Secret` 標頭即可。
+
+### 7. 管理平台的搜尋引擎與存取
 
 - `public/robots.txt` 禁止收錄 `/admin`、`/admin-dashboard`。
 - `admin.instantgig.tw` 的 `/robots.txt` 會被改寫成 `public/admin-robots.txt`
   （整站 `Disallow: /`），且該網域所有回應都帶 `X-Robots-Tag: noindex, nofollow`。
 - 進入 `/admin` 時前端另會插入 `<meta name="robots" content="noindex, nofollow">`。
-- 存取仍需管理員帳密（`lib/stores/adminAuth.ts`），連續 5 次失敗鎖定 60 秒。
-  網域本身是公開的，若要更嚴格，可在 Vercel 專案加上 Deployment Protection
-  或於 `admin.instantgig.tw` 前面自行加 IP 白名單。
+- 存取有兩道關卡：Cloudflare Access（網域層，見第 6 節）與管理員帳密
+  （`lib/stores/adminAuth.ts`，連續 5 次失敗鎖定 60 秒）。未設定 Access 時網域本身是
+  公開的，只剩帳密保護。
 
 ## How can I make changes to my app?
 

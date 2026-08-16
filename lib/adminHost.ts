@@ -46,3 +46,62 @@ function detectAdminHost(): boolean {
 
 /** 這次載入是否來自管理專屬網域；原生 App 永遠為 false。 */
 export const IS_ADMIN_HOST = detectAdminHost();
+
+/**
+ * Cloudflare Access（Zero Trust）在受保護網域上提供的端點。
+ * 管理網域由 Cloudflare 代理並掛上 Access 應用程式後，這兩個路徑
+ * 由 Cloudflare 邊緣直接處理，不會進到 Vercel。
+ */
+export const ACCESS_IDENTITY_PATH = '/cdn-cgi/access/get-identity';
+export const ACCESS_LOGOUT_PATH = '/cdn-cgi/access/logout';
+
+/** Cloudflare Access 已驗證的身分。 */
+export interface AccessIdentity {
+  email: string;
+  name?: string;
+}
+
+function readIdentityField(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 讀取 Cloudflare Access 已驗證的身分。網域沒有掛 Access 時端點不存在，
+ * 此時回傳 null，畫面維持只靠管理員帳密驗證的行為。
+ */
+export async function fetchAccessIdentity(): Promise<AccessIdentity | null> {
+  if (Platform.OS !== 'web' || typeof fetch !== 'function') return null;
+
+  try {
+    const response = await fetch(ACCESS_IDENTITY_PATH, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) return null;
+
+    const payload: unknown = await response.json();
+    if (!isRecord(payload)) return null;
+
+    const email = readIdentityField(payload.email);
+    if (email === undefined) return null;
+
+    return { email, name: readIdentityField(payload.name) };
+  } catch {
+    return null;
+  }
+}
+
+/** 結束 Cloudflare Access 連線；下次進入管理網域會重新要求驗證。 */
+export function endAccessSession(): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  window.location.assign(ACCESS_LOGOUT_PATH);
+}

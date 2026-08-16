@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/BrandLogo';
+import { useAccessIdentity } from '@/hooks/useAccessIdentity';
 import { IS_ADMIN_HOST } from '@/lib/adminHost';
 import { SEED_ADMIN_ACCOUNTS } from '@/lib/adminSeed';
 import { COLORS } from '@/lib/colors';
@@ -15,6 +16,7 @@ import { ADMIN_ROLE_LABEL } from '@/lib/types';
 export default function AdminLoginScreen() {
   const signIn = useAdminAuthStore((state) => state.signIn);
   const lockedUntil = useAdminAuthStore((state) => state.lockedUntil);
+  const accessIdentity = useAccessIdentity();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,6 +83,17 @@ export default function AdminLoginScreen() {
             <ShieldCheck size={16} color={COLORS.brandStrong} strokeWidth={2.2} />
             <Text className="text-ink text-[15px] font-semibold">管理員登入</Text>
           </View>
+
+          {accessIdentity === null ? null : (
+            <View className="border-brand/25 bg-brand-soft gap-1 rounded-xl border px-3 py-2.5">
+              <Text className="text-ink text-[12px] font-semibold">
+                Cloudflare Access 已驗證此網域存取
+              </Text>
+              <Text className="text-muted text-[11px] leading-4">
+                {accessIdentity.email}・請繼續輸入管理員帳號與密碼完成第二道驗證。
+              </Text>
+            </View>
+          )}
 
           <TextField>
             <Label>管理員帳號</Label>
