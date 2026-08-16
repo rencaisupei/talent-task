@@ -129,28 +129,57 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 
 **方式 A：連結 Git 自動部署（建議）**
 
-1. Cloudflare 儀表板 → Workers & Pages → Create → **Pages** → Connect to Git，
-   選這個 repo，專案名稱建議 `instantgig`（要與 `wrangler.toml` 的 `name` 一致）。
-2. Build 設定：
-   - Framework preset：**None**
+前置：repo 已推到 GitHub 或 GitLab，且根目錄有 `package-lock.json`（Pages 會用 `npm ci`）。
+
+1. **建立專案**：Cloudflare 儀表板 → Compute (Workers) → Workers & Pages →
+   Create → **Pages** 分頁 → Connect to Git → 授權 GitHub／GitLab →
+   選這個 repo（可只授權單一 repo）。
+2. **專案名稱**填 `instantgig`，要與 `wrangler.toml` 的 `name` 一致，否則本機
+   `npm run deploy:web` 會上傳到另一個專案。這個名稱同時決定
+   `<project>.pages.dev` 網址。
+3. **Production branch** 選正式分支（通常 `main`）。
+4. **Build settings**：
+   - Framework preset：**None**（選 Expo 之類的 preset 會覆寫指令）
    - Build command：`npm run build:web`
    - Build output directory：`dist`
    - Root directory：留空
-3. Environment variables（Production 與 Preview 都要各設一份）：
+5. **Environment variables**：展開 Build 設定裡的 Environment variables，
+   **Production 與 Preview 兩組都要各設一份**：
    - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
    - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
-   - `NODE_VERSION` = `20.19.4`（Pages 預設 Node 版本較舊，不設會建置失敗）
-   - 選填：`EXPO_PUBLIC_ADMIN_HOST`（管理網域，預設 `admin.instantgig.tw`，
-     多個以逗號分隔）
-4. Save and Deploy。之後每次 push 到 production 分支就自動重新部署，其他分支產生預覽網址。
+   - 選填 `EXPO_PUBLIC_ADMIN_HOST`：管理網域，預設 `admin.instantgig.tw`，
+     多個以逗號分隔。用預設網域就不用設。
+   - Node 版本由 repo 根目錄的 `.node-version`（`20.19.4`）決定，不必再設
+     `NODE_VERSION`；若要臨時換版，設 `NODE_VERSION` 會覆寫該檔案。
+6. **Save and Deploy**，等第一次建置跑完（Building → Deploying → Success）。
+   完成後先用 `https://<project>.pages.dev` 開啟確認主站正常。
+7. 之後每次 push 到 production 分支自動重新部署；其他分支與 PR 會產生預覽網址。
+   改了環境變數要重新 deploy（Deployments → 最新一筆 → Retry deployment）才會生效，
+   因為值是在建置時寫進 bundle 的。
+
+建置失敗時看 Deployments → 該筆 → Build log，常見原因：
+
+- `EXPO_PUBLIC_*` 只設在 Production，Preview 建置就會缺值（AI 認證與資料存取失效）。
+- Build output directory 打成 `dist/` 以外的值，或 Framework preset 沒選 None。
+- `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
+- `<project>.pages.dev` 與預覽網址也能開 `/admin`（只剩帳密保護），
+  上線前務必照第 7 節一起用 Access 鎖住。
 
 **方式 B：本機用 Wrangler 直接上傳**
 
+Pages 專案要先存在（可用方式 A 建立，或在儀表板選 Direct Upload 建同名專案）。
+本機上傳不會讀 Pages 後台的環境變數，`EXPO_PUBLIC_*` 必須在自己的 shell 匯出。
+
 ```sh
+export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"
+export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
+
 npx wrangler login
 npm run deploy:web          # 建置後上傳為正式部署
 npm run deploy:web:preview  # 建置後上傳為預覽部署
 ```
+
+`wrangler.toml` 已指定輸出目錄，指令不要再附加 `dist` 參數。
 
 ### 3. 綁定網域與 DNS
 
