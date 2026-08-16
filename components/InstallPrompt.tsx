@@ -51,13 +51,13 @@ function isIosSafari(): boolean {
   return isIos && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
 }
 
-const TAB_BAR_HEIGHT = 49;
+const BOTTOM_OFFSET = 16;
 
 export function InstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
   const insets = useSafeAreaInsets();
-  const bottom = insets.bottom + TAB_BAR_HEIGHT + 12;
+  const bottom = insets.bottom + BOTTOM_OFFSET;
 
   useEffect(() => {
     if (!isEligibleBrowserContext()) return undefined;
@@ -118,10 +118,10 @@ export function InstallPrompt() {
       >
         <View className="flex-1">
           <Text.Paragraph type="body-sm" weight="semibold">
-            Add to home screen
+            加入主畫面
           </Text.Paragraph>
           <Text.Paragraph type="body-xs" color="muted">
-            Install this app for a full-screen experience
+            安裝管理平台，以全螢幕視窗開啟
           </Text.Paragraph>
         </View>
         <Pressable
@@ -130,7 +130,7 @@ export function InstallPrompt() {
           onPress={() => setInstallEvent(null)}
         >
           <Text.Paragraph type="body-sm" weight="semibold" color="muted">
-            Not now
+            稍後再說
           </Text.Paragraph>
         </Pressable>
         <Pressable
@@ -139,7 +139,7 @@ export function InstallPrompt() {
           onPress={handleInstall}
         >
           <Text.Paragraph type="body-sm" weight="semibold" className="text-primary-foreground">
-            Install
+            安裝
           </Text.Paragraph>
         </Pressable>
       </View>
@@ -154,10 +154,10 @@ export function InstallPrompt() {
       >
         <View className="flex-1">
           <Text.Paragraph type="body-sm" weight="semibold">
-            Add to home screen
+            加入主畫面
           </Text.Paragraph>
           <Text.Paragraph type="body-xs" color="muted">
-            Tap Share, then “Add to Home Screen” to install this app
+            點選分享，再選「加入主畫面」即可安裝管理平台
           </Text.Paragraph>
         </View>
         <Pressable
@@ -166,7 +166,7 @@ export function InstallPrompt() {
           onPress={dismissIosHint}
         >
           <Text.Paragraph type="body-sm" weight="semibold" color="muted">
-            Got it
+            知道了
           </Text.Paragraph>
         </Pressable>
       </View>

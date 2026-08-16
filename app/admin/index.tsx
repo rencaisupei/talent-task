@@ -20,7 +20,7 @@ import { KpiCard } from '@/components/KpiCard';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
 import { useAccessIdentity } from '@/hooks/useAccessIdentity';
-import { endAccessSession, IS_ADMIN_HOST } from '@/lib/adminHost';
+import { endAccessSession } from '@/lib/adminHost';
 import { CATEGORY_FILTER_ALL, usePlatformAnalytics } from '@/lib/analytics';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/format';
@@ -96,8 +96,8 @@ export default function AdminHomeScreen() {
             ? `${currentAdmin.name}・${ADMIN_ROLE_LABEL[currentAdmin.role]}`
             : '營運管理中心'
         }
-        fallback="/(tabs)"
-        showBack={!IS_ADMIN_HOST}
+        fallback="/admin"
+        showBack={false}
         right={
           <Pressable
             onPress={handleSignOut}
@@ -272,7 +272,7 @@ export default function AdminHomeScreen() {
         title="登出管理後台？"
         message={
           accessIdentity === null
-            ? '將回到管理員登入頁，一般使用者介面不受影響。'
+            ? '將回到管理員登入頁，其他管理動作需重新登入。'
             : '僅登出管理帳號會停在登入頁；結束 Cloudflare 連線會連同網域驗證一起清除，下次進入需重新收取驗證碼。'
         }
         actions={signOutActions}

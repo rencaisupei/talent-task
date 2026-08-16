@@ -2,13 +2,11 @@
 <!--
   Web HTML template (used by `expo export -p web` and the dev server because
   web.output is 'single' — app/+html.tsx only applies to 'static' output).
-  The lang attribute and title below are substituted from app.config.ts at
-  build time; only their FIRST occurrence in this file is replaced, so don't
-  repeat those placeholder tokens anywhere above them.
 
-  Carries the PWA install contract: the manifest link for Android/Chrome and the
-  apple-* tags iOS Safari needs (iOS ignores most of the manifest). Keep the app
-  identity in public/manifest.json in sync with the name in app.config.ts.
+  The web build IS the admin platform (the consumer app ships as the native
+  mobile app only), so the title and robots policy are hardcoded here instead of
+  being substituted from app.config.ts, whose name is the mobile app's name.
+  The lang attribute below is still substituted at build time.
 -->
 <html lang="%LANG_ISO_CODE%">
   <head>
@@ -18,7 +16,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
     />
-    <title>%WEB_TITLE%</title>
+    <title>即時發管理平台</title>
+
+    <!-- Admin-only site: never index it. Also enforced by robots.txt and host headers. -->
+    <meta name="robots" content="noindex, nofollow" />
 
     <!-- Web app manifest — the install contract for Android/Chrome -->
     <link rel="manifest" href="/manifest.json" />
@@ -26,7 +27,7 @@
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
 
     <!-- iOS home-screen support. No apple-mobile-web-app-title: iOS falls back to
-         <title>, which is substituted from app.config.ts and stays in sync. -->
+         <title>, which is the admin platform name above. -->
     <link rel="icon" type="image/png" href="/icons/instantgig-icon.png" />
     <link rel="apple-touch-icon" href="/icons/instantgig-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />

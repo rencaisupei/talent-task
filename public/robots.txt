@@ -1,7 +1,4 @@
-# 即時發（InstantGig）web build
-# The public app may be indexed; the admin platform must not be.
+# 即時發（InstantGig）管理平台
+# 網頁版只提供管理員專屬平台，整站都不得被收錄。
 User-agent: *
-Disallow: /admin
-Disallow: /admin/
-Disallow: /admin-dashboard
-Allow: /
+Disallow: /

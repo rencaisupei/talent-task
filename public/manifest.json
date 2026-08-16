@@ -1,9 +1,9 @@
 {
-  "name": "即時發 InstantGig",
-  "short_name": "即時發",
-  "description": "全台需求及專家的媒合平台：30 秒發布急件，立即媒合在地專家。",
+  "name": "即時發管理平台",
+  "short_name": "即時發管理",
+  "description": "即時發營運團隊的管理後台：審核、使用者、任務、營收與稽核紀錄。",
   "lang": "zh-Hant-TW",
-  "start_url": "/",
+  "start_url": "/admin",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

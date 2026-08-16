@@ -1,5 +1,11 @@
 # SPA fallback for Cloudflare Pages.
 # Copied verbatim into dist/ by `expo export -p web`.
+#
+# The web build is the admin platform only, so the root path is sent straight to
+# /admin at the edge — the client-side gate would otherwise have to do it after
+# the bundle loads.
+/    /admin    302
+
 # Real files in dist/ (JS bundles, icons, manifest.json) are served first;
 # anything else falls through to the single-page entry document.
 # Cloudflare Access endpoints under /cdn-cgi/ are handled at the edge and never

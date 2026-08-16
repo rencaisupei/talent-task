@@ -1,55 +1,22 @@
 import { Platform } from 'react-native';
 
 /**
- * 管理平台專屬網域。預設 admin.instantgig.tw，可用 EXPO_PUBLIC_ADMIN_HOST
- * 覆寫（多個網域以逗號分隔），方便同一份匯出掛在不同環境的子網域上。
+ * 網頁版只提供管理員專屬平台：任何非 /admin 路徑都會被導到管理入口。
+ * 一般使用者介面只在手機 App（原生）上執行，因此原生永遠為 false。
  */
-const DEFAULT_ADMIN_HOSTS = ['admin.instantgig.tw'];
+export const IS_ADMIN_WEB = Platform.OS === 'web';
 
-function readConfiguredHosts(): string[] {
-  const raw = process.env.EXPO_PUBLIC_ADMIN_HOST;
-  if (typeof raw !== 'string' || raw.trim().length === 0) return DEFAULT_ADMIN_HOSTS;
-
-  const hosts = raw
-    .split(',')
-    .map((host) => host.trim().toLowerCase())
-    .filter((host) => host.length > 0);
-
-  return hosts.length > 0 ? hosts : DEFAULT_ADMIN_HOSTS;
-}
-
-/** 目前設定為管理平台的網域清單。 */
-export const ADMIN_HOSTS = readConfiguredHosts();
-
-/** 管理入口路徑；管理網域的任何其他路徑都會被導回這裡。 */
+/** 管理入口路徑；網頁版的任何其他路徑都會被導回這裡。 */
 export const ADMIN_ENTRY_PATH = '/admin';
-
-/**
- * 是否為管理網域。除了設定清單之外，也接受任何 `admin.` 開頭的主機名稱，
- * 這樣本機用 admin.localhost:8081 或預覽子網域也能驗證同一套行為。
- */
-export function isAdminHostname(hostname: string): boolean {
-  const host = hostname.trim().toLowerCase();
-  if (host.length === 0) return false;
-  return ADMIN_HOSTS.includes(host) || host.startsWith('admin.');
-}
 
 /** 路徑是否屬於管理平台（含舊路徑 /admin-dashboard）。 */
 export function isAdminPath(pathname: string): boolean {
   return pathname.startsWith('/admin');
 }
 
-function detectAdminHost(): boolean {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  return isAdminHostname(window.location.hostname);
-}
-
-/** 這次載入是否來自管理專屬網域；原生 App 永遠為 false。 */
-export const IS_ADMIN_HOST = detectAdminHost();
-
 /**
  * Cloudflare Access（Zero Trust）在受保護網域上提供的端點。
- * 管理網域掛上 Access 應用程式後，這兩個路徑由 Cloudflare 邊緣直接處理，
+ * 網站掛上 Access 應用程式後，這兩個路徑由 Cloudflare 邊緣直接處理，
  * 不會進到 Cloudflare Pages 的靜態資源與 SPA 改寫。
  */
 export const ACCESS_IDENTITY_PATH = '/cdn-cgi/access/get-identity';
@@ -100,7 +67,7 @@ export async function fetchAccessIdentity(): Promise<AccessIdentity | null> {
   }
 }
 
-/** 結束 Cloudflare Access 連線；下次進入管理網域會重新要求驗證。 */
+/** 結束 Cloudflare Access 連線；下次進入管理網站會重新要求驗證。 */
 export function endAccessSession(): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   window.location.assign(ACCESS_LOGOUT_PATH);

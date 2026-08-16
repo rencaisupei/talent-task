@@ -10,7 +10,7 @@ interface AdminHeaderProps {
   caption?: string;
   /** 直接開啟此頁時的返回目標，預設回到管理主控台。 */
   fallback?: Href;
-  /** 管理專屬網域沒有一般使用者介面可回，此時可關閉返回鍵。 */
+  /** 管理平台沒有一般使用者介面可回，主控台會關閉返回鍵。 */
   showBack?: boolean;
   right?: React.ReactNode;
 }

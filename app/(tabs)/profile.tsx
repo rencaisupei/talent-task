@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Clock,
   Crown,
-  LayoutDashboard,
   RefreshCw,
   Repeat,
   ShieldCheck,
@@ -15,7 +14,7 @@ import {
   Tags,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
@@ -26,7 +25,6 @@ import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { CATEGORY_COUNT, TOTAL_TAG_COUNT } from '@/lib/omniTags';
-import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useGigStore } from '@/lib/stores/gigs';
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 import { useReviewStore } from '@/lib/stores/reviews';
@@ -41,9 +39,7 @@ const VERIFICATION_LABEL: Record<VerificationStatus, string> = {
   rejected: '複審未通過',
 };
 
-/** 管理平台僅在網頁版提供，手機 App 不顯示任何入口。 */
-const IS_ADMIN_PLATFORM = Platform.OS === 'web';
-
+/** 管理平台只在網頁版提供，手機 App 不顯示任何入口。 */
 export default function ProfileScreen() {
   const role = useSessionStore((state) => state.role);
   const displayName = useSessionStore((state) => state.displayName);
@@ -61,7 +57,6 @@ export default function ProfileScreen() {
 
   const reviews = useReviewStore((state) => state.reviews);
   const gigs = useGigStore((state) => state.gigs);
-  const adminSignedIn = useAdminAuthStore((state) => state.currentAdmin !== null);
   const pushEnabled = usePushPrefsStore((state) => state.enabled);
   const pushPermission = usePushPrefsStore((state) => state.permission);
 
@@ -121,14 +116,9 @@ export default function ProfileScreen() {
         contentContainerClassName="px-5 pt-safe-offset-4 pb-12 gap-5"
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
-          onLongPress={IS_ADMIN_PLATFORM ? () => router.push('/admin/login') : undefined}
-          delayLongPress={800}
-          accessibilityRole="header"
-          accessibilityLabel="帳戶"
-        >
-          <Text className="text-ink text-[26px] font-bold tracking-tight">帳戶</Text>
-        </Pressable>
+        <Text accessibilityRole="header" className="text-ink text-[26px] font-bold tracking-tight">
+          帳戶
+        </Text>
 
         <View className="border-hairline rounded-xl border bg-white p-4">
           <View className="flex-row items-center gap-3">
@@ -301,17 +291,6 @@ export default function ProfileScreen() {
             onPress={() => router.push('/privacy')}
           />
           <View className="bg-hairline h-px" />
-          {IS_ADMIN_PLATFORM && adminSignedIn ? (
-            <>
-              <ProfileRow
-                icon={<LayoutDashboard size={17} color={COLORS.brandStrong} strokeWidth={2.1} />}
-                label="管理員專屬平台"
-                caption="使用者、任務、營收與稽核紀錄（僅網頁版）"
-                onPress={() => router.push('/admin')}
-              />
-              <View className="bg-hairline h-px" />
-            </>
-          ) : null}
           <ProfileRow
             icon={<RefreshCw size={17} color={COLORS.coral} strokeWidth={2.1} />}
             label="重設個人資料"

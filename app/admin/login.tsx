@@ -6,10 +6,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } fro
 
 import { BrandLogo } from '@/components/BrandLogo';
 import { useAccessIdentity } from '@/hooks/useAccessIdentity';
-import { IS_ADMIN_HOST } from '@/lib/adminHost';
 import { SEED_ADMIN_ACCOUNTS } from '@/lib/adminSeed';
 import { COLORS } from '@/lib/colors';
-import { goBackOrReplace } from '@/lib/navigation';
 import { ADMIN_LOCK_THRESHOLD, useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { ADMIN_ROLE_LABEL } from '@/lib/types';
 
@@ -146,12 +144,6 @@ export default function AdminLoginScreen() {
           <Button size="lg" isDisabled={isLocked} onPress={handleSignIn}>
             <Button.Label>{isLocked ? `鎖定中（${lockSeconds} 秒）` : '登入管理後台'}</Button.Label>
           </Button>
-
-          {IS_ADMIN_HOST ? null : (
-            <Button size="md" variant="tertiary" onPress={() => goBackOrReplace('/(tabs)')}>
-              <Button.Label>返回一般使用者介面</Button.Label>
-            </Button>
-          )}
         </View>
 
         <View className="border-hairline bg-canvas gap-3 rounded-xl border p-4">

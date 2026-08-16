@@ -1,20 +1,12 @@
 # Response headers for Cloudflare Pages.
 # Copied verbatim into dist/ by `expo export -p web`.
 #
-# Pages rules match on PATH only — they cannot target a single hostname.
-# The admin-domain-wide `X-Robots-Tag` and the `/robots.txt` -> `/admin-robots.txt`
-# swap are configured as zone-level Rules in Cloudflare (see README section 8).
+# The whole web deployment is the admin platform (the consumer app ships as the
+# native mobile app only), so nothing here may be indexed.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-
-# Admin platform stays out of search indexes (robots.txt covers crawlers that
-# read it; this header covers the ones that only honour X-Robots-Tag).
-/admin
-  X-Robots-Tag: noindex, nofollow
-
-/admin/*
   X-Robots-Tag: noindex, nofollow
 
 # Hashed asset paths never change contents.

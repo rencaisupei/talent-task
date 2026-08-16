@@ -1,23 +1,21 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 
 import { COLORS } from '@/lib/colors';
+import { IS_ADMIN_WEB } from '@/lib/adminHost';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
-
-/** 管理平台僅在網頁版提供，手機 App 不開放。 */
-const IS_ADMIN_PLATFORM = Platform.OS === 'web';
 
 const NOINDEX_META_ID = 'admin-robots-noindex';
 
 /**
  * 管理平台不得被搜尋引擎收錄。靜態匯出是單頁（web.output = 'single'），
- * index.html 為全站共用，因此索引標記只能在進入 /admin 時於執行階段插入，
- * 離開時移除，避免影響公開頁面。搭配 public/robots.txt 與主機端 X-Robots-Tag。
+ * 索引標記在進入 /admin 時於執行階段插入，離開時移除。
+ * 搭配 public/robots.txt 與主機端 X-Robots-Tag（網頁版整站都是管理平台）。
  */
 function useAdminNoIndexMeta(): void {
   useEffect(() => {
-    if (!IS_ADMIN_PLATFORM || typeof document === 'undefined') return undefined;
+    if (!IS_ADMIN_WEB || typeof document === 'undefined') return undefined;
     if (document.getElementById(NOINDEX_META_ID)) return undefined;
 
     const meta = document.createElement('meta');
@@ -40,7 +38,7 @@ export default function AdminLayout() {
   const segments = useSegments();
   const isLoginRoute = segments[segments.length - 1] === 'login';
 
-  if (!IS_ADMIN_PLATFORM) return <Redirect href="/(tabs)" />;
+  if (!IS_ADMIN_WEB) return <Redirect href="/(tabs)" />;
   if (!hydrated) return <View className="bg-background flex-1" />;
   if (!isSignedIn && !isLoginRoute) return <Redirect href="/admin/login" />;
   if (isSignedIn && isLoginRoute) return <Redirect href="/admin" />;
