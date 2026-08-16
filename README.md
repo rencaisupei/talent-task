@@ -186,6 +186,17 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 
 建置失敗時看 Deployments → 該筆 → Build log，常見原因：
 
+- **`Cannot find module '@babel/core'` / `tailwindcss`**：Pages 環境變數設了
+  `NODE_ENV=production` 時，npm 會跳過 `devDependencies`。因此 Metro 打包必需的
+  `@babel/core`、`@babel/runtime`、`babel-plugin-react-compiler`、`tailwindcss`
+  （uniwind 需要）、`typescript`（expo-router typedRoutes 需要）都放在
+  `dependencies` 而非 `devDependencies` — 移動它們會讓網頁建置壞掉。
+  仍失敗的話刪掉 `NODE_ENV`，或把 Build command 改成
+  `npm install --include=dev && npm run build:web`。
+- **`dist/` 只有 `index.html`、`manifest.json`、`icons/` 這些 `public/` 的檔案，
+  沒有 `_expo/` 目錄**：表示 `public/` 複製完後 JS 打包就中斷了（多半是上一項，
+  或 `JavaScript heap out of memory`）。正常的 `dist/index.html` 會被注入
+  `<script src="/_expo/static/js/web/entry-*.js">`，且 `%LANG_ISO_CODE%` 已被取代。
 - `EXPO_PUBLIC_*` 只設在 Production，Preview 建置就會缺值（該環境的 AI 審核會退回裝置端規則）。
 - Build output directory 打成 `dist/` 以外的值，或 Framework preset 沒選 None。
 - `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
