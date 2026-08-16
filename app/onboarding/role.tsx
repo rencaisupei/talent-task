@@ -58,7 +58,7 @@ export default function RoleSelectScreen() {
         contentContainerClassName="px-5 pt-safe-offset-6 pb-8 gap-6"
         showsVerticalScrollIndicator={false}
       >
-        <BrandWordmark subtitle="全台急件即時媒合平台" size={56} />
+        <BrandWordmark size={56} />
 
         <View>
           <Text className="text-ink text-[28px] leading-9 font-bold tracking-tight">

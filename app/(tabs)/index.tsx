@@ -142,7 +142,7 @@ function TalentHome() {
           ListHeaderComponent={
             <View className="pt-safe-offset-4 gap-4 pb-4">
               <View className="flex-row items-center justify-between gap-3">
-                <BrandWordmark subtitle="即時任務牆" size={48} />
+                <BrandWordmark size={48} />
                 <NotificationBell />
               </View>
 
@@ -260,7 +260,7 @@ function ClientHome() {
         showsVerticalScrollIndicator={false}
       >
         <View className="flex-row items-center justify-between gap-3">
-          <BrandWordmark subtitle="需求發布中心" size={48} />
+          <BrandWordmark size={48} />
           <NotificationBell />
         </View>
 

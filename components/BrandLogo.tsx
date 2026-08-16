@@ -35,8 +35,15 @@ interface BrandWordmarkProps {
   className?: string;
 }
 
-/** 品牌鎖定組合：圖示圖塊 + 中文品牌名 + 說明。 */
-export function BrandWordmark({ subtitle, size = 52, className }: BrandWordmarkProps) {
+/** 品牌標語：顯示於品牌名下方。 */
+export const BRAND_TAGLINE = '全台需求及專家的媒合平台';
+
+/** 品牌鎖定組合：圖示圖塊 + 中文品牌名 + 標語。 */
+export function BrandWordmark({
+  subtitle = BRAND_TAGLINE,
+  size = 52,
+  className,
+}: BrandWordmarkProps) {
   return (
     <View className={cn('flex-row items-center gap-3', className)}>
       <BrandLogo size={size} />

@@ -130,12 +130,15 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (loaded || error) {
+    if (loaded || error || Platform.OS === 'web') {
       void SplashScreen.hideAsync();
     }
   }, [loaded, error]);
 
-  if (!loaded && !error) {
+  // Web gets Inter from the stylesheet link above, so the first paint must not
+  // wait on expo-font — blocking there is what made the browser preview feel
+  // slow to appear. Native still waits so text doesn't flash a fallback face.
+  if (!loaded && !error && Platform.OS !== 'web') {
     return null;
   }
 
