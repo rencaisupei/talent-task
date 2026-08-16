@@ -25,6 +25,7 @@ import {
 import { initPostHog } from '@/lib/posthog';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
+import { AdminHostGate } from '@/components/AdminHostGate';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushBridge } from '@/components/PushBridge';
 
@@ -146,6 +147,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>
         <RootNavigator />
+        <AdminHostGate />
         <PushBridge />
         <InstallPrompt />
       </HeroUINativeProvider>

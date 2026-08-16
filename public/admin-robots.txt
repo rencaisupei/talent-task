@@ -1,0 +1,4 @@
+# 即時發（InstantGig）管理平台專屬網域（admin.instantgig.tw）
+# 整個網域都不得被收錄；主機端會把 /robots.txt 改寫到這份檔案。
+User-agent: *
+Disallow: /

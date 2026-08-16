@@ -19,6 +19,7 @@ import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { KpiCard } from '@/components/KpiCard';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
+import { IS_ADMIN_HOST } from '@/lib/adminHost';
 import { CATEGORY_FILTER_ALL, usePlatformAnalytics } from '@/lib/analytics';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/format';
@@ -80,6 +81,7 @@ export default function AdminHomeScreen() {
             : '營運管理中心'
         }
         fallback="/(tabs)"
+        showBack={!IS_ADMIN_HOST}
         right={
           <Pressable
             onPress={handleSignOut}

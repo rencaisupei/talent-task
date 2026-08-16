@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/BrandLogo';
+import { IS_ADMIN_HOST } from '@/lib/adminHost';
 import { SEED_ADMIN_ACCOUNTS } from '@/lib/adminSeed';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
@@ -133,9 +134,11 @@ export default function AdminLoginScreen() {
             <Button.Label>{isLocked ? `鎖定中（${lockSeconds} 秒）` : '登入管理後台'}</Button.Label>
           </Button>
 
-          <Button size="md" variant="tertiary" onPress={() => goBackOrReplace('/(tabs)')}>
-            <Button.Label>返回一般使用者介面</Button.Label>
-          </Button>
+          {IS_ADMIN_HOST ? null : (
+            <Button size="md" variant="tertiary" onPress={() => goBackOrReplace('/(tabs)')}>
+              <Button.Label>返回一般使用者介面</Button.Label>
+            </Button>
+          )}
         </View>
 
         <View className="border-hairline bg-canvas gap-3 rounded-xl border p-4">
