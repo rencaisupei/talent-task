@@ -569,8 +569,8 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 - 觸發時機：開啟 App、從背景回到前景、App 長時間開著跨日（`components/MaintenanceRunner.tsx`）。
   同一天只會真的執行一次，判斷依據是台北時區日期（`lib/maintenance.ts` 的 `taipeiDayKey`）。
 - 維護內容：逾期 14 天未成交的任務自動結案、免費對話配額月度重置檢查、
-  通知中心保留最近 30 天已讀通知（未讀一律保留）、每則對話保留最近 200 條訊息、
-  檢查 App 是否有新版本。
+  通知中心保留最近 30 天已讀通知（未讀一律保留）、檢查 App 是否有新版本。
+  （對話訊息的修剪已改到伺服器端，裝置端只會回報「由伺服器排程負責」。）
 - 使用者可在「帳戶 → 系統維護」（`app/maintenance.tsx`）看到上次維護時間、每項結果、
   最近 20 次紀錄，也能手動再跑一次。
 - 版本更新：原生走 `expo-updates`（開發模式與 Expo Go 的 `Updates.isEnabled` 為 false，
@@ -580,7 +580,8 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 **伺服器端（管理平台）**
 
 - 函式：`daily-maintenance`（`verify_jwt=false`）。維護內容：清除過期的 `admin_sessions`、
-  解除到期的帳號鎖定、清理 90 天前的 `admin_login_events`、清理 180 天前的 `maintenance_runs`。
+  解除到期的帳號鎖定、清理 90 天前的 `admin_login_events`、
+  每則對話保留最近 200 條訊息（`prune_chat_messages`）、清理 180 天前的 `maintenance_runs`。
 - 紀錄寫進 `maintenance_runs`（RLS 開啟且沒有政策，只有函式的 service key 能讀寫），
   管理平台「每日系統維護」頁（`app/admin/maintenance.tsx`）可檢視，需要 `audit:view`；
   手動執行需要 `maintenance:run`（預設只有 owner）。
@@ -633,11 +634,42 @@ curl "https://<project>.cloud.bilt.me/functions/v1/daily-maintenance?key=<排程
 
 ### 管理平台
 
-RLS 讓一般用戶端讀不到待複審與已下架的內容，因此管理平台改走 `admin-content` 邊緣函式（service key + 管理員 session token）：`list`、`takedown-gig`、`restore-gig`、`gig-review`、`bid-review`。權限沿用角色表（下架需 `gigs:manage`、複審需 `review:manage`）。
+RLS 讓一般用戶端讀不到待複審與已下架的內容，因此管理平台改走 `admin-content` 邊緣函式（service key + 管理員 session token）：`list`、`takedown-gig`、`restore-gig`、`gig-review`、`bid-review`、`list-chats`、`resolve-report`。權限沿用角色表（下架需 `gigs:manage`、複審與對話紀錄需 `review:manage`）。
+
+## 12. 對話與訊息的雲端資料（conversations / messages）
+
+對話已跨裝置：訊息存在 bilt-cloud，登入同一個帳號的任何裝置都看得到同一份對話。
+
+### 資料表與權限
+
+| 資料表          | 誰讀得到                                                 | 誰寫得到                              |
+| --------------- | -------------------------------------------------------- | ------------------------------------- |
+| `conversations` | 只有 `client_id` 或 `talent_id` 等於 `auth.uid()` 的兩方 | **沒有人**（只能經由資料庫函式寫入）  |
+| `messages`      | 同上（`client_id` / `talent_id` 是冗餘欄位，避免連表）   | **沒有人**（只能經由 `send_message`） |
+
+這兩張表刻意不給 `INSERT` / `UPDATE` / `DELETE` 政策：RLS 只能限制「哪些列」，不能限制「欄位填什麼值」。若開放直接寫入，任何人都能替別人硬開一組對話、偽造 `sender_id`，或把命中詐騙關鍵字的訊息直接標成 `clean` 繞過審核。所有寫入因此走 `SECURITY DEFINER` 函式：
+
+- `start_conversation(gid, tid)`：驗證呼叫者是該任務的發案者或那位人才本人、任務未下架且已通過認證、雙方不同人，並從任務帶出客戶資料。同一組（任務、人才）重複呼叫會回傳既有對話 id。示範任務（`is_demo`）沒有真實帳號，一律回傳 `null`。
+- `send_message(cid, body)`：伺服器決定 `sender_id`、送出者名稱與審核判定（`chat_scam_keywords()` / `chat_flagged_terms()`，比對前先去掉所有空白），同一句 SQL 內順便更新對話的最後訊息與送出者自己的已讀時間。
+- `mark_conversation_read(cid)` / `report_conversation(cid, reason)`：只有對話雙方可呼叫。
+- `chat_unread_counts()`：我的未讀數（對方送出且晚於我的已讀時間），依對話分組。
+- `prune_chat_messages(keep)`：每則對話保留最近 200 條，由伺服器每日維護排程執行。
+
+**聊天審核的關鍵字字典有兩份**：伺服器的 `chat_scam_keywords()` 是判定依據，`lib/moderation.ts` 的 `SCAM_KEYWORDS` 只用於裝置端即時提示與管理端高亮，兩邊要一起改。
+
+### 自動更新（Realtime）
+
+對話這裡的即時性靠 **broadcast**，broadcast 不需要邏輯複製，所以在 `wal_level = replica` 的現況下就能立刻送達：送出訊息的裝置在 `instantgig-chat` 頻道廣播 `{conversationId, clientId, talentId}`，其他裝置收到後**回資料庫重讀**（廣播內容可被偽造，絕不能直接當訊息顯示；重讀會經過 RLS）。另外一併訂閱 `postgres_changes`（等資料庫開邏輯複製自動生效），並保底輪詢：對話清單 20 秒、正打開的那則對話 6 秒，App 回到前景也會補讀。
+
+### 未讀與示範內容
+
+- 未讀數來自 `client_last_read_at` / `talent_last_read_at`，對話分頁會顯示紅點與數字，進入對話即標記已讀。
+- 雲端對話需要兩個真實帳號，因此 **28 筆示範任務與示範人才無法開啟對話**，畫面會直接說明原因。
+- 對話上雲前留在裝置上的 `instantgig-chat` 紀錄會在啟動時清除（對象沒有帳號可對應）。
 
 ### 尚未上雲的部分
 
-對話、訊息、評價、收藏與通知仍存在各自裝置上，因此聊天目前還不是跨裝置的。這是下一階段的工作。
+評價、收藏與通知仍存在各自裝置上；封禁、訂閱帳務與公告推播的管理動作也還是管理端本機狀態。
 
 ## How can I make changes to my app?
 

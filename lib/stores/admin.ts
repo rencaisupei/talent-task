@@ -2,28 +2,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { SEED_REPORTS, SEED_VERIFICATIONS } from '@/lib/seed';
+import { SEED_VERIFICATIONS } from '@/lib/seed';
 import { useNotificationStore } from '@/lib/stores/notifications';
 import { usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { useSessionStore } from '@/lib/stores/session';
-import type { AbuseReport, VerificationRequest } from '@/lib/types';
+import type { VerificationRequest } from '@/lib/types';
 
 interface AdminState {
   verifications: VerificationRequest[];
-  reports: AbuseReport[];
   bannedUserIds: string[];
   submitVerification: (request: VerificationRequest) => void;
-  addReport: (report: AbuseReport) => void;
   approveVerification: (id: string) => void;
   rejectVerification: (id: string) => void;
   /** 證照人工驗證（信任度加分項，與能否接案無關）。 */
   verifyCredential: (id: string, verified: boolean) => void;
-  resolveReport: (id: string) => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
 }
 
-function isPersistedAdminState(value: unknown): value is { verifications?: VerificationRequest[] } {
+function isPersistedAdminState(value: unknown): value is {
+  verifications?: VerificationRequest[];
+  bannedUserIds?: string[];
+} {
   return typeof value === 'object' && value !== null;
 }
 
@@ -56,7 +56,6 @@ export const useAdminStore = create<AdminState>()(
   persist(
     (set, get) => ({
       verifications: SEED_VERIFICATIONS,
-      reports: SEED_REPORTS,
       bannedUserIds: [],
 
       submitVerification: (request) =>
@@ -66,8 +65,6 @@ export const useAdminStore = create<AdminState>()(
             ...state.verifications.filter((item) => item.talentId !== request.talentId),
           ],
         })),
-
-      addReport: (report) => set((state) => ({ reports: [report, ...state.reports] })),
 
       approveVerification: (id) => {
         const request = get().verifications.find((item) => item.id === id);
@@ -96,13 +93,6 @@ export const useAdminStore = create<AdminState>()(
           ),
         }));
       },
-
-      resolveReport: (id) =>
-        set((state) => ({
-          reports: state.reports.map((item) =>
-            item.id === id ? { ...item, resolved: true } : item,
-          ),
-        })),
 
       verifyCredential: (id, verified) => {
         const request = get().verifications.find((item) => item.id === id);
@@ -142,15 +132,22 @@ export const useAdminStore = create<AdminState>()(
     {
       name: 'instantgig-admin',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
+      version: 3,
+      // 檢舉紀錄已改存雲端的 conversations，本機只保留人才複審與封禁清單。
+      partialize: (state) => ({
+        verifications: state.verifications,
+        bannedUserIds: state.bannedUserIds,
+      }),
       migrate: (persisted, version) => {
-        if (version >= 2) return persisted;
         const state = isPersistedAdminState(persisted) ? persisted : undefined;
         const existing = state?.verifications ?? [];
+        const banned = state?.bannedUserIds ?? [];
+        if (version >= 2) return { verifications: existing, bannedUserIds: banned };
+
         const seedIds = new Set(SEED_VERIFICATIONS.map((item) => item.id));
         // 舊示範資料沒有 AI 判定紀錄，改用新版示範資料，使用者自行送審的紀錄保留。
         const kept = existing.filter((item) => !seedIds.has(item.id));
-        return { ...state, verifications: [...kept, ...SEED_VERIFICATIONS] };
+        return { verifications: [...kept, ...SEED_VERIFICATIONS], bannedUserIds: banned };
       },
     },
   ),

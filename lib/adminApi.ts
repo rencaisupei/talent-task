@@ -1,9 +1,18 @@
 import { ADMIN_ROLE_PERMISSIONS, type AdminPermission } from '@/lib/adminPermissions';
 import { getBiltClient } from '@/lib/bilt';
 import { rowToBid } from '@/lib/remote/bids';
+import { rowToConversation, rowToMessage } from '@/lib/remote/chat';
 import { rowToGig } from '@/lib/remote/gigs';
-import { isBidRow, isGigRow } from '@/lib/remote/rows';
-import type { AdminAccount, AdminRole, Bid, Gig, ManagedAdminAccount } from '@/lib/types';
+import { isBidRow, isConversationRow, isGigRow, isMessageRow } from '@/lib/remote/rows';
+import type {
+  AdminAccount,
+  AdminRole,
+  Bid,
+  ChatMessage,
+  Conversation,
+  Gig,
+  ManagedAdminAccount,
+} from '@/lib/types';
 
 /** 管理員驗證與帳號管理都走這個後端函式，前端不持有任何密碼或雜湊。 */
 const ADMIN_AUTH_FUNCTION = 'admin-auth';
@@ -722,4 +731,73 @@ export async function adminDecideBidReview(
   return toBidOutcome(
     await call({ action: 'bid-review', token, bidId, decision, note }, ADMIN_CONTENT_FUNCTION),
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* 對話安全審核（只帶回被檢舉或命中關鍵字的對話）                            */
+/* ------------------------------------------------------------------ */
+
+export interface AdminChatSnapshot {
+  conversations: Conversation[];
+  /** 依對話 id 的完整訊息紀錄。 */
+  messages: Record<string, ChatMessage[]>;
+}
+
+export type AdminChatOutcome =
+  | { kind: 'ok'; content: AdminChatSnapshot }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export type AdminConversationOutcome =
+  | { kind: 'ok'; conversation: Conversation }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+/** 取得需要處理的對話（被檢舉或有命中詐騙關鍵字的訊息）與其完整紀錄。 */
+export async function adminFetchChats(token: string): Promise<AdminChatOutcome> {
+  const envelope = await call({ action: 'list-chats', token }, ADMIN_CONTENT_FUNCTION);
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const rawConversations = envelope.payload.conversations;
+  const rawMessages = envelope.payload.messages;
+
+  const conversations = Array.isArray(rawConversations)
+    ? rawConversations.filter(isConversationRow).map(rowToConversation)
+    : [];
+
+  const messages: Record<string, ChatMessage[]> = {};
+  if (Array.isArray(rawMessages)) {
+    for (const row of rawMessages.filter(isMessageRow)) {
+      const message = rowToMessage(row);
+      const thread = messages[message.conversationId] ?? [];
+      thread.push(message);
+      messages[message.conversationId] = thread;
+    }
+  }
+
+  return { kind: 'ok', content: { conversations, messages } };
+}
+
+/** 標記檢舉已處理（會記錄處理的管理員與備註）。 */
+export async function adminResolveConversationReport(
+  token: string,
+  conversationId: string,
+  note?: string,
+): Promise<AdminConversationOutcome> {
+  const envelope = await call(
+    { action: 'resolve-report', token, conversationId, note },
+    ADMIN_CONTENT_FUNCTION,
+  );
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const raw = envelope.payload.conversation;
+  if (!isConversationRow(raw)) return { kind: 'failed', message: '伺服器回應格式不正確。' };
+
+  return { kind: 'ok', conversation: rowToConversation(raw) };
 }

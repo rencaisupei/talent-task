@@ -1,7 +1,17 @@
 import { asyncStorage, createClient } from '@biltme/backend';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { BidInsert, BidRow, BidUpdate, GigInsert, GigRow, GigUpdate } from '@/lib/remote/rows';
+import type {
+  BidInsert,
+  BidRow,
+  BidUpdate,
+  ConversationRow,
+  GigInsert,
+  GigRow,
+  GigUpdate,
+  MessageRow,
+  UnreadCountRow,
+} from '@/lib/remote/rows';
 
 /**
  * profiles 資料表的最小 schema 型別。沒有這個型別時，supabase-js 的
@@ -47,12 +57,33 @@ type BidsTable = {
   Relationships: [];
 };
 
+/**
+ * 對話與訊息只讀不寫：這兩張表沒有 INSERT / UPDATE / DELETE 政策，
+ * 所有寫入都經由 send_message 等 SECURITY DEFINER 函式（見 Functions）。
+ * Insert / Update 仍需標型別，否則 supabase-js 的泛型會退回 never。
+ */
+type ConversationsTable = {
+  Row: ConversationRow;
+  Insert: Partial<ConversationRow>;
+  Update: Partial<ConversationRow>;
+  Relationships: [];
+};
+
+type MessagesTable = {
+  Row: MessageRow;
+  Insert: Partial<MessageRow>;
+  Update: Partial<MessageRow>;
+  Relationships: [];
+};
+
 type BiltDatabase = {
   public: {
     Tables: {
       profiles: ProfilesTable;
       gigs: GigsTable;
       bids: BidsTable;
+      conversations: ConversationsTable;
+      messages: MessagesTable;
     };
     Views: Record<string, never>;
     Functions: {
@@ -69,6 +100,36 @@ type BiltDatabase = {
       /** 每日維護：逾期未成交的任務自動結案，回傳結案筆數。 */
       close_stale_gigs: {
         Args: { max_age_days: number };
+        Returns: number;
+      };
+      /** 開啟或取回一組對話；示範任務與非相關人一律回傳 null。 */
+      start_conversation: {
+        Args: { gid: string; tid: string };
+        Returns: string | null;
+      };
+      /** 傳送訊息：sender_id 與審核判定由伺服器決定，回傳寫入的訊息列。 */
+      send_message: {
+        Args: { cid: string; body: string };
+        Returns: MessageRow[];
+      };
+      /** 把自己那一側的已讀時間推到現在。 */
+      mark_conversation_read: {
+        Args: { cid: string };
+        Returns: boolean;
+      };
+      /** 檢舉對話（只有對話雙方可呼叫）。 */
+      report_conversation: {
+        Args: { cid: string; reason: string };
+        Returns: boolean;
+      };
+      /** 我的未讀訊息數，依對話分組。 */
+      chat_unread_counts: {
+        Args: Record<PropertyKey, never>;
+        Returns: UnreadCountRow[];
+      };
+      /** 每日維護：每則對話只保留最近 keep 條訊息，回傳刪除筆數。 */
+      prune_chat_messages: {
+        Args: { keep: number };
         Returns: number;
       };
     };

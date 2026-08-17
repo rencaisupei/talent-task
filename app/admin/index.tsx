@@ -46,12 +46,13 @@ export default function AdminHomeScreen() {
   const signOut = useAdminAuthStore((state) => state.signOut);
 
   const verifications = useAdminStore((state) => state.verifications);
-  const reports = useAdminStore((state) => state.reports);
   const bannedUserIds = useAdminStore((state) => state.bannedUserIds);
   const users = usePlatformUserStore((state) => state.users);
   const gigs = useAdminContentStore((state) => state.gigs);
   const bids = useAdminContentStore((state) => state.bids);
+  const conversations = useAdminContentStore((state) => state.conversations);
   const refreshContent = useAdminContentStore((state) => state.refresh);
+  const refreshChats = useAdminContentStore((state) => state.refreshChats);
   const announcements = useAnnouncementStore((state) => state.announcements);
   const auditEntries = useAdminAuditStore((state) => state.entries);
 
@@ -64,7 +65,11 @@ export default function AdminHomeScreen() {
     () => verifications.filter((item) => item.status === 'pending').length,
     [verifications],
   );
-  const openReports = useMemo(() => reports.filter((item) => !item.resolved).length, [reports]);
+  // 檢舉在雲端（conversations.report_state），只有審核權限才讀得到對話。
+  const openReports = useMemo(
+    () => conversations.filter((item) => item.reportState === 'open').length,
+    [conversations],
+  );
   const takedownCount = useMemo(
     () => gigs.filter((gig) => gig.takedownReason !== undefined).length,
     [gigs],
@@ -81,7 +86,8 @@ export default function AdminHomeScreen() {
 
   useEffect(() => {
     void refreshContent();
-  }, [refreshContent]);
+    if (permissions.includes('review:manage')) void refreshChats();
+  }, [permissions, refreshChats, refreshContent]);
 
   const recentEntries = auditEntries.slice(0, 4);
   const canViewRevenue = permissions.includes('revenue:view');

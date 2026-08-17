@@ -1,6 +1,7 @@
 import { getBiltClient } from '@/lib/bilt';
 import type { BidInsert, BidRow } from '@/lib/remote/rows';
 import {
+  accountIdOrNull,
   REMOTE_OFFLINE_MESSAGE,
   REMOTE_UNCONFIGURED_MESSAGE,
   remoteError,
@@ -70,13 +71,6 @@ export interface RemoteBidDraft {
   etaLabel: string;
   message: string;
   review: PublishReview;
-}
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** 示範任務的發案者是示範字串而不是帳號 id，寫入時必須換成 null。 */
-function accountIdOrNull(value: string): string | null {
-  return UUID_PATTERN.test(value) ? value : null;
 }
 
 export async function upsertRemoteBid(draft: RemoteBidDraft): Promise<RemoteResult<Bid>> {

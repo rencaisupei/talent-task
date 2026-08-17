@@ -3,13 +3,15 @@ import { create } from 'zustand';
 import {
   adminDecideBidReview,
   adminDecideGigReview,
+  adminFetchChats,
   adminFetchContent,
+  adminResolveConversationReport,
   adminRestoreGig,
   adminTakedownGig,
   type AdminReviewDecision,
 } from '@/lib/adminApi';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
-import type { Bid, Gig } from '@/lib/types';
+import type { Bid, ChatMessage, Conversation, Gig } from '@/lib/types';
 
 export type AdminContentLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -20,6 +22,10 @@ const NO_TOKEN_MESSAGE = '尚未登入管理平台。';
 interface AdminContentState {
   gigs: Gig[];
   bids: Bid[];
+  /** 被檢舉或命中詐騙關鍵字的對話（一般對話不會外流到管理端）。 */
+  conversations: Conversation[];
+  chatMessages: Record<string, ChatMessage[]>;
+  chatLoadState: AdminContentLoadState;
   loadState: AdminContentLoadState;
   isMutating: boolean;
   errorMessage: string | null;
@@ -27,6 +33,9 @@ interface AdminContentState {
 
   /** 讀取全部任務與提案（含待複審、被退回與已下架）。 */
   refresh: () => Promise<void>;
+  /** 讀取需要處理的對話與其完整紀錄。 */
+  refreshChats: () => Promise<void>;
+  resolveReport: (conversationId: string, note?: string) => Promise<boolean>;
   takedownGig: (gigId: string, reason: string) => Promise<boolean>;
   restoreGig: (gigId: string) => Promise<boolean>;
   decideGigReview: (
@@ -55,6 +64,9 @@ function currentToken(): string | null {
 export const useAdminContentStore = create<AdminContentState>()((set) => ({
   gigs: [],
   bids: [],
+  conversations: [],
+  chatMessages: {},
+  chatLoadState: 'idle',
   loadState: 'idle',
   isMutating: false,
   errorMessage: null,
@@ -90,6 +102,56 @@ export const useAdminContentStore = create<AdminContentState>()((set) => ({
       errorMessage: null,
       lastSyncedAt: Date.now(),
     });
+  },
+
+  refreshChats: async () => {
+    const token = currentToken();
+    if (token === null) {
+      set({ chatLoadState: 'error', errorMessage: NO_TOKEN_MESSAGE });
+      return;
+    }
+
+    set((state) => ({ chatLoadState: state.chatLoadState === 'ready' ? 'ready' : 'loading' }));
+
+    const outcome = await adminFetchChats(token);
+    if (outcome.kind !== 'ok') {
+      set((state) => ({
+        chatLoadState: state.conversations.length > 0 ? 'ready' : 'error',
+        errorMessage: failureMessage(outcome.kind, outcome),
+      }));
+      return;
+    }
+
+    set({
+      conversations: outcome.content.conversations,
+      chatMessages: outcome.content.messages,
+      chatLoadState: 'ready',
+      errorMessage: null,
+    });
+  },
+
+  resolveReport: async (conversationId, note) => {
+    const token = currentToken();
+    if (token === null) {
+      set({ errorMessage: NO_TOKEN_MESSAGE });
+      return false;
+    }
+
+    set({ isMutating: true, errorMessage: null });
+    const outcome = await adminResolveConversationReport(token, conversationId, note);
+    if (outcome.kind !== 'ok') {
+      set({ isMutating: false, errorMessage: failureMessage(outcome.kind, outcome) });
+      return false;
+    }
+
+    const conversation = outcome.conversation;
+    set((state) => ({
+      isMutating: false,
+      conversations: state.conversations.map((item) =>
+        item.id === conversation.id ? conversation : item,
+      ),
+    }));
+    return true;
   },
 
   takedownGig: async (gigId, reason) => {

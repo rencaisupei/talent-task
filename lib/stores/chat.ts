@@ -1,169 +1,314 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { moderateText } from '@/lib/moderation';
-import { useAdminStore } from '@/lib/stores/admin';
+import {
+  fetchRemoteChatInbox,
+  fetchRemoteMessages,
+  markRemoteConversationRead,
+  reportRemoteConversation,
+  sendRemoteMessage,
+  startRemoteConversation,
+} from '@/lib/remote/chat';
+import { notifyChatChanged, setActiveConversation } from '@/lib/remote/live';
+import type { CloudLoadState } from '@/lib/stores/gigs';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import type { ChatMessage, Conversation, Gig } from '@/lib/types';
+import { useSessionStore } from '@/lib/stores/session';
+import { conversationCounterpart, type ChatMessage, type Conversation } from '@/lib/types';
 
-export interface StartConversationInput {
-  gig: Gig;
+export type ChatResult<T> = { status: 'ok'; data: T } | { status: 'error'; message: string };
+
+export interface OpenConversationInput {
+  gigId: string;
+  /** 人才的 auth.users.id（客戶找人才、人才回覆客戶都用同一個入口）。 */
   talentId: string;
-  talentName: string;
   openingMessage?: string;
 }
 
 interface ChatState {
   conversations: Conversation[];
   messages: Record<string, ChatMessage[]>;
-  startConversation: (input: StartConversationInput) => string;
-  sendMessage: (
-    conversationId: string,
-    sender: { id: string; name: string },
-    text: string,
-  ) => ChatMessage | null;
-  reportConversation: (conversationId: string, reason: string, reporterName: string) => void;
-  findConversationForGig: (gigId: string, talentId: string) => Conversation | undefined;
-  /** 每日維護：每則對話只保留最近 N 條訊息，並清掉沒有對應對話的訊息，回傳清掉的訊息數。 */
-  pruneMessages: (keepPerConversation: number) => number;
+  /** 依對話 id 的未讀數（伺服器依雙方已讀時間計算）。 */
+  unread: Record<string, number>;
+  loadState: CloudLoadState;
+  isRefreshing: boolean;
+  errorMessage: string | null;
+  threadState: Record<string, CloudLoadState>;
+  /** 目前打開的對話：開著的時候不對它發本機通知。 */
+  openConversationId: string | null;
+  /** 已通知過的最後訊息時間，避免同一則新訊息重複通知。 */
+  notifiedAt: Record<string, number>;
+
+  refreshConversations: () => Promise<void>;
+  refreshMessages: (conversationId: string) => Promise<void>;
+  /** 開啟（或取回）對話；同一組任務與人才只會有一則對話。 */
+  openConversation: (input: OpenConversationInput) => Promise<ChatResult<string>>;
+  sendMessage: (conversationId: string, text: string) => Promise<ChatResult<ChatMessage>>;
+  markRead: (conversationId: string) => Promise<void>;
+  setOpenConversation: (conversationId: string | null) => void;
+  reportConversation: (conversationId: string, reason: string) => Promise<ChatResult<true>>;
+  /** 換帳號或登出時清空這台裝置上的快取。 */
+  reset: () => void;
 }
 
-export const useChatStore = create<ChatState>()(
-  persist(
-    (set, get) => ({
+/** 我在這則對話的未讀數。 */
+export function unreadFor(unread: Record<string, number>, conversationId: string): number {
+  return unread[conversationId] ?? 0;
+}
+
+/**
+ * 對話與訊息存在 bilt-cloud（conversations / messages 資料表），
+ * 這個 store 只是雲端資料的快取：讀取由 components/CloudSync 觸發，
+ * 寫入一律先送到伺服器函式，成功後才更新本機陣列。
+ */
+export const useChatStore = create<ChatState>()((set, get) => ({
+  conversations: [],
+  messages: {},
+  unread: {},
+  loadState: 'idle',
+  isRefreshing: false,
+  errorMessage: null,
+  threadState: {},
+  openConversationId: null,
+  notifiedAt: {},
+
+  refreshConversations: async () => {
+    const before = get();
+    set((state) => ({
+      isRefreshing: true,
+      loadState: state.loadState === 'ready' ? 'ready' : 'loading',
+    }));
+
+    const result = await fetchRemoteChatInbox();
+    if (result.status === 'error') {
+      set((state) => ({
+        isRefreshing: false,
+        loadState: state.conversations.length > 0 ? 'ready' : 'error',
+        errorMessage: result.message,
+      }));
+      return;
+    }
+
+    const myUserId = useSessionStore.getState().authUserId;
+    const notifiedAt = { ...before.notifiedAt };
+    const isFirstLoad = before.loadState !== 'ready';
+
+    for (const conversation of result.data.conversations) {
+      const unread = result.data.unread[conversation.id] ?? 0;
+      const alreadyNotified = notifiedAt[conversation.id] ?? 0;
+      if (unread === 0 || conversation.lastMessageAt <= alreadyNotified) continue;
+
+      notifiedAt[conversation.id] = conversation.lastMessageAt;
+
+      // 第一次載入只記錄基準時間，不把既有未讀補成一堆通知。
+      if (isFirstLoad) continue;
+      if (conversation.lastMessageSenderId === myUserId) continue;
+      if (conversation.id === before.openConversationId) continue;
+
+      const peer = conversationCounterpart(conversation, myUserId);
+      useNotificationStore.getState().pushNotification({
+        kind: 'chat',
+        title: `${peer.name} 傳來新訊息`,
+        body:
+          conversation.lastMessageText.length > 0
+            ? conversation.lastMessageText
+            : `關於「${conversation.gigTitle}」的新訊息。`,
+        conversationId: conversation.id,
+        gigId: conversation.gigId,
+      });
+    }
+
+    set({
+      conversations: result.data.conversations,
+      unread: result.data.unread,
+      notifiedAt,
+      loadState: 'ready',
+      isRefreshing: false,
+      errorMessage: null,
+    });
+  },
+
+  refreshMessages: async (conversationId) => {
+    if (conversationId.length === 0) return;
+
+    set((state) => ({
+      threadState: {
+        ...state.threadState,
+        [conversationId]: state.threadState[conversationId] === 'ready' ? 'ready' : 'loading',
+      },
+    }));
+
+    const result = await fetchRemoteMessages(conversationId);
+    if (result.status === 'error') {
+      set((state) => ({
+        threadState: {
+          ...state.threadState,
+          [conversationId]:
+            (state.messages[conversationId]?.length ?? 0) > 0 ? 'ready' : ('error' as const),
+        },
+        errorMessage: result.message,
+      }));
+      return;
+    }
+
+    set((state) => ({
+      messages: { ...state.messages, [conversationId]: result.data },
+      threadState: { ...state.threadState, [conversationId]: 'ready' },
+      errorMessage: null,
+    }));
+  },
+
+  openConversation: async ({ gigId, talentId, openingMessage }) => {
+    const started = await startRemoteConversation(gigId, talentId);
+    if (started.status === 'error') {
+      set({ errorMessage: started.message });
+      return started;
+    }
+
+    const conversationId = started.data;
+    await get().refreshConversations();
+
+    if (openingMessage !== undefined && openingMessage.trim().length > 0) {
+      await get().sendMessage(conversationId, openingMessage);
+    } else {
+      const conversation = get().conversations.find((item) => item.id === conversationId);
+      if (conversation) {
+        notifyChatChanged({
+          conversationId,
+          clientId: conversation.clientId,
+          talentId: conversation.talentId,
+        });
+      }
+    }
+
+    return { status: 'ok', data: conversationId };
+  },
+
+  sendMessage: async (conversationId, text) => {
+    if (text.trim().length === 0) {
+      return { status: 'error', message: '請先輸入訊息內容。' };
+    }
+
+    const result = await sendRemoteMessage(conversationId, text);
+    if (result.status === 'error') {
+      set({ errorMessage: result.message });
+      return result;
+    }
+
+    const message = result.data;
+    set((state) => {
+      const thread = state.messages[conversationId] ?? [];
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [...thread.filter((item) => item.id !== message.id), message],
+        },
+        conversations: state.conversations.map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                lastMessageAt: message.at,
+                lastMessageText: message.text,
+                lastMessageSenderId: message.senderId,
+                messageCount: conversation.messageCount + 1,
+                flaggedCount:
+                  conversation.flaggedCount + (message.moderation === 'flagged' ? 1 : 0),
+              }
+            : conversation,
+        ),
+        errorMessage: null,
+      };
+    });
+
+    const conversation = get().conversations.find((item) => item.id === conversationId);
+    if (conversation) {
+      notifyChatChanged({
+        conversationId,
+        clientId: conversation.clientId,
+        talentId: conversation.talentId,
+      });
+    }
+
+    return { status: 'ok', data: message };
+  },
+
+  markRead: async (conversationId) => {
+    if ((get().unread[conversationId] ?? 0) === 0) return;
+
+    const ok = await markRemoteConversationRead(conversationId);
+    if (!ok) return;
+
+    const myUserId = useSessionStore.getState().authUserId;
+    const now = Date.now();
+    set((state) => ({
+      unread: { ...state.unread, [conversationId]: 0 },
+      conversations: state.conversations.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              clientLastReadAt:
+                conversation.clientId === myUserId ? now : conversation.clientLastReadAt,
+              talentLastReadAt:
+                conversation.talentId === myUserId ? now : conversation.talentLastReadAt,
+            }
+          : conversation,
+      ),
+    }));
+  },
+
+  setOpenConversation: (conversationId) => {
+    // 讓即時同步知道要不要多讀這一則對話的訊息。
+    setActiveConversation(conversationId);
+    set({ openConversationId: conversationId });
+  },
+
+  reportConversation: async (conversationId, reason) => {
+    const result = await reportRemoteConversation(conversationId, reason);
+    if (result.status === 'error') {
+      set({ errorMessage: result.message });
+      return result;
+    }
+
+    const conversation = get().conversations.find((item) => item.id === conversationId);
+    set((state) => ({
+      conversations: state.conversations.map((item) =>
+        item.id === conversationId
+          ? { ...item, reportState: 'open', reportReason: reason, reportedAt: Date.now() }
+          : item,
+      ),
+    }));
+
+    const myUserId = useSessionStore.getState().authUserId;
+    const peerName =
+      conversation === undefined ? '對方' : conversationCounterpart(conversation, myUserId).name;
+
+    useNotificationStore.getState().pushNotification({
+      kind: 'moderation',
+      title: '檢舉已受理',
+      body: `已將與 ${peerName} 的對話送交安全審核，處理結果會在此通知。`,
+      conversationId,
+    });
+
+    return { status: 'ok', data: true };
+  },
+
+  reset: () => {
+    setActiveConversation(null);
+    set({
       conversations: [],
       messages: {},
+      unread: {},
+      loadState: 'idle',
+      isRefreshing: false,
+      errorMessage: null,
+      threadState: {},
+      openConversationId: null,
+      notifiedAt: {},
+    });
+  },
+}));
 
-      findConversationForGig: (gigId, talentId) =>
-        get().conversations.find(
-          (conversation) => conversation.gigId === gigId && conversation.talentId === talentId,
-        ),
-
-      startConversation: ({ gig, talentId, talentName, openingMessage }) => {
-        const existing = get().findConversationForGig(gig.id, talentId);
-        if (existing) return existing.id;
-
-        const id = `conv_${Date.now()}`;
-        const now = Date.now();
-        const conversation: Conversation = {
-          id,
-          gigId: gig.id,
-          gigTitle: gig.title,
-          tag: gig.tag,
-          clientId: gig.clientId,
-          clientName: gig.clientName,
-          talentId,
-          talentName,
-          createdAt: now,
-          lastMessageAt: now,
-          isReported: false,
-        };
-
-        set((state) => ({
-          conversations: [conversation, ...state.conversations],
-          messages: { ...state.messages, [id]: [] },
-        }));
-
-        if (openingMessage && openingMessage.trim().length > 0) {
-          get().sendMessage(id, { id: talentId, name: talentName }, openingMessage.trim());
-        }
-
-        return id;
-      },
-
-      sendMessage: (conversationId, sender, text) => {
-        const trimmed = text.trim();
-        if (trimmed.length === 0) return null;
-
-        const moderated = moderateText(trimmed);
-        const message: ChatMessage = {
-          id: `msg_${Date.now()}_${Math.round(Math.random() * 1000)}`,
-          conversationId,
-          senderId: sender.id,
-          senderName: sender.name,
-          text: trimmed,
-          at: Date.now(),
-          moderation: moderated.moderation,
-          flaggedTerms: moderated.flaggedTerms,
-        };
-
-        set((state) => ({
-          messages: {
-            ...state.messages,
-            [conversationId]: [...(state.messages[conversationId] ?? []), message],
-          },
-          conversations: state.conversations.map((conversation) =>
-            conversation.id === conversationId
-              ? { ...conversation, lastMessageAt: message.at }
-              : conversation,
-          ),
-        }));
-
-        return message;
-      },
-
-      reportConversation: (conversationId, reason, reporterName) => {
-        const conversation = get().conversations.find((item) => item.id === conversationId);
-        if (!conversation) return;
-
-        set((state) => ({
-          conversations: state.conversations.map((item) =>
-            item.id === conversationId ? { ...item, isReported: true } : item,
-          ),
-        }));
-
-        useAdminStore.getState().addReport({
-          id: `report_${Date.now()}`,
-          conversationId,
-          reportedUserId: conversation.clientId,
-          reportedUserName: conversation.clientName,
-          reporterName,
-          reason,
-          createdAt: Date.now(),
-          transcript: get().messages[conversationId] ?? [],
-          resolved: false,
-        });
-
-        useNotificationStore.getState().pushNotification({
-          kind: 'system',
-          title: '檢舉已受理',
-          body: `已將與 ${conversation.clientName} 的對話送交安全審核，處理結果會在此通知。`,
-          conversationId,
-        });
-      },
-
-      pruneMessages: (keepPerConversation) => {
-        const { conversations, messages } = get();
-        const liveIds = new Set(conversations.map((conversation) => conversation.id));
-        const next: Record<string, ChatMessage[]> = {};
-        let removed = 0;
-
-        for (const [conversationId, list] of Object.entries(messages)) {
-          if (!liveIds.has(conversationId)) {
-            removed += list.length;
-            continue;
-          }
-          if (list.length <= keepPerConversation) {
-            next[conversationId] = list;
-            continue;
-          }
-          removed += list.length - keepPerConversation;
-          next[conversationId] = list.slice(list.length - keepPerConversation);
-        }
-
-        if (removed > 0) set({ messages: next });
-        return removed;
-      },
-    }),
-    {
-      name: 'instantgig-chat',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        conversations: state.conversations,
-        messages: state.messages,
-      }),
-      version: 1,
-    },
-  ),
-);
+/** 全部對話的未讀總數（分頁紅點用）。 */
+export function useTotalUnread(): number {
+  return useChatStore((state) =>
+    Object.values(state.unread).reduce((total, count) => total + count, 0),
+  );
+}

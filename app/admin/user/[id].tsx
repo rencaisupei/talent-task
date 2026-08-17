@@ -51,7 +51,6 @@ export default function AdminUserDetailScreen() {
   const users = usePlatformUserStore((state) => state.users);
   const setNote = usePlatformUserStore((state) => state.setNote);
   const verifications = useAdminStore((state) => state.verifications);
-  const reports = useAdminStore((state) => state.reports);
   const bannedUserIds = useAdminStore((state) => state.bannedUserIds);
   const banUser = useAdminStore((state) => state.banUser);
   const unbanUser = useAdminStore((state) => state.unbanUser);
@@ -62,11 +61,14 @@ export default function AdminUserDetailScreen() {
   const revokePremium = useRevenueStore((state) => state.revokePremium);
   const gigs = useAdminContentStore((state) => state.gigs);
   const bids = useAdminContentStore((state) => state.bids);
+  const conversations = useAdminContentStore((state) => state.conversations);
   const refreshContent = useAdminContentStore((state) => state.refresh);
+  const refreshChats = useAdminContentStore((state) => state.refreshChats);
   const reviews = useReviewStore((state) => state.reviews);
   const auditEntries = useAdminAuditStore((state) => state.entries);
   const logAction = useAuditLogger();
   const canManageUsers = useAdminCan('users:manage');
+  const canReviewChats = useAdminCan('review:manage');
   const canManageRevenue = useAdminCan('revenue:manage');
   const canReview = useAdminCan('review:manage');
 
@@ -76,7 +78,8 @@ export default function AdminUserDetailScreen() {
 
   useEffect(() => {
     void refreshContent();
-  }, [refreshContent]);
+    if (canReviewChats) void refreshChats();
+  }, [canReviewChats, refreshChats, refreshContent]);
 
   const summary = useMemo(() => summarizeReviews(reviewsForUser(reviews, id)), [id, reviews]);
   const userGigs = useMemo(
@@ -84,9 +87,13 @@ export default function AdminUserDetailScreen() {
     [gigs, id],
   );
   const userBids = useMemo(() => bids.filter((bid) => bid.talentId === id), [bids, id]);
+  // 檢舉在雲端的 conversations 上（管理端只讀得到被檢舉或被標記的那些）。
   const userReports = useMemo(
-    () => reports.filter((report) => report.reportedUserId === id),
-    [id, reports],
+    () =>
+      conversations.filter(
+        (item) => item.reportState !== 'none' && (item.clientId === id || item.talentId === id),
+      ),
+    [conversations, id],
   );
   const userSubscriptions = useMemo(
     () => subscriptionsForUser(subscriptions, id),
@@ -349,7 +356,7 @@ export default function AdminUserDetailScreen() {
             )}
             <Text className="text-ink-soft flex-1 text-[12px]">
               相關檢舉 {userReports.length} 件・未處理{' '}
-              {userReports.filter((report) => !report.resolved).length} 件
+              {userReports.filter((item) => item.reportState === 'open').length} 件
             </Text>
           </View>
           {canManageUsers ? (
@@ -398,14 +405,17 @@ export default function AdminUserDetailScreen() {
               >
                 <View className="flex-row items-center gap-2">
                   <ShieldAlert size={14} color={COLORS.coral} strokeWidth={2.2} />
-                  <Text className="text-ink flex-1 text-[13px] font-semibold">{report.reason}</Text>
+                  <Text className="text-ink flex-1 text-[13px] font-semibold">
+                    {report.reportReason ?? '伺服器自動標記高風險內容'}
+                  </Text>
                   <StaticTag
-                    label={report.resolved ? '已結案' : '未處理'}
-                    tone={report.resolved ? 'neutral' : 'coral'}
+                    label={report.reportState === 'resolved' ? '已結案' : '未處理'}
+                    tone={report.reportState === 'resolved' ? 'neutral' : 'coral'}
                   />
                 </View>
                 <Text className="text-muted text-[11px]">
-                  檢舉人 {report.reporterName}・{formatRelativeTime(report.createdAt)}
+                  檢舉人 {report.reporterName ?? '系統'}・
+                  {formatRelativeTime(report.reportedAt ?? report.lastMessageAt)}
                 </Text>
               </View>
             ))}

@@ -1,7 +1,9 @@
 import type {
   BidStatus,
   BudgetLevelId,
+  ConversationReportState,
   GigStatus,
+  ModerationState,
   PublishReview,
   PublishReviewState,
 } from '@/lib/types';
@@ -119,6 +121,59 @@ export type BidUpdate = {
   updated_at?: string;
 };
 
+/**
+ * conversations / messages 資料表的列型別。
+ *
+ * 這兩張表**不接受直接寫入**（沒有 INSERT / UPDATE / DELETE 政策）：
+ * 所有寫入都走 SECURITY DEFINER 函式（start_conversation / send_message /
+ * mark_conversation_read / report_conversation），因為 RLS 無法限制欄位值，
+ * 開放直接寫入就能偽造 sender_id 或把命中關鍵字的訊息標成 clean。
+ */
+export type ConversationRow = {
+  id: string;
+  gig_id: string;
+  gig_title: string;
+  tag: string;
+  client_id: string;
+  client_name: string;
+  talent_id: string;
+  talent_name: string;
+  created_at: string;
+  last_message_at: string;
+  last_message_text: string;
+  last_message_sender_id: string | null;
+  client_last_read_at: string;
+  talent_last_read_at: string;
+  message_count: number;
+  flagged_count: number;
+  report_state: ConversationReportState;
+  report_reason: string | null;
+  reporter_id: string | null;
+  reporter_name: string | null;
+  reported_at: string | null;
+  resolution_note: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+};
+
+export type MessageRow = {
+  id: string;
+  conversation_id: string;
+  client_id: string;
+  talent_id: string;
+  sender_id: string;
+  sender_name: string;
+  text: string;
+  moderation: ModerationState;
+  flagged_terms: string[];
+  at: string;
+};
+
+export type UnreadCountRow = {
+  conversation_id: string;
+  unread: number;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -145,5 +200,27 @@ export function isBidRow(value: unknown): value is BidRow {
     typeof value.gig_id === 'string' &&
     typeof value.status === 'string' &&
     typeof value.created_at === 'string'
+  );
+}
+
+export function isConversationRow(value: unknown): value is ConversationRow {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.gig_id === 'string' &&
+    typeof value.client_id === 'string' &&
+    typeof value.talent_id === 'string' &&
+    typeof value.last_message_at === 'string'
+  );
+}
+
+export function isMessageRow(value: unknown): value is MessageRow {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.conversation_id === 'string' &&
+    typeof value.sender_id === 'string' &&
+    typeof value.text === 'string' &&
+    typeof value.at === 'string'
   );
 }

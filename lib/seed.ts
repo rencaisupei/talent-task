@@ -1,13 +1,10 @@
 import { OMNI_INDUSTRY_TAGS } from '@/lib/omniTags';
 import { regionCoordinate, TAIWAN_REGIONS } from '@/lib/regions';
-import { moderateText } from '@/lib/moderation';
 import {
-  type AbuseReport,
   type AiReviewResult,
   type AppNotification,
   type Bid,
   type BudgetLevelId,
-  type ChatMessage,
   type Gig,
   LOCAL_USER_ID,
   type Review,
@@ -681,95 +678,6 @@ export const SEED_VERIFICATIONS: VerificationRequest[] = [
     status: 'pending',
     note: 'AI 認證未通過：內容引導至站外交易，需人工確認',
     aiReview: talentAiReview(38, ['引導離開平台私下交易（命中 站外）'], ['站外'], NOW - 3 * DAY),
-  },
-];
-
-function buildTranscript(
-  conversationId: string,
-  lines: { senderId: string; senderName: string; text: string }[],
-): ChatMessage[] {
-  return lines.map((line, index) => {
-    const moderated = moderateText(line.text);
-    return {
-      id: `${conversationId}_m${index + 1}`,
-      conversationId,
-      senderId: line.senderId,
-      senderName: line.senderName,
-      text: line.text,
-      at: NOW - (lines.length - index) * 12 * 60 * 1000,
-      moderation: moderated.moderation,
-      flaggedTerms: moderated.flaggedTerms,
-    } satisfies ChatMessage;
-  });
-}
-
-export const SEED_REPORTS: AbuseReport[] = [
-  {
-    id: 'report_1',
-    conversationId: 'conv_seed_1',
-    reportedUserId: 'talent_seed_3',
-    reportedUserName: '周雅玲',
-    reporterName: '林雅婷',
-    reason: '要求離開平台交易並索取銀行帳號',
-    createdAt: NOW - 4 * HOUR,
-    resolved: false,
-    transcript: buildTranscript('conv_seed_1', [
-      { senderId: 'client_seed_1', senderName: '林雅婷', text: '您好，週六可以到現場估價嗎？' },
-      {
-        senderId: 'talent_seed_3',
-        senderName: '周雅玲',
-        text: '可以，不過我們習慣私下聊，你先付訂金 3000 到我的銀行帳號比較快。',
-      },
-      { senderId: 'client_seed_1', senderName: '林雅婷', text: '平台上不是可以直接處理嗎？' },
-      {
-        senderId: 'talent_seed_3',
-        senderName: '周雅玲',
-        text: '離開平台手續費比較低，直接私下匯款就好。',
-      },
-    ]),
-  },
-  {
-    id: 'report_2',
-    conversationId: 'conv_seed_2',
-    reportedUserId: 'talent_seed_8',
-    reportedUserName: '莊立宇',
-    reporterName: '陳建豪',
-    reason: '疑似投資詐騙話術',
-    createdAt: NOW - 20 * HOUR,
-    resolved: false,
-    transcript: buildTranscript('conv_seed_2', [
-      { senderId: 'client_seed_2', senderName: '陳建豪', text: '網站速度優化的報價方式是？' },
-      {
-        senderId: 'talent_seed_8',
-        senderName: '莊立宇',
-        text: '報價再談，我這邊還有投資獲利的方案，虛擬貨幣操作月報酬很高。',
-      },
-      { senderId: 'client_seed_2', senderName: '陳建豪', text: '我只想處理網站的問題。' },
-      {
-        senderId: 'talent_seed_8',
-        senderName: '莊立宇',
-        text: '那你先把身分證影本傳給我開立合約。',
-      },
-    ]),
-  },
-  {
-    id: 'report_3',
-    conversationId: 'conv_seed_3',
-    reportedUserId: 'client_seed_6',
-    reportedUserName: '劉宜臻',
-    reporterName: '李冠廷',
-    reason: '要求先支付保證金才能接案',
-    createdAt: NOW - 2 * DAY,
-    resolved: false,
-    transcript: buildTranscript('conv_seed_3', [
-      { senderId: 'client_seed_6', senderName: '劉宜臻', text: '這個案子要先繳保證金 2000。' },
-      { senderId: 'talent_seed_2', senderName: '李冠廷', text: '平台規定不需要收保證金。' },
-      {
-        senderId: 'client_seed_6',
-        senderName: '劉宜臻',
-        text: '你匯款後我就把案子給你，用代收帳戶就好。',
-      },
-    ]),
   },
 ];
 

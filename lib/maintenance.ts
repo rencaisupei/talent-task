@@ -1,6 +1,5 @@
 import { checkForAppUpdate } from '@/lib/appUpdate';
 import { closeStaleGigsRemote } from '@/lib/remote/gigs';
-import { useChatStore } from '@/lib/stores/chat';
 import { useGigStore } from '@/lib/stores/gigs';
 import {
   type DeviceMaintenanceRun,
@@ -23,7 +22,11 @@ export const STALE_GIG_DAYS = 14;
 export const NOTIFICATION_RETENTION_DAYS = 30;
 /** 通知中心最多保留的筆數。 */
 export const NOTIFICATION_KEEP = 80;
-/** 每則對話保留的訊息數。 */
+/**
+ * 每則對話保留的訊息數。
+ * 對話資料在雲端，這項維護由伺服器端的 daily-maintenance 排程執行
+ * （prune_chat_messages），裝置端不再清理自己的快取。
+ */
 export const MESSAGES_KEEP_PER_CONVERSATION = 200;
 
 /** 台北時區（UTC+8，無日光節約）的 YYYY-MM-DD，維護每日去重就靠這個。 */
@@ -97,11 +100,7 @@ function whenHydrated(store: HydratableStore): Promise<void> {
  * 否則會對種子預設值做清理，數量與結果都不正確。
  */
 export async function waitForLocalData(): Promise<void> {
-  await Promise.all([
-    whenHydrated(useNotificationStore),
-    whenHydrated(useChatStore),
-    whenHydrated(useSessionStore),
-  ]);
+  await Promise.all([whenHydrated(useNotificationStore), whenHydrated(useSessionStore)]);
 }
 
 /** 執行一次裝置端維護（不判斷今天是否已跑過）。 */
@@ -177,12 +176,12 @@ export async function runDeviceMaintenance(
   );
 
   tasks.push(
-    safeTask('chat-history', `每則對話保留最近 ${MESSAGES_KEEP_PER_CONVERSATION} 條訊息`, () => {
-      const removed = useChatStore.getState().pruneMessages(MESSAGES_KEEP_PER_CONVERSATION);
-      return removed === 0
-        ? { affected: 0, message: '沒有需要修剪的對話紀錄。', status: 'skipped' }
-        : { affected: removed, message: `已修剪 ${removed} 條舊訊息。` };
-    }),
+    safeTask('chat-history', `每則對話保留最近 ${MESSAGES_KEEP_PER_CONVERSATION} 條訊息`, () => ({
+      affected: 0,
+      // 對話已上雲，訊息修剪由伺服器排程執行，裝置端只讀取最近的訊息。
+      message: '對話紀錄在雲端，由伺服器排程負責修剪。',
+      status: 'skipped',
+    })),
   );
 
   const update = await checkForAppUpdate();

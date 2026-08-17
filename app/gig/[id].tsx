@@ -28,6 +28,8 @@ import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
 import { findCategoryById } from '@/lib/omniTags';
+import { CHAT_DEMO_MESSAGE } from '@/lib/remote/chat';
+import { isAccountId } from '@/lib/remote/shared';
 import { SEED_TALENTS } from '@/lib/seed';
 import { bidsForGig, myBidForGig, useBidStore } from '@/lib/stores/bids';
 import { useChatStore } from '@/lib/stores/chat';
@@ -62,10 +64,9 @@ export default function GigDetailScreen() {
   const skills = useSessionStore((state) => state.skills);
   const userId = useMyUserId();
   const isSignedIn = useIsSignedIn();
-  const displayName = useSessionStore((state) => state.displayName);
   const requestChatWith = useSessionStore((state) => state.requestChatWith);
 
-  const startConversation = useChatStore((state) => state.startConversation);
+  const openConversation = useChatStore((state) => state.openConversation);
   const conversations = useChatStore((state) => state.conversations);
 
   const bids = useBidStore((state) => state.bids);
@@ -139,9 +140,9 @@ export default function GigDetailScreen() {
   const myReview = findReview(reviews, gig.id, userId);
   const pendingBids = gigBids.filter((bid) => bid.status === 'pending');
 
-  const openChat = (
+  const openChat = async (
     peerId: string,
-    conversation: { talentId: string; talentName: string; openingMessage: string },
+    conversation: { talentId: string; openingMessage: string },
   ) => {
     const existing = conversations.find(
       (item) => item.gigId === gig.id && item.talentId === conversation.talentId,
@@ -150,25 +151,40 @@ export default function GigDetailScreen() {
       router.push({ pathname: '/chat/[id]', params: { id: existing.id } });
       return;
     }
+
+    // 雲端對話需要兩個真實帳號；示範任務與示範人才沒有帳號可對應。
+    if (!isAccountId(gig.clientId) || !isAccountId(conversation.talentId)) {
+      setActionError(CHAT_DEMO_MESSAGE);
+      return;
+    }
+
     if (!requireSignIn()) return;
     if (requestChatWith(peerId) === 'blocked') {
       router.push('/subscription');
       return;
     }
-    const conversationId = startConversation({
-      gig,
+
+    setWorking(true);
+    setActionError(null);
+    const result = await openConversation({
+      gigId: gig.id,
       talentId: conversation.talentId,
-      talentName: conversation.talentName,
       openingMessage: conversation.openingMessage,
     });
+    setWorking(false);
+
+    if (result.status === 'error') {
+      setActionError(result.message);
+      return;
+    }
+
     void markTalking(gig.id);
-    router.push({ pathname: '/chat/[id]', params: { id: conversationId } });
+    router.push({ pathname: '/chat/[id]', params: { id: result.data } });
   };
 
   const handleTalentOpenChat = () =>
     openChat(gig.clientId, {
       talentId: userId,
-      talentName: displayName,
       openingMessage: `您好，我可以承接「${gig.tag}」這項任務，方便說明現場細節嗎？`,
     });
 
@@ -493,13 +509,23 @@ export default function GigDetailScreen() {
               </Button>
             )}
 
-            <Button size="lg" variant="secondary" onPress={handleTalentOpenChat}>
+            <Button
+              size="lg"
+              variant="secondary"
+              isDisabled={working}
+              onPress={() => void handleTalentOpenChat()}
+            >
               <Button.Label>開啟對話並回覆客戶</Button.Label>
             </Button>
             <Text className="text-muted text-[12px] leading-5">
               投遞提案不佔用對話配額；免費版每月最多與 {FREE_MONTHLY_CHAT_QUOTA}{' '}
               位不同對象開啟新對話。
             </Text>
+            {isAccountId(gig.clientId) ? null : (
+              <Text className="text-muted text-[12px] leading-5">
+                這是平台的示範任務，沒有對應的真實帳號，因此無法開啟對話。
+              </Text>
+            )}
           </View>
         ) : null}
 
@@ -523,7 +549,7 @@ export default function GigDetailScreen() {
           <View className="gap-4">
             <ChatQuotaPill onPress={() => router.push('/subscription')} />
             <Text className="text-muted text-[12px] leading-5">
-              主動聯絡人才同樣會佔用配額；已聯絡過的對象不重複計算。
+              主動聯絡人才同樣會佔用配額；已聯絡過的對象不重複計算。推薦名單中的示範人才沒有帳號，無法開啟對話。
             </Text>
 
             <SectionHeading
@@ -550,9 +576,8 @@ export default function GigDetailScreen() {
                       : undefined
                   }
                   onChat={() =>
-                    openChat(bid.talentId, {
+                    void openChat(bid.talentId, {
                       talentId: bid.talentId,
-                      talentName: bid.talentName,
                       openingMessage: `您好，我看到您對「${gig.tag}」的提案，想再確認幾個細節。`,
                     })
                   }
@@ -611,9 +636,8 @@ export default function GigDetailScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() =>
-                          openChat(talent.id, {
+                          void openChat(talent.id, {
                             talentId: talent.id,
-                            talentName: talent.name,
                             openingMessage: `您好，我發布了「${gig.tag}」的任務，想請您評估。`,
                           })
                         }

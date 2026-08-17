@@ -180,6 +180,13 @@ export interface ChatMessage {
   flaggedTerms: string[];
 }
 
+/** 檢舉狀態：none 未檢舉、open 待管理員處理、resolved 已結案。 */
+export type ConversationReportState = 'none' | 'open' | 'resolved';
+
+/**
+ * 對話。資料在雲端（conversations 資料表），雙方各自的已讀時間用來算未讀數。
+ * 名稱是寫入時的快照（denormalized），與 gigs / bids 的做法一致。
+ */
 export interface Conversation {
   id: string;
   gigId: string;
@@ -191,7 +198,30 @@ export interface Conversation {
   talentName: string;
   createdAt: number;
   lastMessageAt: number;
-  isReported: boolean;
+  lastMessageText: string;
+  lastMessageSenderId: string | null;
+  clientLastReadAt: number;
+  talentLastReadAt: number;
+  messageCount: number;
+  /** 命中詐騙關鍵字的訊息數（由伺服器累計）。 */
+  flaggedCount: number;
+  reportState: ConversationReportState;
+  reportReason?: string;
+  reporterName?: string;
+  reportedAt?: number;
+  resolutionNote?: string;
+  resolvedBy?: string;
+  resolvedAt?: number;
+}
+
+/** 對話中的另一方（同一個帳號可能在不同對話裡分別是客戶或人才）。 */
+export function conversationCounterpart(
+  conversation: Conversation,
+  myUserId: string,
+): { id: string; name: string } {
+  return conversation.clientId === myUserId
+    ? { id: conversation.talentId, name: conversation.talentName }
+    : { id: conversation.clientId, name: conversation.clientName };
 }
 
 export interface TalentProfile {
@@ -237,18 +267,6 @@ export const PUSH_CHANNEL_LABEL: Record<PushChannel, { title: string; caption: s
   moderation: { title: '審核結果', caption: '發布內容的認證與複審結果' },
   system: { title: '系統公告', caption: '平台公告與帳號重要通知' },
 };
-
-export interface AbuseReport {
-  id: string;
-  conversationId: string;
-  reportedUserId: string;
-  reportedUserName: string;
-  reporterName: string;
-  reason: string;
-  createdAt: number;
-  transcript: ChatMessage[];
-  resolved: boolean;
-}
 
 export interface WeeklyPoint {
   weekLabel: string;

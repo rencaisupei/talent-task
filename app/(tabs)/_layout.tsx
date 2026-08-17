@@ -4,6 +4,7 @@ import { ClipboardList, Home, MessageCircle, User } from 'lucide-react-native';
 import { View } from 'react-native';
 
 import { COLORS } from '@/lib/colors';
+import { useTotalUnread } from '@/lib/stores/chat';
 import { useSessionStore } from '@/lib/stores/session';
 
 export default function TabLayout() {
@@ -12,6 +13,7 @@ export default function TabLayout() {
   const profileLoaded = useSessionStore((state) => state.profileLoaded);
   const role = useSessionStore((state) => state.role);
   const skills = useSessionStore((state) => state.skills);
+  const unreadMessages = useTotalUnread();
 
   // 訪客可以直接進任務牆瀏覽，只等本機資料 hydrate 完成；
   // 已登入者多等後端 profile 載入，否則新裝置上會先閃一次錯的身分視角。
@@ -64,6 +66,10 @@ export default function TabLayout() {
           name="chats"
           options={{
             title: '對話',
+            // 未讀訊息會在沒開 App 時抵達，因此分頁上顯示未讀數。
+            tabBarBadge:
+              unreadMessages > 0 ? (unreadMessages > 99 ? '99+' : unreadMessages) : undefined,
+            tabBarBadgeStyle: { backgroundColor: COLORS.coral, fontSize: 10 },
             tabBarIcon: ({ color, size }) => <MessageCircle color={color} size={size ?? 24} />,
           }}
         />
