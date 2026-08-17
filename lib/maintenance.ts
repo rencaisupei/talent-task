@@ -15,7 +15,8 @@ const DAY = 24 * 60 * 60 * 1000;
 
 /**
  * 逾期未成交的任務自動結案的天數。
- * 任務資料在雲端，這項維護由伺服器端的 daily-maintenance 排程執行。
+ * 任務資料在雲端，裝置端維護只會結掉自己發布的任務；
+ * 全平台的清理要由帶 service_role 金鑰的伺服器排程執行。
  */
 export const STALE_GIG_DAYS = 14;
 /** 已讀通知保留天數。 */
@@ -123,7 +124,7 @@ export async function runDeviceMaintenance(
         )
         .map((gig) => gig.id);
 
-      // 結案規則在資料庫函式裡，裝置端與伺服器排程共用同一份邏輯。
+      // 結案規則在資料庫函式裡；裝置端呼叫只會結掉自己發布的任務。
       const closed = await closeStaleGigsRemote(STALE_GIG_DAYS);
       if (closed === null) {
         return { affected: 0, message: '無法連線到雲端資料，下次會再試。', status: 'failed' };

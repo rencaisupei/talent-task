@@ -92,12 +92,18 @@ type BiltDatabase = {
         Args: { bid_id: string };
         Returns: boolean;
       };
-      /** 人才開啟對話時把任務推進到「對話中」（他不是發案者，無法直接更新）。 */
+      /**
+       * 人才開啟對話時把任務推進到「對話中」（他不是發案者，無法直接更新）。
+       * 只有與該任務有關的人可以推進，其他帳號回傳 false。
+       */
       mark_gig_talking: {
         Args: { gid: string };
         Returns: boolean;
       };
-      /** 每日維護：逾期未成交的任務自動結案，回傳結案筆數。 */
+      /**
+       * 每日維護：逾期未成交的任務自動結案，回傳結案筆數。
+       * 裝置端呼叫只影響自己發布的任務；全平台清理需要 service_role 金鑰。
+       */
       close_stale_gigs: {
         Args: { max_age_days: number };
         Returns: number;

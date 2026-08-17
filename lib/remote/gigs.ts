@@ -153,6 +153,8 @@ export async function updateRemoteGig(
 /**
  * 人才開啟對話時把任務推進到「對話中」。
  * 他不是發案者，RLS 不允許直接更新，因此走 SECURITY DEFINER 的 RPC。
+ * 函式只允許與該任務有關的人（發案者、投標的人才、已有對話的一方）推進，
+ * 其他帳號一律回傳 false 且不會改到資料。
  */
 export async function markGigTalkingRemote(gigId: string): Promise<boolean> {
   const client = getBiltClient();
@@ -164,7 +166,10 @@ export async function markGigTalkingRemote(gigId: string): Promise<boolean> {
 
 /**
  * 每日維護：把逾期未成交的任務自動結案，回傳結案筆數（無法連線時回傳 null）。
- * 規則寫在資料庫函式裡，因此裝置端維護與伺服器排程呼叫的是同一份邏輯。
+ *
+ * 規則寫在資料庫函式裡，但**裝置端呼叫只會結掉自己發布的任務**：
+ * 全平台清理保留給帶 service_role 金鑰的伺服器排程，
+ * 否則未登入的訪客也能一次結案全平台的任務。
  */
 export async function closeStaleGigsRemote(maxAgeDays: number): Promise<number | null> {
   const client = getBiltClient();
