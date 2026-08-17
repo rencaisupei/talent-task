@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { clearDeliveredPush } from '@/lib/push';
 import { useBidStore } from '@/lib/stores/bids';
 import { useChatStore } from '@/lib/stores/chat';
 import { useGigStore } from '@/lib/stores/gigs';
@@ -11,17 +12,21 @@ import { useSavedStore } from '@/lib/stores/saved';
 const LEGACY_CHAT_STORAGE_KEY = 'instantgig-chat';
 
 /**
- * 換成另一個真實帳號時清空這台裝置上的本機資料。
+ * 清空這台裝置上屬於個人的資料：主動登出時，以及換成另一個真實帳號時。
  *
- * 任務、提案與對話都已經在雲端，擁有者是帳號而不是裝置，
- * 因此這裡只清掉仍存在裝置上的評價、收藏與通知，以及雲端資料的本機快取，
- * 並讓雲端資料以新身分重新讀取一次（RLS 可見範圍會跟著換）。
+ * 任務、提案與對話都在雲端，擁有者是帳號而不是裝置，因此那些只需要清掉本機快取
+ * 並以新身分重讀一次（RLS 可見範圍會跟著換）。
+ * 評價、收藏與通知中心只存在裝置上，這裡是真的刪除——同一支手機換人使用時
+ * 不能讓下一位看到前一位的內容。
  */
 export function resetLocalUserData(): void {
   useChatStore.getState().reset();
   useReviewStore.setState({ reviews: [] });
   useSavedStore.setState({ savedGigIds: [] });
-  useNotificationStore.setState({ items: [] });
+  useNotificationStore.getState().clearAll();
+
+  // 系統通知匣裡已經送出的橫幅與紅點也要撤掉，否則點開仍看得到前一位的訊息內容。
+  void clearDeliveredPush();
 
   void useGigStore.getState().refreshGigs();
   void useBidStore.getState().refreshBids();

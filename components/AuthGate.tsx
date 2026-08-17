@@ -21,6 +21,9 @@ function handleSession(session: Session | null): void {
   if (!session) {
     profileLoadedFor = null;
     resetProfileSyncState();
+    // 清掉裝置上的身分欄位（顯示名稱、身分、地區、技能）。
+    // 評價、收藏與通知的刪除在 lib/auth.ts 的 signOut()：
+    // 這裡分不出「使用者按登出」與「權杖續期失敗」，不能拿來做刪除的依據。
     store.applySignedOut();
     return;
   }

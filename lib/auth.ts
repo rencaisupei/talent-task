@@ -1,6 +1,7 @@
 import type { Session } from '@biltme/backend';
 
 import { getBiltClient } from '@/lib/bilt';
+import { resetLocalUserData } from '@/lib/localData';
 
 const NOT_CONFIGURED_MESSAGE = '尚未設定後端連線，暫時無法登入。';
 const INVALID_CODE_MESSAGE = '驗證碼不正確或已過期，請重新取得。';
@@ -53,10 +54,17 @@ export async function verifyLoginCode(email: string, code: string): Promise<Auth
   return { ok: true };
 }
 
+/**
+ * 主動登出並清掉這台裝置上的個人資料。
+ *
+ * 清除刻意放在這裡而不是 AuthGate 的狀態監聽：監聽只知道「session 不見了」，
+ * 權杖過期也長得一樣，放在那裡會讓一次續期失敗就刪掉使用者的評價與收藏。
+ */
 export async function signOut(): Promise<void> {
   const client = getBiltClient();
   if (!client) return;
   await client.auth.signOut();
+  resetLocalUserData();
 }
 
 /** 讀取裝置上已保存的登入狀態（冷啟動時用）。 */

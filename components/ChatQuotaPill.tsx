@@ -2,7 +2,7 @@ import { Crown, MessageSquarePlus } from 'lucide-react-native';
 import { Pressable, Text } from 'react-native';
 
 import { COLORS } from '@/lib/colors';
-import { FREE_MONTHLY_CHAT_QUOTA, useSessionStore } from '@/lib/stores/session';
+import { FREE_MONTHLY_CHAT_QUOTA, useIsPremium, useSessionStore } from '@/lib/stores/session';
 import { cn } from '@/lib/utils';
 
 interface ChatQuotaPillProps {
@@ -12,7 +12,7 @@ interface ChatQuotaPillProps {
 
 /** 對話配額藥丸標籤：發案與接案共用同一份配額。 */
 export function ChatQuotaPill({ onPress, className }: ChatQuotaPillProps) {
-  const isPremium = useSessionStore((state) => state.isPremium);
+  const isPremium = useIsPremium();
   const remaining = useSessionStore((state) => state.chatQuotaRemaining);
 
   if (isPremium) {

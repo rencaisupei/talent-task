@@ -33,7 +33,12 @@ import { useGigStore } from '@/lib/stores/gigs';
 import { useMaintenanceStore } from '@/lib/stores/maintenance';
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 import { useReviewStore } from '@/lib/stores/reviews';
-import { PREMIUM_PRICE_TWD, useMyUserId, useSessionStore } from '@/lib/stores/session';
+import {
+  PREMIUM_PRICE_TWD,
+  useIsPremium,
+  useMyUserId,
+  useSessionStore,
+} from '@/lib/stores/session';
 import { reviewsForUser, summarizeReviews, trustScore, trustSignals } from '@/lib/trust';
 import type { VerificationStatus } from '@/lib/types';
 
@@ -55,7 +60,7 @@ export default function ProfileScreen() {
   const verification = useSessionStore((state) => state.verification);
   const credentialVerified = useSessionStore((state) => state.credentialVerified);
   const credentialUri = useSessionStore((state) => state.credentialUri);
-  const isPremium = useSessionStore((state) => state.isPremium);
+  const isPremium = useIsPremium();
   const userId = useMyUserId();
   const email = useSessionStore((state) => state.email);
   const authStatus = useSessionStore((state) => state.authStatus);
@@ -361,7 +366,7 @@ export default function ProfileScreen() {
           confirmAction === 'reset'
             ? '將清除身分、技能與訂閱狀態，回到身分選擇頁。'
             : confirmAction === 'signOut'
-              ? '登出後仍可以瀏覽任務牆；這台裝置上的任務與對話會保留，重新以同一個 Email 登入即可繼續同步身分。'
+              ? '登出後仍可以瀏覽任務牆。這台裝置上的通知中心、收藏與評價會一併清除，雲端的任務、提案與對話都會保留；重新以同一個 Email 登入即可繼續同步身分。'
               : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
         }
         actions={[

@@ -47,6 +47,10 @@ export async function sendTestPush(): Promise<boolean> {
   return false;
 }
 
+export async function clearDeliveredPush(): Promise<void> {
+  // 網頁版沒有系統通知匣可清。
+}
+
 export function pushDeviceLabel(): string {
   return '此平台不支援裝置推播（請於 iOS／Android App 使用）';
 }

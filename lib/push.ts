@@ -123,8 +123,21 @@ export function deliverPush({ kind, title, body, route }: DeliverPushInput): voi
   });
 }
 
-/** 立即送出一則測試推播，供設定頁確認裝置是否收得到。 */
-export async function sendTestPush(): Promise<boolean> {
+/**
+ * 清掉系統通知匣裡已經送出的通知與 App 紅點。
+ * 登出或換帳號時呼叫：站內通知已刪除，匣裡的橫幅不能留給下一位使用者。
+ */
+export async function clearDeliveredPush(): Promise<void> {
+  if (!isPushSupported) return;
+  try {
+    await Notifications.dismissAllNotificationsAsync();
+    await Notifications.setBadgeCountAsync(0);
+  } catch {
+    // 權限被撤銷或平台不支援時忽略。
+  }
+}
+
+/** 立即送出一則測試推播，供設定頁確認裝置是否收得到。 */ export async function sendTestPush(): Promise<boolean> {
   if (!isPushSupported) return false;
   const permission = await requestPushPermission();
   if (permission !== 'granted') return false;

@@ -5,11 +5,17 @@ import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ConfirmSheet } from '@/components/ConfirmSheet';
+import { requireSignIn } from '@/lib/authGuard';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { SUBSCRIPTION_TERMS } from '@/lib/legalCopy';
 import { goBackOrReplace } from '@/lib/navigation';
-import { FREE_MONTHLY_CHAT_QUOTA, PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
+import {
+  FREE_MONTHLY_CHAT_QUOTA,
+  PREMIUM_PRICE_TWD,
+  useIsPremium,
+  useSessionStore,
+} from '@/lib/stores/session';
 import { cn } from '@/lib/utils';
 
 const FREE_FEATURES = [
@@ -26,7 +32,7 @@ const PREMIUM_FEATURES = [
 ];
 
 export default function SubscriptionScreen() {
-  const isPremium = useSessionStore((state) => state.isPremium);
+  const isPremium = useIsPremium();
   const remaining = useSessionStore((state) => state.chatQuotaRemaining);
   const activatePremium = useSessionStore((state) => state.activatePremium);
   const cancelPremium = useSessionStore((state) => state.cancelPremium);
@@ -35,7 +41,10 @@ export default function SubscriptionScreen() {
 
   const storeName = Platform.OS === 'android' ? 'Google Play' : 'App Store';
 
+  // 訂閱屬於帳號（登出後仍留在裝置上，但只對同一個帳號有效），
+  // 因此訪客要先登入才能開通，否則會出現「已開通但畫面仍顯示免費版」的矛盾狀態。
   const handleSubscribe = () => {
+    if (!requireSignIn()) return;
     setProcessing(true);
     setConfirmKind('subscribe');
   };

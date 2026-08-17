@@ -108,6 +108,12 @@ export async function saveProfile(userId: string, fields: ProfileFields): Promis
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let syncedSignature: string | null = null;
+/**
+ * 只有成功讀過後端 profile 之後才允許寫回。
+ * 登出會把裝置上的身分欄位重設為預設值，若讀取失敗（例如離線）就開始同步，
+ * 會把後端真正的顯示名稱與技能標籤蓋成預設值。
+ */
+let syncEnabled = false;
 
 /**
  * 登入後把後端 profile 套進 session store。
@@ -121,12 +127,14 @@ export async function loadProfileIntoSession(userId: string): Promise<void> {
   const result = await fetchProfile(userId);
 
   if (result.status === 'error') {
+    // 讀不到就只放行畫面：在成功讀到之前不同步，否則會用預設值覆寫後端。
     useSessionStore.getState().markProfileLoaded();
     return;
   }
 
   if (result.status === 'missing') {
     syncedSignature = signature(local);
+    syncEnabled = true;
     useSessionStore.getState().markProfileLoaded();
     const saved = await saveProfile(userId, local);
     if (!saved) syncedSignature = null;
@@ -143,6 +151,7 @@ export async function loadProfileIntoSession(userId: string): Promise<void> {
   };
 
   syncedSignature = signature(merged);
+  syncEnabled = true;
   useSessionStore.getState().applyRemoteProfile(merged);
 
   if (signature(merged) !== signature(remote)) {
@@ -157,6 +166,7 @@ export async function loadProfileIntoSession(userId: string): Promise<void> {
  */
 export function startProfileSync(): () => void {
   const unsubscribe = useSessionStore.subscribe((state) => {
+    if (!syncEnabled) return;
     if (state.authStatus !== 'signedIn' || state.authUserId.length === 0 || !state.profileLoaded)
       return;
 
@@ -183,9 +193,10 @@ export function startProfileSync(): () => void {
   };
 }
 
-/** 登出時清掉同步指紋，避免下一個帳號誤判為已同步。 */
+/** 登出時清掉同步指紋與同步許可，避免下一個帳號誤判為已同步。 */
 export function resetProfileSyncState(): void {
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = null;
   syncedSignature = null;
+  syncEnabled = false;
 }

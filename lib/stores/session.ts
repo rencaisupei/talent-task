@@ -70,6 +70,7 @@ interface SessionState {
   markHydrated: () => void;
   /** 套用 bilt auth 的登入身分；回傳 'switched' 代表換了另一個帳號，呼叫端需清空本機資料。 */
   applySignedIn: (input: { authUserId: string; email: string | null }) => 'same' | 'switched';
+  /** 失去登入狀態（主動登出或權杖失效）：清掉裝置上的身分資料，保留計費狀態。 */
   applySignedOut: () => void;
   /** 以後端 profiles 的內容覆寫本機身分欄位。 */
   applyRemoteProfile: (fields: RemoteProfileFields) => void;
@@ -196,9 +197,34 @@ export const useSessionStore = create<SessionState>()(
         return 'same';
       },
 
-      // authUserId 保留不清：同一個帳號再次登入時不必重新拉一次資料，
-      // 換成別的帳號才會在 applySignedIn 觸發清空。
-      applySignedOut: () => set({ authStatus: 'signedOut', email: null, profileLoaded: false }),
+      applySignedOut: () => {
+        const previous = get();
+
+        // 本來就沒登入（例如冷啟動確認狀態）就只更新狀態，
+        // 否則會把訪客自己選的身分、地區與技能標籤清掉。
+        if (previous.authStatus !== 'signedIn') {
+          set({ authStatus: 'signedOut', email: null, profileLoaded: false });
+          return;
+        }
+
+        set({
+          ...profileDefaults,
+          // 訂閱與配額屬於帳號的計費狀態，留在裝置上：
+          // 清掉的話登出再登入就能把免費對話配額重置成滿的。
+          // 換成別的帳號時 applySignedIn 的 'switched' 分支才會重設。
+          isPremium: previous.isPremium,
+          premiumSince: previous.premiumSince,
+          chatQuotaRemaining: previous.chatQuotaRemaining,
+          quotaMonth: previous.quotaMonth,
+          openedPeerIds: previous.openedPeerIds,
+          // authUserId 保留：下次登入時用來判斷是不是換了另一個帳號。
+          authUserId: previous.authUserId,
+          hydrated: previous.hydrated,
+          authStatus: 'signedOut',
+          email: null,
+          profileLoaded: false,
+        });
+      },
 
       applyRemoteProfile: (fields) =>
         set({
@@ -338,4 +364,13 @@ export function useMyUserId(): string {
 /** 目前是否已登入（發布任務、投遞提案、開啟對話都需要）。 */
 export function useIsSignedIn(): boolean {
   return useSessionStore((state) => state.authStatus === 'signedIn');
+}
+
+/**
+ * 是否享有進階版權益。
+ * 訂閱狀態屬於帳號，登出後裝置上仍留著（同一個帳號回來才算數），
+ * 因此訪客狀態一律視為免費版，不會把前一位使用者的訂閱狀態顯示給下一個人。
+ */
+export function useIsPremium(): boolean {
+  return useSessionStore((state) => state.authStatus === 'signedIn' && state.isPremium);
 }
