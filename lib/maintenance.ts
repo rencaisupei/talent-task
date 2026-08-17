@@ -97,11 +97,11 @@ function whenHydrated(store: HydratableStore): Promise<void> {
 }
 
 /**
- * 等本機資料從 AsyncStorage 讀回來再開始維護，
- * 否則會對種子預設值做清理，數量與結果都不正確。
+ * 等本機資料從 AsyncStorage 讀回來再開始維護。
+ * 通知中心已上雲（notifications 資料表），這裡只需要等身分與配額狀態。
  */
 export async function waitForLocalData(): Promise<void> {
-  await Promise.all([whenHydrated(useNotificationStore), whenHydrated(useSessionStore)]);
+  await whenHydrated(useSessionStore);
 }
 
 /** 執行一次裝置端維護（不判斷今天是否已跑過）。 */
@@ -165,15 +165,20 @@ export async function runDeviceMaintenance(
   );
 
   tasks.push(
-    safeTask('notifications', `通知中心保留最近 ${NOTIFICATION_RETENTION_DAYS} 天`, () => {
-      const removed = useNotificationStore.getState().pruneNotifications({
-        maxAgeMs: NOTIFICATION_RETENTION_DAYS * DAY,
-        keep: NOTIFICATION_KEEP,
-      });
-      return removed === 0
-        ? { affected: 0, message: '沒有需要清理的通知。', status: 'skipped' }
-        : { affected: removed, message: `已清理 ${removed} 則過舊通知。` };
-    }),
+    await safeAsyncTask(
+      'notifications',
+      `通知中心保留最近 ${NOTIFICATION_RETENTION_DAYS} 天`,
+      async () => {
+        // 通知在雲端（notifications 資料表），這裡只會清掉自己帳號的通知。
+        const removed = await useNotificationStore.getState().pruneNotifications({
+          maxAgeMs: NOTIFICATION_RETENTION_DAYS * DAY,
+          keep: NOTIFICATION_KEEP,
+        });
+        return removed === 0
+          ? { affected: 0, message: '沒有需要清理的通知。', status: 'skipped' }
+          : { affected: removed, message: `已清理 ${removed} 則過舊通知。` };
+      },
+    ),
   );
 
   tasks.push(

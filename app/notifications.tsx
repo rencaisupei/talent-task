@@ -15,12 +15,14 @@ import {
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { CloudListState } from '@/components/CloudListState';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
-import { EmptyState } from '@/components/SectionHeading';
+import { SignInNotice } from '@/components/SignInNotice';
 import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
 import { countUnread, useNotificationStore } from '@/lib/stores/notifications';
+import { useIsSignedIn } from '@/lib/stores/session';
 import type { AppNotification, NotificationKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -51,13 +53,20 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
 
 export default function NotificationsScreen() {
   const items = useNotificationStore((state) => state.items);
+  const loadState = useNotificationStore((state) => state.loadState);
+  const isRefreshing = useNotificationStore((state) => state.isRefreshing);
+  const errorMessage = useNotificationStore((state) => state.errorMessage);
+  const refreshNotifications = useNotificationStore((state) => state.refreshNotifications);
   const markRead = useNotificationStore((state) => state.markRead);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
   const clearAll = useNotificationStore((state) => state.clearAll);
+  const isSignedIn = useIsSignedIn();
 
   const [clearVisible, setClearVisible] = useState(false);
 
   const unread = countUnread(items);
+
+  const handleRefresh = () => void refreshNotifications();
 
   const handlePress = (item: AppNotification) => {
     markRead(item.id);
@@ -90,7 +99,7 @@ export default function NotificationsScreen() {
         <View className="flex-1">
           <Text className="text-ink text-[17px] font-semibold">通知中心</Text>
           <Text className="text-muted mt-0.5 text-[12px]">
-            {unread > 0 ? `${unread} 則未讀動態` : '全部已讀'}
+            {isSignedIn ? (unread > 0 ? `${unread} 則未讀動態` : '全部已讀') : '登入後才會有通知'}
           </Text>
         </View>
         {unread > 0 ? (
@@ -113,6 +122,8 @@ export default function NotificationsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        refreshing={isRefreshing}
+        onRefresh={isSignedIn ? handleRefresh : undefined}
         renderItem={({ item }) => (
           <Pressable
             onPress={() => handlePress(item)}
@@ -137,11 +148,22 @@ export default function NotificationsScreen() {
           </Pressable>
         )}
         ListEmptyComponent={
-          <EmptyState
-            title="目前沒有通知"
-            caption="提案、媒合結果與評價提醒都會出現在這裡。"
-            icon={<BellOff size={22} color={COLORS.muted} strokeWidth={2.1} />}
-          />
+          isSignedIn ? (
+            <CloudListState
+              loadState={loadState}
+              errorMessage={errorMessage}
+              onRetry={handleRefresh}
+              loadingLabel="正在讀取通知中心…"
+              emptyTitle="目前沒有通知"
+              emptyCaption="提案、媒合結果與評價提醒都會出現在這裡，並保存在你的帳號裡。"
+              emptyIcon={<BellOff size={22} color={COLORS.muted} strokeWidth={2.1} />}
+            />
+          ) : (
+            <SignInNotice
+              title="登入後才會有通知中心"
+              caption="提案動態、媒合結果與評價提醒都存在你的帳號裡，換裝置登入同一個 Email 也看得到。"
+            />
+          )
         }
         ListFooterComponent={
           items.length > 0 ? (
@@ -159,7 +181,7 @@ export default function NotificationsScreen() {
       <ConfirmSheet
         visible={clearVisible}
         title="清空所有通知？"
-        message="清空後將無法復原歷史動態。"
+        message="清空後帳號裡的歷史動態將無法復原。"
         actions={[{ id: 'confirm', label: '確認清空', tone: 'danger' }]}
         onSelect={() => {
           clearAll();

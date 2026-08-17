@@ -65,6 +65,7 @@ export default function AdminUserDetailScreen() {
   const refreshContent = useAdminContentStore((state) => state.refresh);
   const refreshChats = useAdminContentStore((state) => state.refreshChats);
   const reviews = useReviewStore((state) => state.reviews);
+  const refreshReviews = useReviewStore((state) => state.refreshReviews);
   const auditEntries = useAdminAuditStore((state) => state.entries);
   const logAction = useAuditLogger();
   const canManageUsers = useAdminCan('users:manage');
@@ -78,8 +79,10 @@ export default function AdminUserDetailScreen() {
 
   useEffect(() => {
     void refreshContent();
+    // 評價公開可讀，管理端用同一支 store 讀雲端資料。
+    void refreshReviews();
     if (canReviewChats) void refreshChats();
-  }, [canReviewChats, refreshChats, refreshContent]);
+  }, [canReviewChats, refreshChats, refreshContent, refreshReviews]);
 
   const summary = useMemo(() => summarizeReviews(reviewsForUser(reviews, id)), [id, reviews]);
   const userGigs = useMemo(

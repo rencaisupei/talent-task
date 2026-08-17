@@ -10,6 +10,13 @@ import type {
   GigRow,
   GigUpdate,
   MessageRow,
+  NotificationInsert,
+  NotificationRow,
+  NotificationUpdate,
+  ReviewInsert,
+  ReviewRow,
+  SavedGigInsert,
+  SavedGigRow,
   UnreadCountRow,
 } from '@/lib/remote/rows';
 
@@ -76,6 +83,31 @@ type MessagesTable = {
   Relationships: [];
 };
 
+/**
+ * 評價、收藏與通知中心：擁有者是帳號而不是裝置，因此登出再登入還在。
+ * 評價公開可讀（信任度分數的依據），收藏與通知只有本人讀得到。
+ */
+type ReviewsTable = {
+  Row: ReviewRow;
+  Insert: ReviewInsert;
+  Update: Partial<ReviewInsert>;
+  Relationships: [];
+};
+
+type SavedGigsTable = {
+  Row: SavedGigRow;
+  Insert: SavedGigInsert;
+  Update: Partial<SavedGigInsert>;
+  Relationships: [];
+};
+
+type NotificationsTable = {
+  Row: NotificationRow;
+  Insert: NotificationInsert;
+  Update: NotificationUpdate;
+  Relationships: [];
+};
+
 type BiltDatabase = {
   public: {
     Tables: {
@@ -84,6 +116,9 @@ type BiltDatabase = {
       bids: BidsTable;
       conversations: ConversationsTable;
       messages: MessagesTable;
+      reviews: ReviewsTable;
+      saved_gigs: SavedGigsTable;
+      notifications: NotificationsTable;
     };
     Views: Record<string, never>;
     Functions: {

@@ -4,8 +4,10 @@ import type {
   ConversationReportState,
   GigStatus,
   ModerationState,
+  NotificationKind,
   PublishReview,
   PublishReviewState,
+  UserRole,
 } from '@/lib/types';
 
 /**
@@ -172,6 +174,89 @@ export type MessageRow = {
 export type UnreadCountRow = {
   conversation_id: string;
   unread: number;
+};
+
+/**
+ * reviews 資料表的列型別。
+ *
+ * 評價一律屬於真實帳號：author_id / target_id 是 auth.users.id，gig_id 指向真實任務。
+ * 寫入時 RLS 會用 can_review_gig() 確認「這筆任務已完成，而且你是當事人」，
+ * 因此這張表沒有示範資料欄位——示範人才不是帳號，他們的歷史評價留在 lib/seed.ts。
+ */
+export type ReviewRow = {
+  id: string;
+  gig_id: string;
+  gig_title: string;
+  tag: string;
+  author_id: string;
+  author_name: string;
+  target_id: string;
+  target_name: string;
+  target_role: UserRole;
+  stars: number;
+  comment: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReviewInsert = {
+  gig_id: string;
+  gig_title: string;
+  tag: string;
+  author_id: string;
+  author_name: string;
+  target_id: string;
+  target_name: string;
+  target_role: UserRole;
+  stars: number;
+  comment: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+/** 收藏：完全私有，一列就是「這個帳號收藏了這筆任務」。 */
+export type SavedGigRow = {
+  user_id: string;
+  gig_id: string;
+  created_at: string;
+};
+
+export type SavedGigInsert = {
+  user_id: string;
+  gig_id: string;
+};
+
+/**
+ * notifications 資料表的列型別。
+ *
+ * 每則通知都由收件人自己的裝置寫入（user_id 必須等於 auth.uid()），
+ * talent_ref 是文字而不是 uuid：評價提醒可能指向示範人才代號。
+ */
+export type NotificationRow = {
+  id: string;
+  user_id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  is_read: boolean;
+  gig_id: string | null;
+  conversation_id: string | null;
+  talent_ref: string | null;
+  created_at: string;
+};
+
+export type NotificationInsert = {
+  user_id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  gig_id?: string | null;
+  conversation_id?: string | null;
+  talent_ref?: string | null;
+};
+
+export type NotificationUpdate = {
+  is_read?: boolean;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -15,6 +15,7 @@ import {
 import { RatingStars, StarRatingInput } from '@/components/RatingStars';
 import { EmptyState } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
+import { requireSignIn } from '@/lib/authGuard';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
 import { useGigStore } from '@/lib/stores/gigs';
@@ -33,6 +34,7 @@ export default function ReviewScreen() {
 
   const [stars, setStars] = useState(5);
   const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const gig = gigs.find((item) => item.id === gigId);
 
@@ -76,12 +78,15 @@ export default function ReviewScreen() {
   const targetId = target.id;
   const targetName = target.name;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (stars < 1) {
       Alert.alert('請先選擇星等', '至少給 1 顆星才能送出評價。');
       return;
     }
-    addReview({
+    if (!requireSignIn()) return;
+
+    setSaving(true);
+    const result = await addReview({
       gig,
       authorId: userId,
       authorName: displayName,
@@ -91,6 +96,13 @@ export default function ReviewScreen() {
       stars,
       comment,
     });
+    setSaving(false);
+
+    if (result.status === 'error') {
+      Alert.alert('評價未送出', result.message);
+      return;
+    }
+
     router.replace({ pathname: '/gig/[id]', params: { id: gig.id } });
   };
 
@@ -172,8 +184,8 @@ export default function ReviewScreen() {
           </Text>
         </View>
 
-        <Button size="lg" onPress={handleSubmit}>
-          <Button.Label>送出評價</Button.Label>
+        <Button size="lg" isDisabled={saving} onPress={() => void handleSubmit()}>
+          <Button.Label>{saving ? '送出中…' : '送出評價'}</Button.Label>
         </Button>
       </ScrollView>
     </KeyboardAvoidingView>

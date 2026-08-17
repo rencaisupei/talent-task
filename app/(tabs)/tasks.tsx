@@ -12,6 +12,7 @@ import { SegmentedTabs, type SegmentOption } from '@/components/SegmentedTabs';
 import { EmptyState } from '@/components/SectionHeading';
 import { SignInNotice } from '@/components/SignInNotice';
 import { COLORS } from '@/lib/colors';
+import { toggleSavedGig } from '@/lib/savedActions';
 import { bidsByTalent, bidsForGig, useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
@@ -207,7 +208,6 @@ function TalentTasks() {
   const refreshBids = useBidStore((state) => state.refreshBids);
   const refreshGigs = useGigStore((state) => state.refreshGigs);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
-  const toggleSaved = useSavedStore((state) => state.toggleSaved);
   const userId = useMyUserId();
   const isSignedIn = useIsSignedIn();
 
@@ -308,16 +308,24 @@ function TalentTasks() {
                 gig={item}
                 onPress={() => openGig(item.id)}
                 isSaved={savedGigIds.includes(item.id)}
-                onToggleSave={segment === 'saved' ? () => toggleSaved(item.id) : undefined}
+                onToggleSave={segment === 'saved' ? () => toggleSavedGig(item.id) : undefined}
               />
             </View>
           )}
           ListEmptyComponent={
             <EmptyState
-              title={segment === 'saved' ? '尚未收藏任務' : '這個分類沒有案件'}
+              title={
+                segment === 'saved'
+                  ? isSignedIn
+                    ? '尚未收藏任務'
+                    : '登入後才能收藏任務'
+                  : '這個分類沒有案件'
+              }
               caption={
                 segment === 'saved'
-                  ? '在任務牆點右上角書籤即可收藏，稍後再回來投遞。'
+                  ? isSignedIn
+                    ? '在任務牆點右上角書籤即可收藏，收藏會存在你的帳號裡，換裝置也看得到。'
+                    : '收藏會保存在帳號裡，登入後在任務牆點右上角書籤即可加入。'
                   : '被客戶選定後，案件會出現在進行中，完工後轉為已完成。'
               }
               icon={

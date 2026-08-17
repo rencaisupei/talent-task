@@ -30,6 +30,7 @@ import { goBackOrReplace } from '@/lib/navigation';
 import { findCategoryById } from '@/lib/omniTags';
 import { CHAT_DEMO_MESSAGE } from '@/lib/remote/chat';
 import { isAccountId } from '@/lib/remote/shared';
+import { toggleSavedGig } from '@/lib/savedActions';
 import { SEED_TALENTS } from '@/lib/seed';
 import { bidsForGig, myBidForGig, useBidStore } from '@/lib/stores/bids';
 import { useChatStore } from '@/lib/stores/chat';
@@ -75,7 +76,6 @@ export default function GigDetailScreen() {
 
   const reviews = useReviewStore((state) => state.reviews);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
-  const toggleSaved = useSavedStore((state) => state.toggleSaved);
 
   const [confirm, setConfirm] = useState<GigConfirmKind | null>(null);
   const [working, setWorking] = useState(false);
@@ -288,7 +288,7 @@ export default function GigDetailScreen() {
         {gig.isUrgent ? <StaticTag label="急件" tone="coral" /> : null}
         {!isOwner ? (
           <Pressable
-            onPress={() => toggleSaved(gig.id)}
+            onPress={() => toggleSavedGig(gig.id)}
             accessibilityRole="button"
             accessibilityLabel={isSaved ? '取消收藏' : '收藏任務'}
             accessibilityState={{ selected: isSaved }}

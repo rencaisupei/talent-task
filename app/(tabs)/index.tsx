@@ -33,6 +33,7 @@ import {
   type GigFilters,
 } from '@/lib/gigFilters';
 import { CATEGORY_COUNT } from '@/lib/omniTags';
+import { toggleSavedGig } from '@/lib/savedActions';
 import { isBidVisible, useBidStore } from '@/lib/stores/bids';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { useSavedStore } from '@/lib/stores/saved';
@@ -61,7 +62,6 @@ function TalentHome() {
   const userId = useMyUserId();
   const verification = useSessionStore((state) => state.verification);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
-  const toggleSaved = useSavedStore((state) => state.toggleSaved);
 
   const [filters, setFilters] = useState<GigFilters>(() => ({
     ...DEFAULT_GIG_FILTERS,
@@ -185,7 +185,7 @@ function TalentHome() {
                 gig={item}
                 onPress={() => openGig(item.id)}
                 isSaved={savedGigIds.includes(item.id)}
-                onToggleSave={() => toggleSaved(item.id)}
+                onToggleSave={() => toggleSavedGig(item.id)}
               />
             </View>
           )}
