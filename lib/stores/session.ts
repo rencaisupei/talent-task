@@ -42,7 +42,8 @@ interface SessionState {
   premiumSince: number | null;
   chatQuotaRemaining: number;
   quotaMonth: string;
-  openedClientIds: string[];
+  /** 本月已用配額開啟過對話的對象（客戶與人才雙向計算，同一對象只計一次）。 */
+  openedPeerIds: string[];
 
   markHydrated: () => void;
   chooseRole: (role: UserRole) => void;
@@ -59,7 +60,9 @@ interface SessionState {
   activatePremium: () => void;
   cancelPremium: () => void;
   syncQuotaMonth: () => void;
-  requestChatWith: (clientId: string) => ChatRequestResult;
+  /** 與某位對象開啟新對話：客戶找人才、人才回覆客戶都會扣同一份配額。 */
+  requestChatWith: (peerId: string) => ChatRequestResult;
+  hasOpenedChatWith: (peerId: string) => boolean;
   resetSession: () => void;
 }
 
@@ -80,11 +83,42 @@ const initialState = {
   premiumSince: null as number | null,
   chatQuotaRemaining: FREE_MONTHLY_CHAT_QUOTA,
   quotaMonth: monthKey(),
-  openedClientIds: [] as string[],
+  openedPeerIds: [] as string[],
 };
 
+/** 持久化欄位（partialize 的形狀），migrate 以此為輸出型別。 */
+type PersistedSession = Partial<Omit<SessionState, keyof SessionActions>>;
+
+type SessionActions = {
+  [K in keyof SessionState as SessionState[K] extends (...args: never[]) => unknown
+    ? K
+    : never]: SessionState[K];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function migrateSession(persisted: unknown, version: number | undefined): PersistedSession {
+  if (!isRecord(persisted)) return {};
+  const state: Record<string, unknown> = { ...persisted };
+  // 舊版沒有寫入 version 欄位，zustand 會傳 undefined，視為 v0。
+  const from = typeof version === 'number' ? version : 0;
+
+  // v0：openedClientIds 只記錄人才開給客戶的對話，改名為雙向計算的 openedPeerIds。
+  if (from < 1) {
+    const legacy = state.openedClientIds;
+    if (state.openedPeerIds === undefined && Array.isArray(legacy)) {
+      state.openedPeerIds = legacy.filter((id): id is string => typeof id === 'string');
+    }
+    delete state.openedClientIds;
+  }
+
+  return state;
+}
+
 export const useSessionStore = create<SessionState>()(
-  persist(
+  persist<SessionState, [], [], PersistedSession>(
     (set, get) => ({
       ...initialState,
 
@@ -138,22 +172,24 @@ export const useSessionStore = create<SessionState>()(
           set({
             quotaMonth: current,
             chatQuotaRemaining: FREE_MONTHLY_CHAT_QUOTA,
-            openedClientIds: [],
+            openedPeerIds: [],
           });
         }
       },
 
-      requestChatWith: (clientId) => {
+      hasOpenedChatWith: (peerId) => get().openedPeerIds.includes(peerId),
+
+      requestChatWith: (peerId) => {
         get().syncQuotaMonth();
-        const { isPremium, openedClientIds, chatQuotaRemaining } = get();
+        const { isPremium, openedPeerIds, chatQuotaRemaining } = get();
 
         if (isPremium) return 'unlimited';
-        if (openedClientIds.includes(clientId)) return 'existing';
+        if (openedPeerIds.includes(peerId)) return 'existing';
         if (chatQuotaRemaining <= 0) return 'blocked';
 
         set({
           chatQuotaRemaining: chatQuotaRemaining - 1,
-          openedClientIds: [...openedClientIds, clientId],
+          openedPeerIds: [...openedPeerIds, peerId],
         });
         return 'allowed';
       },
@@ -179,8 +215,10 @@ export const useSessionStore = create<SessionState>()(
         premiumSince: state.premiumSince,
         chatQuotaRemaining: state.chatQuotaRemaining,
         quotaMonth: state.quotaMonth,
-        openedClientIds: state.openedClientIds,
+        openedPeerIds: state.openedPeerIds,
       }),
+      version: 1,
+      migrate: (persisted, version) => migrateSession(persisted, version),
       onRehydrateStorage: () => (state) => {
         state?.markHydrated();
         state?.syncQuotaMonth();

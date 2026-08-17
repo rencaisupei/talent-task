@@ -13,7 +13,7 @@ import { FREE_MONTHLY_CHAT_QUOTA, PREMIUM_PRICE_TWD, useSessionStore } from '@/l
 import { cn } from '@/lib/utils';
 
 const FREE_FEATURES = [
-  `每月可與 ${FREE_MONTHLY_CHAT_QUOTA} 位不同客戶開啟新對話`,
+  `每月可與 ${FREE_MONTHLY_CHAT_QUOTA} 位不同對象開啟新對話（發案、接案雙向共用）`,
   '完整瀏覽全台任務牆',
   'AI 即時認證徽章',
 ];

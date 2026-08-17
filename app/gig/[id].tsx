@@ -32,7 +32,7 @@ import { useChatStore } from '@/lib/stores/chat';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
 import { useSavedStore } from '@/lib/stores/saved';
-import { useSessionStore } from '@/lib/stores/session';
+import { FREE_MONTHLY_CHAT_QUOTA, useSessionStore } from '@/lib/stores/session';
 import { BUDGET_LEVELS } from '@/lib/types';
 
 type GigConfirmKind =
@@ -107,32 +107,37 @@ export default function GigDetailScreen() {
   const myReview = findReview(reviews, gig.id, userId);
   const pendingBids = gigBids.filter((bid) => bid.status === 'pending');
 
-  const goToChat = (talentId: string, talentName: string, openingMessage: string) => {
+  const openChat = (
+    peerId: string,
+    conversation: { talentId: string; talentName: string; openingMessage: string },
+  ) => {
     const existing = conversations.find(
-      (conversation) => conversation.gigId === gig.id && conversation.talentId === talentId,
+      (item) => item.gigId === gig.id && item.talentId === conversation.talentId,
     );
     if (existing) {
       router.push({ pathname: '/chat/[id]', params: { id: existing.id } });
       return;
     }
+    if (requestChatWith(peerId) === 'blocked') {
+      router.push('/subscription');
+      return;
+    }
     const conversationId = startConversation({
       gig,
-      talentId,
-      talentName,
-      openingMessage,
+      talentId: conversation.talentId,
+      talentName: conversation.talentName,
+      openingMessage: conversation.openingMessage,
     });
     markTalking(gig.id);
     router.push({ pathname: '/chat/[id]', params: { id: conversationId } });
   };
 
-  const handleTalentOpenChat = () => {
-    const result = requestChatWith(gig.clientId);
-    if (result === 'blocked') {
-      router.push('/subscription');
-      return;
-    }
-    goToChat(userId, displayName, `您好，我可以承接「${gig.tag}」這項任務，方便說明現場細節嗎？`);
-  };
+  const handleTalentOpenChat = () =>
+    openChat(gig.clientId, {
+      talentId: userId,
+      talentName: displayName,
+      openingMessage: `您好，我可以承接「${gig.tag}」這項任務，方便說明現場細節嗎？`,
+    });
 
   const handleAcceptBid = (bidId: string, talentName: string) =>
     setConfirm({ type: 'accept', bidId, talentName });
@@ -418,13 +423,19 @@ export default function GigDetailScreen() {
               <Button.Label>開啟對話並回覆客戶</Button.Label>
             </Button>
             <Text className="text-muted text-[12px] leading-5">
-              投遞提案不佔用對話配額；免費版每月最多與 2 位不同客戶開啟新對話。
+              投遞提案不佔用對話配額；免費版每月最多與 {FREE_MONTHLY_CHAT_QUOTA}{' '}
+              位不同對象開啟新對話。
             </Text>
           </View>
         ) : null}
 
         {isOwner ? (
           <View className="gap-4">
+            <ChatQuotaPill onPress={() => router.push('/subscription')} />
+            <Text className="text-muted text-[12px] leading-5">
+              主動聯絡人才同樣會佔用配額；已聯絡過的對象不重複計算。
+            </Text>
+
             <SectionHeading
               title={`收到的提案（${pendingBids.length}）`}
               caption="比較報價、可到場時間與評價後選定人才。"
@@ -449,11 +460,11 @@ export default function GigDetailScreen() {
                       : undefined
                   }
                   onChat={() =>
-                    goToChat(
-                      bid.talentId,
-                      bid.talentName,
-                      `您好，我看到您對「${gig.tag}」的提案，想再確認幾個細節。`,
-                    )
+                    openChat(bid.talentId, {
+                      talentId: bid.talentId,
+                      talentName: bid.talentName,
+                      openingMessage: `您好，我看到您對「${gig.tag}」的提案，想再確認幾個細節。`,
+                    })
                   }
                   onPressTalent={() =>
                     router.push({ pathname: '/talent/[id]', params: { id: bid.talentId } })
@@ -510,11 +521,11 @@ export default function GigDetailScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() =>
-                          goToChat(
-                            talent.id,
-                            talent.name,
-                            `您好，我發布了「${gig.tag}」的任務，想請您評估。`,
-                          )
+                          openChat(talent.id, {
+                            talentId: talent.id,
+                            talentName: talent.name,
+                            openingMessage: `您好，我發布了「${gig.tag}」的任務，想請您評估。`,
+                          })
                         }
                         accessibilityRole="button"
                         accessibilityLabel={`與 ${talent.name} 開啟對話`}

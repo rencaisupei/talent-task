@@ -10,7 +10,7 @@ interface ChatQuotaPillProps {
   className?: string;
 }
 
-/** 服務提供者外殼上的配額藥丸標籤。 */
+/** 對話配額藥丸標籤：發案與接案共用同一份配額。 */
 export function ChatQuotaPill({ onPress, className }: ChatQuotaPillProps) {
   const isPremium = useSessionStore((state) => state.isPremium);
   const remaining = useSessionStore((state) => state.chatQuotaRemaining);
