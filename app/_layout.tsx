@@ -137,13 +137,9 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  // Web gets Inter from the stylesheet link above, so the first paint must not
-  // wait on expo-font — blocking there is what made the browser preview feel
-  // slow to appear. Native still waits so text doesn't flash a fallback face.
-  if (!loaded && !error && Platform.OS !== 'web') {
-    return null;
-  }
-
+  // 一律在第一次渲染就掛上導覽器：root layout 若先回傳 null，expo-router 的根導覽器
+  // 尚未建立，任何導向都會失敗（Attempted to navigate before mounting the Root Layout）。
+  // 原生上字型載入完成前由啟動畫面遮住，不會看到替代字體閃動。
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>

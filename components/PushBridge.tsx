@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
+import { useNavigationReady } from '@/lib/navigation';
 import {
   addPushTapListener,
   configurePushHandler,
   isPushSupported,
+  type PushTapPayload,
   requestPushPermission,
   syncPushPermission,
 } from '@/lib/push';
@@ -18,6 +20,9 @@ export function PushBridge() {
   const hydrated = usePushPrefsStore((state) => state.hydrated);
   const enabled = usePushPrefsStore((state) => state.enabled);
   const permission = usePushPrefsStore((state) => state.permission);
+  const navigationReady = useNavigationReady();
+  // 冷啟動點推播進來時導覽器可能還沒掛好，先收著等就緒再導。
+  const pendingTapRef = useRef<PushTapPayload | null>(null);
 
   useEffect(() => {
     if (!isPushSupported || !hydrated) return;
@@ -29,24 +34,37 @@ export function PushBridge() {
     void syncPushPermission();
   }, [hydrated, enabled, permission]);
 
+  const openFromPush = useCallback((payload: PushTapPayload) => {
+    if (payload.conversationId) {
+      router.push({ pathname: '/chat/[id]', params: { id: payload.conversationId } });
+      return;
+    }
+    if (payload.gigId) {
+      router.push({ pathname: '/gig/[id]', params: { id: payload.gigId } });
+      return;
+    }
+    if (payload.talentId) {
+      router.push({ pathname: '/talent/[id]', params: { id: payload.talentId } });
+      return;
+    }
+    router.push('/notifications');
+  }, []);
+
   useEffect(() => {
     if (!isPushSupported) return undefined;
     return addPushTapListener((payload) => {
-      if (payload.conversationId) {
-        router.push({ pathname: '/chat/[id]', params: { id: payload.conversationId } });
-        return;
-      }
-      if (payload.gigId) {
-        router.push({ pathname: '/gig/[id]', params: { id: payload.gigId } });
-        return;
-      }
-      if (payload.talentId) {
-        router.push({ pathname: '/talent/[id]', params: { id: payload.talentId } });
-        return;
-      }
-      router.push('/notifications');
+      if (navigationReady) openFromPush(payload);
+      else pendingTapRef.current = payload;
     });
-  }, []);
+  }, [navigationReady, openFromPush]);
+
+  useEffect(() => {
+    if (!navigationReady) return;
+    const pending = pendingTapRef.current;
+    if (!pending) return;
+    pendingTapRef.current = null;
+    openFromPush(pending);
+  }, [navigationReady, openFromPush]);
 
   return null;
 }

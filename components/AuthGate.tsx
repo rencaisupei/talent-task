@@ -7,6 +7,7 @@ import { IS_ADMIN_WEB } from '@/lib/adminHost';
 import { getStoredSession, subscribeToAuthChanges } from '@/lib/auth';
 import { IS_BILT_CONFIGURED } from '@/lib/bilt';
 import { resetLocalUserData } from '@/lib/localData';
+import { useNavigationReady } from '@/lib/navigation';
 import { loadProfileIntoSession, resetProfileSyncState, startProfileSync } from '@/lib/profiles';
 import { useSessionStore } from '@/lib/stores/session';
 
@@ -45,6 +46,7 @@ function handleSession(session: Session | null): void {
  */
 export function AuthGate() {
   const pathname = usePathname();
+  const navigationReady = useNavigationReady();
   const authStatus = useSessionStore((state) => state.authStatus);
   const onAuthRoute = pathname.startsWith('/auth');
 
@@ -67,7 +69,8 @@ export function AuthGate() {
   }, []);
 
   useEffect(() => {
-    if (IS_ADMIN_WEB || authStatus === 'unknown') return;
+    // 根導覽器掛載完成前不能導向，否則 expo-router 會直接丟錯。
+    if (IS_ADMIN_WEB || !navigationReady || authStatus === 'unknown') return;
 
     if (authStatus === 'signedOut' && !onAuthRoute) {
       router.replace(SIGN_IN_PATH);
@@ -76,7 +79,7 @@ export function AuthGate() {
     if (authStatus === 'signedIn' && onAuthRoute) {
       router.replace(APP_PATH);
     }
-  }, [authStatus, onAuthRoute]);
+  }, [authStatus, onAuthRoute, navigationReady]);
 
   if (IS_ADMIN_WEB) return null;
 

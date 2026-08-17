@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 
 import { ADMIN_ENTRY_PATH, IS_ADMIN_WEB, isAdminPath } from '@/lib/adminHost';
+import { useNavigationReady } from '@/lib/navigation';
 
 const ADMIN_WEB_TITLE = '即時發管理平台';
 
@@ -14,19 +15,21 @@ const ADMIN_WEB_TITLE = '即時發管理平台';
  */
 export function WebAdminGate() {
   const pathname = usePathname();
+  const navigationReady = useNavigationReady();
   const shouldRedirect = IS_ADMIN_WEB && !isAdminPath(pathname);
 
   useEffect(() => {
     if (!IS_ADMIN_WEB) return;
-
     if (typeof document !== 'undefined' && document.title !== ADMIN_WEB_TITLE) {
       document.title = ADMIN_WEB_TITLE;
     }
+  }, []);
 
-    if (shouldRedirect) {
-      router.replace(ADMIN_ENTRY_PATH);
-    }
-  }, [shouldRedirect]);
+  useEffect(() => {
+    // 根導覽器掛載完成前不能導向，否則 expo-router 會直接丟錯。
+    if (!shouldRedirect || !navigationReady) return;
+    router.replace(ADMIN_ENTRY_PATH);
+  }, [shouldRedirect, navigationReady]);
 
   if (!shouldRedirect) return null;
 
