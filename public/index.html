@@ -27,8 +27,13 @@
          X-Robots-Tag header in public/_headers, and a runtime robots meta. -->
     <meta name="robots" content="index, follow" />
 
-    <!-- Social preview. og:url and og:image need absolute URLs, so add them once
-         the production domain is final (see README section 8). -->
+    <!-- Social preview. og:image must be an absolute URL, so it is pinned to the
+         production domain (instantgig.tw).
+         og:url and <link rel="canonical"> are deliberately absent: this is a
+         single-page export, so every route returns this same document. A fixed
+         value would make a shared /gig/<id> link resolve to the home page (and
+         tell crawlers every route duplicates it). They belong to a per-page
+         'static' export — see README section 8. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="即時發 InstantGig" />
     <meta property="og:locale" content="zh_TW" />
@@ -37,6 +42,18 @@
       property="og:description"
       content="30 秒發布需求，附近的專家立即投標。雙向評價與信任度讓你放心成交。"
     />
+    <meta property="og:image" content="https://instantgig.tw/icons/instantgig-icon.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:alt" content="即時發 InstantGig 標誌" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="即時發 InstantGig｜全台急件即時媒合" />
+    <meta
+      name="twitter:description"
+      content="30 秒發布需求，附近的專家立即投標。雙向評價與信任度讓你放心成交。"
+    />
+    <meta name="twitter:image" content="https://instantgig.tw/icons/instantgig-icon.png" />
 
     <!-- Web app manifest — the install contract for Android/Chrome -->
     <link rel="manifest" href="/manifest.json" />

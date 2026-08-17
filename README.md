@@ -487,8 +487,14 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 - **SEO 的實際限制**：`web.output` 是 `'single'`，所有路徑回傳同一份 `index.html`，
   因此每個頁面的標題與描述都一樣，也沒有 sitemap。要做逐頁標題、描述與預覽圖，
   需改成 `static` 匯出（`app/+html.tsx` 才會生效），那是另一項工程。
-- **Open Graph 分享預覽**：`og:url` 與 `og:image` 需要絕對網址，網域定案後補進
-  `public/index.html`（例如 `https://instantgig.tw/` 與一張 1200×630 的預覽圖）。
+- **Open Graph 分享預覽**：`public/index.html` 已帶 `og:image`（絕對網址
+  `https://instantgig.tw/icons/instantgig-icon.png`，1024×1024 方形，Facebook／LINE
+  會顯示為方形縮圖）與 Twitter card。想要 1200×630 的橫幅預覽圖，放一張到
+  `public/icons/` 並改 `og:image` 與 `og:image:width` / `og:image:height`，
+  `twitter:card` 同時改成 `summary_large_image`。
+  **`og:url` 與 `<link rel="canonical">` 刻意沒有加**：單頁匯出下所有路徑回傳同一份
+  HTML，填固定值會讓別人分享的 `/gig/<id>` 連結被導回首頁，也等於告訴爬蟲每個路徑
+  都是首頁的重複內容。這兩個標記要等改成 `static` 逐頁匯出才有意義。
 - **存取關卡**：一般使用者網站是公開的（本來就要公開）；`/admin` 有
   Cloudflare Access（路徑層，見第 7 節）與管理員帳密（伺服器端驗證，見第 9 節：
   帳號存在資料庫、密碼以 PBKDF2 雜湊、連續 5 次失敗鎖 5 分鐘）。
