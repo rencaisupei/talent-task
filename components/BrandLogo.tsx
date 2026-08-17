@@ -36,7 +36,7 @@ interface BrandWordmarkProps {
 }
 
 /** 品牌標語：顯示於品牌名下方。 */
-export const BRAND_TAGLINE = '全台需求及專家的媒合平台';
+export const BRAND_TAGLINE = '全台任務及專家的媒合平台';
 
 /** 品牌鎖定組合：圖示圖塊 + 中文品牌名 + 標語。 */
 export function BrandWordmark({
