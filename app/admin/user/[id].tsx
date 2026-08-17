@@ -10,7 +10,7 @@ import {
   Star,
   UserX,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -25,8 +25,7 @@ import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/format';
 import { useAdminStore } from '@/lib/stores/admin';
 import { useAdminAuditStore } from '@/lib/stores/adminAudit';
 import { useAdminCan } from '@/lib/stores/adminAuth';
-import { useBidStore } from '@/lib/stores/bids';
-import { useGigStore } from '@/lib/stores/gigs';
+import { useAdminContentStore } from '@/lib/stores/adminContent';
 import { findPlatformUser, usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { useReviewStore } from '@/lib/stores/reviews';
 import { subscriptionsForUser, useRevenueStore } from '@/lib/stores/revenue';
@@ -61,8 +60,9 @@ export default function AdminUserDetailScreen() {
   const subscriptions = useRevenueStore((state) => state.subscriptions);
   const grantPremium = useRevenueStore((state) => state.grantPremium);
   const revokePremium = useRevenueStore((state) => state.revokePremium);
-  const gigs = useGigStore((state) => state.gigs);
-  const bids = useBidStore((state) => state.bids);
+  const gigs = useAdminContentStore((state) => state.gigs);
+  const bids = useAdminContentStore((state) => state.bids);
+  const refreshContent = useAdminContentStore((state) => state.refresh);
   const reviews = useReviewStore((state) => state.reviews);
   const auditEntries = useAdminAuditStore((state) => state.entries);
   const logAction = useAuditLogger();
@@ -73,6 +73,10 @@ export default function AdminUserDetailScreen() {
   const user = useMemo(() => findPlatformUser(users, id), [id, users]);
   const [note, setNoteDraft] = useState(user?.note ?? '');
   const [pending, setPending] = useState<PendingAction | null>(null);
+
+  useEffect(() => {
+    void refreshContent();
+  }, [refreshContent]);
 
   const summary = useMemo(() => summarizeReviews(reviewsForUser(reviews, id)), [id, reviews]);
   const userGigs = useMemo(

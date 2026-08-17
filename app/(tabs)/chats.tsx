@@ -10,11 +10,11 @@ import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
 import { useChatStore } from '@/lib/stores/chat';
-import { useSessionStore } from '@/lib/stores/session';
+import { useMyUserId, useSessionStore } from '@/lib/stores/session';
 
 export default function ChatListScreen() {
   const role = useSessionStore((state) => state.role);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const conversations = useChatStore((state) => state.conversations);
   const messages = useChatStore((state) => state.messages);
 

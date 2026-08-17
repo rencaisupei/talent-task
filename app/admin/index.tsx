@@ -14,7 +14,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -36,8 +36,7 @@ import { useAdminStore } from '@/lib/stores/admin';
 import { useAdminAuditStore } from '@/lib/stores/adminAudit';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { useAnnouncementStore } from '@/lib/stores/announcements';
-import { bidsAwaitingReview, useBidStore } from '@/lib/stores/bids';
-import { gigsAwaitingReview, useGigStore } from '@/lib/stores/gigs';
+import { useAdminContentStore } from '@/lib/stores/adminContent';
 import { usePlatformUserStore } from '@/lib/stores/platformUsers';
 import { ADMIN_ACTION_LABEL, ADMIN_ROLE_LABEL } from '@/lib/types';
 
@@ -50,8 +49,9 @@ export default function AdminHomeScreen() {
   const reports = useAdminStore((state) => state.reports);
   const bannedUserIds = useAdminStore((state) => state.bannedUserIds);
   const users = usePlatformUserStore((state) => state.users);
-  const gigs = useGigStore((state) => state.gigs);
-  const bids = useBidStore((state) => state.bids);
+  const gigs = useAdminContentStore((state) => state.gigs);
+  const bids = useAdminContentStore((state) => state.bids);
+  const refreshContent = useAdminContentStore((state) => state.refresh);
   const announcements = useAnnouncementStore((state) => state.announcements);
   const auditEntries = useAdminAuditStore((state) => state.entries);
 
@@ -69,8 +69,19 @@ export default function AdminHomeScreen() {
     () => gigs.filter((gig) => gig.takedownReason !== undefined).length,
     [gigs],
   );
-  const pendingGigReviews = useMemo(() => gigsAwaitingReview(gigs).length, [gigs]);
-  const pendingBidReviews = useMemo(() => bidsAwaitingReview(bids).length, [bids]);
+  const pendingGigReviews = useMemo(
+    () => gigs.filter((gig) => gig.review?.state === 'pending').length,
+    [gigs],
+  );
+  const pendingBidReviews = useMemo(
+    () =>
+      bids.filter((bid) => bid.status !== 'withdrawn' && bid.review?.state === 'pending').length,
+    [bids],
+  );
+
+  useEffect(() => {
+    void refreshContent();
+  }, [refreshContent]);
 
   const recentEntries = auditEntries.slice(0, 4);
   const canViewRevenue = permissions.includes('revenue:view');

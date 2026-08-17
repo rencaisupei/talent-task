@@ -2,21 +2,19 @@ import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { Button, SearchField } from 'heroui-native';
 import { ChevronRight, Inbox, Zap } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { CloudListState } from '@/components/CloudListState';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
-import { EmptyState } from '@/components/SectionHeading';
 import { SegmentedTabs, type SegmentOption } from '@/components/SegmentedTabs';
 import { StaticTag } from '@/components/TagChip';
 import { useAuditLogger } from '@/hooks/useAuditLogger';
 import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
 import { findCategoryByTag } from '@/lib/omniTags';
-import { useBidStore } from '@/lib/stores/bids';
-import { useChatStore } from '@/lib/stores/chat';
-import { useGigStore } from '@/lib/stores/gigs';
+import { useAdminContentStore } from '@/lib/stores/adminContent';
 import { BUDGET_LEVELS, type Gig, type GigStatus } from '@/lib/types';
 
 type GigFilter = 'all' | 'open' | 'talking' | 'assigned' | 'completed' | 'takedown';
@@ -36,17 +34,23 @@ const TAKEDOWN_REASONS = [
 ];
 
 export default function AdminGigsScreen() {
-  const gigs = useGigStore((state) => state.gigs);
-  const takedownGig = useGigStore((state) => state.takedownGig);
-  const restoreGig = useGigStore((state) => state.restoreGig);
-  const bids = useBidStore((state) => state.bids);
-  const conversations = useChatStore((state) => state.conversations);
+  const gigs = useAdminContentStore((state) => state.gigs);
+  const bids = useAdminContentStore((state) => state.bids);
+  const loadState = useAdminContentStore((state) => state.loadState);
+  const errorMessage = useAdminContentStore((state) => state.errorMessage);
+  const refreshContent = useAdminContentStore((state) => state.refresh);
+  const takedownGig = useAdminContentStore((state) => state.takedownGig);
+  const restoreGig = useAdminContentStore((state) => state.restoreGig);
   const logAction = useAuditLogger();
 
   const [keyword, setKeyword] = useState('');
   const [filter, setFilter] = useState<GigFilter>('all');
   const [takedownTarget, setTakedownTarget] = useState<Gig | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<Gig | null>(null);
+
+  useEffect(() => {
+    void refreshContent();
+  }, [refreshContent]);
 
   const counts = useMemo(
     () => ({
@@ -86,28 +90,36 @@ export default function AdminGigsScreen() {
     });
   }, [filter, gigs, keyword]);
 
-  const handleTakedown = (reason: string) => {
+  const handleTakedown = async (reason: string) => {
     if (!takedownTarget) return;
-    takedownGig(takedownTarget.id, reason);
+    const target = takedownTarget;
+    setTakedownTarget(null);
+
+    const ok = await takedownGig(target.id, reason);
+    if (!ok) return;
+
     logAction({
       kind: 'gig',
       summary: `下架任務：${reason}`,
-      targetId: takedownTarget.id,
-      targetLabel: takedownTarget.title,
+      targetId: target.id,
+      targetLabel: target.title,
     });
-    setTakedownTarget(null);
   };
 
-  const handleRestore = () => {
+  const handleRestore = async () => {
     if (!restoreTarget) return;
-    restoreGig(restoreTarget.id);
+    const target = restoreTarget;
+    setRestoreTarget(null);
+
+    const ok = await restoreGig(target.id);
+    if (!ok) return;
+
     logAction({
       kind: 'gig',
       summary: '恢復上架：任務重新開放媒合',
-      targetId: restoreTarget.id,
-      targetLabel: restoreTarget.title,
+      targetId: target.id,
+      targetLabel: target.title,
     });
-    setRestoreTarget(null);
   };
 
   return (
@@ -124,6 +136,11 @@ export default function AdminGigsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View className="gap-3 py-4">
+            {errorMessage ? (
+              <View className="border-coral/25 bg-coral-soft rounded-xl border px-4 py-3">
+                <Text className="text-coral text-[13px] leading-5">{errorMessage}</Text>
+              </View>
+            ) : null}
             <SearchField value={keyword} onChange={setKeyword}>
               <SearchField.Group>
                 <SearchField.SearchIcon />
@@ -144,18 +161,19 @@ export default function AdminGigsScreen() {
             bidCount={
               bids.filter((bid) => bid.gigId === item.id && bid.status !== 'withdrawn').length
             }
-            conversationCount={
-              conversations.filter((conversation) => conversation.gigId === item.id).length
-            }
             onTakedown={() => setTakedownTarget(item)}
             onRestore={() => setRestoreTarget(item)}
           />
         )}
         ListEmptyComponent={
-          <EmptyState
-            title="沒有符合條件的任務"
-            caption="調整搜尋關鍵字或切換狀態篩選。"
-            icon={<Inbox size={22} color={COLORS.brand} strokeWidth={2.1} />}
+          <CloudListState
+            loadState={loadState}
+            errorMessage={errorMessage}
+            onRetry={() => void refreshContent()}
+            loadingLabel="正在讀取平台任務…"
+            emptyTitle="沒有符合條件的任務"
+            emptyCaption="調整搜尋關鍵字或切換狀態篩選。"
+            emptyIcon={<Inbox size={22} color={COLORS.brand} strokeWidth={2.1} />}
           />
         }
       />
@@ -169,7 +187,7 @@ export default function AdminGigsScreen() {
           label: reason.label,
           tone: 'danger' as const,
         }))}
-        onSelect={handleTakedown}
+        onSelect={(reason) => void handleTakedown(reason)}
         onCancel={() => setTakedownTarget(null)}
       />
 
@@ -178,7 +196,7 @@ export default function AdminGigsScreen() {
         title="恢復上架？"
         message={`「${restoreTarget?.title ?? ''}」將回到等待媒合狀態，重新推送給符合標籤的人才。`}
         actions={[{ id: 'confirm', label: '確認恢復上架', tone: 'primary' }]}
-        onSelect={handleRestore}
+        onSelect={() => void handleRestore()}
         onCancel={() => setRestoreTarget(null)}
       />
     </View>
@@ -188,18 +206,11 @@ export default function AdminGigsScreen() {
 interface GigAdminRowProps {
   gig: Gig;
   bidCount: number;
-  conversationCount: number;
   onTakedown: () => void;
   onRestore: () => void;
 }
 
-function GigAdminRow({
-  gig,
-  bidCount,
-  conversationCount,
-  onTakedown,
-  onRestore,
-}: GigAdminRowProps) {
+function GigAdminRow({ gig, bidCount, onTakedown, onRestore }: GigAdminRowProps) {
   const budget = BUDGET_LEVELS.find((level) => level.id === gig.budgetLevel);
   const category = findCategoryByTag(gig.tag);
   const isTakenDown = gig.takedownReason !== undefined;
@@ -237,8 +248,7 @@ function GigAdminRow({
       </View>
 
       <Text className="text-ink-soft text-[12px]">
-        提案 {bidCount} 份・對話 {conversationCount} 組
-        {gig.assignedTalentName ? `・已指派 ${gig.assignedTalentName}` : ''}
+        提案 {bidCount} 份{gig.assignedTalentName ? `・已指派 ${gig.assignedTalentName}` : ''}
       </Text>
 
       {isTakenDown ? (

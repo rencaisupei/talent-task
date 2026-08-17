@@ -13,16 +13,18 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { BidCard } from '@/components/BidCard';
 import { BrandWordmark } from '@/components/BrandLogo';
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
+import { CloudListState } from '@/components/CloudListState';
 import { GigCard } from '@/components/GigCard';
 import { GigFilterSheet } from '@/components/GigFilterSheet';
 import { GigMapPanel } from '@/components/GigMapPanel';
 import { NotificationBell } from '@/components/NotificationBell';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
+import { SignInNotice } from '@/components/SignInNotice';
 import { COLORS } from '@/lib/colors';
 import {
   activeFilterCount,
@@ -34,7 +36,7 @@ import { CATEGORY_COUNT } from '@/lib/omniTags';
 import { isBidVisible, useBidStore } from '@/lib/stores/bids';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { useSavedStore } from '@/lib/stores/saved';
-import { useSessionStore } from '@/lib/stores/session';
+import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import type { Gig } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -51,8 +53,12 @@ function openGig(gigId: string) {
 
 function TalentHome() {
   const gigs = useGigStore((state) => state.gigs);
+  const loadState = useGigStore((state) => state.loadState);
+  const isRefreshing = useGigStore((state) => state.isRefreshing);
+  const errorMessage = useGigStore((state) => state.errorMessage);
+  const refreshGigs = useGigStore((state) => state.refreshGigs);
   const skills = useSessionStore((state) => state.skills);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const verification = useSessionStore((state) => state.verification);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
   const toggleSaved = useSavedStore((state) => state.toggleSaved);
@@ -143,6 +149,8 @@ function TalentHome() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
+          refreshing={isRefreshing}
+          onRefresh={() => void refreshGigs()}
           ListHeaderComponent={
             <View className="pt-safe-offset-4 gap-4 pb-4">
               <View className="flex-row items-center justify-between gap-3">
@@ -182,10 +190,14 @@ function TalentHome() {
             </View>
           )}
           ListEmptyComponent={
-            <EmptyState
-              title="目前沒有符合條件的任務"
-              caption="調整篩選條件或擴大服務地區，就能看到更多急件。"
-              icon={<Zap size={22} color={COLORS.coral} strokeWidth={2.1} />}
+            <CloudListState
+              loadState={loadState}
+              errorMessage={errorMessage}
+              onRetry={() => void refreshGigs()}
+              loadingLabel="正在讀取全台任務…"
+              emptyTitle="目前沒有符合條件的任務"
+              emptyCaption="調整篩選條件或擴大服務地區，就能看到更多急件。"
+              emptyIcon={<Zap size={22} color={COLORS.coral} strokeWidth={2.1} />}
             />
           }
         />
@@ -235,7 +247,10 @@ function ModeButton({
 function ClientHome() {
   const gigs = useGigStore((state) => state.gigs);
   const bids = useBidStore((state) => state.bids);
-  const userId = useSessionStore((state) => state.userId);
+  const isRefreshing = useGigStore((state) => state.isRefreshing);
+  const refreshGigs = useGigStore((state) => state.refreshGigs);
+  const userId = useMyUserId();
+  const isSignedIn = useIsSignedIn();
 
   const myGigs = useMemo(
     () => gigs.filter((gig) => gig.clientId === userId).sort((a, b) => b.createdAt - a.createdAt),
@@ -262,11 +277,21 @@ function ClientHome() {
       <ScrollView
         contentContainerClassName="px-5 pt-safe-offset-4 pb-28 gap-5"
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={() => void refreshGigs()} />
+        }
       >
         <View className="flex-row items-center justify-between gap-3">
           <BrandWordmark size={48} />
           <NotificationBell />
         </View>
+
+        {isSignedIn ? null : (
+          <SignInNotice
+            title="登入後開始發布任務"
+            caption="任務會同步到雲端並廣播給全台人才，因此需要帳號才能發布與收提案。瀏覽任務牆不需要登入。"
+          />
+        )}
 
         <Pressable
           onPress={() => router.push('/publish')}
@@ -304,7 +329,11 @@ function ClientHome() {
           {pendingBids.length === 0 ? (
             <EmptyState
               title="尚未收到提案"
-              caption="任務發布後，符合標籤的人才會送出報價與可到場時間。"
+              caption={
+                isSignedIn
+                  ? '任務發布後，符合標籤的人才會送出報價與可到場時間。'
+                  : '登入並發布任務後，符合標籤的人才會送出報價與可到場時間。'
+              }
               icon={<Inbox size={22} color={COLORS.brand} strokeWidth={2.1} />}
             />
           ) : (

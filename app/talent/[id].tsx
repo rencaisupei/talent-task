@@ -22,7 +22,7 @@ import { goBackOrReplace } from '@/lib/navigation';
 import { SEED_TALENTS } from '@/lib/seed';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useReviewStore } from '@/lib/stores/reviews';
-import { useSessionStore } from '@/lib/stores/session';
+import { useSessionStore, useMyUserId } from '@/lib/stores/session';
 import {
   formatResponseTime,
   reviewsForUser,
@@ -36,7 +36,7 @@ export default function TalentProfileScreen() {
   const reviews = useReviewStore((state) => state.reviews);
   const gigs = useGigStore((state) => state.gigs);
 
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const displayName = useSessionStore((state) => state.displayName);
   const region = useSessionStore((state) => state.region);
   const skills = useSessionStore((state) => state.skills);

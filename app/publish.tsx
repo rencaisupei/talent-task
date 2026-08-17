@@ -9,13 +9,15 @@ import { AiReviewCard } from '@/components/AiReviewCard';
 import { CategoryAccordion } from '@/components/CategoryAccordion';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
+import { SignInNotice } from '@/components/SignInNotice';
 import { publishReviewFromAi, runAiReview } from '@/lib/aiReview';
+import { requireSignIn } from '@/lib/authGuard';
 import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
 import { CATEGORY_COUNT, findCategoryById } from '@/lib/omniTags';
 import { REGION_ANY, TAIWAN_REGIONS } from '@/lib/regions';
 import { useGigStore } from '@/lib/stores/gigs';
-import { useSessionStore } from '@/lib/stores/session';
+import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import {
   type AiReviewResult,
   BUDGET_LEVELS,
@@ -42,7 +44,8 @@ interface PublishOutcome {
 }
 
 export default function PublishScreen() {
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
+  const isSignedIn = useIsSignedIn();
   const displayName = useSessionStore((state) => state.displayName);
   const sessionRegion = useSessionStore((state) => state.region);
   const publishGig = useGigStore((state) => state.publishGig);
@@ -58,6 +61,7 @@ export default function PublishScreen() {
   const [budgetLevel, setBudgetLevel] = useState<BudgetLevelId>('B2');
   const [isUrgent, setIsUrgent] = useState(true);
   const [reviewing, setReviewing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<PublishOutcome | null>(null);
 
   const handleSelectTag = (nextTag: string, nextCategoryId: string) => {
@@ -102,11 +106,13 @@ export default function PublishScreen() {
     }
   };
 
-  const canPublish = tag !== null && categoryId !== null && detail.trim().length >= 5;
+  const canPublish = isSignedIn && tag !== null && categoryId !== null && detail.trim().length >= 5;
 
   const handlePublish = async () => {
     if (!tag || !categoryId || reviewing) return;
+    if (!requireSignIn()) return;
     setReviewing(true);
+    setPublishError(null);
 
     const title = `${tag}｜${isUrgent ? '急件立即處理' : '徵求專業協助'}`;
     const ai = await runAiReview({
@@ -127,7 +133,7 @@ export default function PublishScreen() {
       longitude: coords?.longitude,
       source: coords ? 'gps' : 'manual',
     };
-    const gig = publishGig({
+    const result = await publishGig({
       categoryId,
       tag,
       detail: detail.trim(),
@@ -140,7 +146,13 @@ export default function PublishScreen() {
     });
 
     setReviewing(false);
-    setOutcome({ gigId: gig.id, ai, passed: review.state === 'approved' });
+
+    if (result.status === 'error') {
+      setPublishError(result.message);
+      return;
+    }
+
+    setOutcome({ gigId: result.gig.id, ai, passed: review.state === 'approved' });
   };
 
   if (outcome) {
@@ -224,6 +236,13 @@ export default function PublishScreen() {
             )}
           </Text>
         </View>
+
+        {isSignedIn ? null : (
+          <SignInNotice
+            title="發布任務需要先登入"
+            caption="任務會存到雲端並廣播給全台人才，發案者身分要綁定帳號才能收提案與管理進度。"
+          />
+        )}
 
         <View className="border-brand/25 bg-brand-soft flex-row items-start gap-2 rounded-xl border px-4 py-3">
           <ShieldCheck size={16} color={COLORS.brandStrong} strokeWidth={2.1} />
@@ -345,6 +364,11 @@ export default function PublishScreen() {
       </ScrollView>
 
       <View className="border-hairline pb-safe-or-5 border-t bg-white px-5 pt-4">
+        {publishError ? (
+          <View className="border-coral/25 bg-coral-soft mb-3 rounded-xl border px-4 py-3">
+            <Text className="text-coral text-[13px] leading-5">{publishError}</Text>
+          </View>
+        ) : null}
         {reviewing ? (
           <View className="mb-3 flex-row items-center justify-center gap-2">
             <Spinner size="sm" />
@@ -361,11 +385,13 @@ export default function PublishScreen() {
           <Button.Label>
             {reviewing
               ? '認證中…'
-              : canPublish
-                ? isUrgent
-                  ? '認證並立即發布急件任務'
-                  : '認證並立即發布任務'
-                : '請完成標籤與描述'}
+              : !isSignedIn
+                ? '登入後即可發布'
+                : canPublish
+                  ? isUrgent
+                    ? '認證並立即發布急件任務'
+                    : '認證並立即發布任務'
+                  : '請完成標籤與描述'}
           </Button.Label>
         </Button>
       </View>

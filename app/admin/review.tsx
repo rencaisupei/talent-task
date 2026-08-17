@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Button } from 'heroui-native';
 import { FileBadge, Inbox, ShieldCheck } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -15,9 +15,7 @@ import { useAuditLogger } from '@/hooks/useAuditLogger';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/format';
 import { useAdminStore } from '@/lib/stores/admin';
-import { useAdminAuthStore } from '@/lib/stores/adminAuth';
-import { bidsAwaitingReview, useBidStore } from '@/lib/stores/bids';
-import { gigsAwaitingReview, useGigStore } from '@/lib/stores/gigs';
+import { useAdminContentStore } from '@/lib/stores/adminContent';
 
 type ReviewTab = 'gigs' | 'bids' | 'talents' | 'credentials';
 
@@ -43,14 +41,12 @@ interface PendingAction {
 }
 
 export default function AdminReviewScreen() {
-  const currentAdmin = useAdminAuthStore((state) => state.currentAdmin);
-  const gigs = useGigStore((state) => state.gigs);
-  const approveGigReview = useGigStore((state) => state.approveGigReview);
-  const rejectGigReview = useGigStore((state) => state.rejectGigReview);
-
-  const bids = useBidStore((state) => state.bids);
-  const approveBidReview = useBidStore((state) => state.approveBidReview);
-  const rejectBidReview = useBidStore((state) => state.rejectBidReview);
+  const gigs = useAdminContentStore((state) => state.gigs);
+  const bids = useAdminContentStore((state) => state.bids);
+  const refreshContent = useAdminContentStore((state) => state.refresh);
+  const contentError = useAdminContentStore((state) => state.errorMessage);
+  const decideGigReview = useAdminContentStore((state) => state.decideGigReview);
+  const decideBidReview = useAdminContentStore((state) => state.decideBidReview);
 
   const verifications = useAdminStore((state) => state.verifications);
   const approveVerification = useAdminStore((state) => state.approveVerification);
@@ -62,8 +58,15 @@ export default function AdminReviewScreen() {
   const [tab, setTab] = useState<ReviewTab>('gigs');
   const [pending, setPending] = useState<PendingAction | null>(null);
 
-  const pendingGigs = useMemo(() => gigsAwaitingReview(gigs), [gigs]);
-  const pendingBids = useMemo(() => bidsAwaitingReview(bids), [bids]);
+  useEffect(() => {
+    void refreshContent();
+  }, [refreshContent]);
+
+  const pendingGigs = useMemo(() => gigs.filter((gig) => gig.review?.state === 'pending'), [gigs]);
+  const pendingBids = useMemo(
+    () => bids.filter((bid) => bid.status !== 'withdrawn' && bid.review?.state === 'pending'),
+    [bids],
+  );
   const pendingTalents = useMemo(
     () => verifications.filter((item) => item.status === 'pending'),
     [verifications],
@@ -76,54 +79,57 @@ export default function AdminReviewScreen() {
     [verifications],
   );
 
-  const adminIdentity = {
-    adminId: currentAdmin?.id ?? 'admin_system',
-    adminName: currentAdmin?.name ?? '系統',
-  };
-
-  const runAction = (actionId: string) => {
+  const runAction = async (actionId: string) => {
     if (!pending) return;
 
     if (pending.kind === 'gig-approve') {
-      approveGigReview(pending.id, adminIdentity);
-      logAction({
-        kind: 'moderation',
-        summary: '複審放行任務：確認無詐騙風險並開放曝光',
-        targetId: pending.id,
-        targetLabel: pending.label,
-      });
+      const ok = await decideGigReview(pending.id, 'approve');
+      if (ok) {
+        logAction({
+          kind: 'moderation',
+          summary: '複審放行任務：確認無詐騙風險並開放曝光',
+          targetId: pending.id,
+          targetLabel: pending.label,
+        });
+      }
     }
 
     if (pending.kind === 'gig-reject') {
       const reason = REJECT_REASONS.includes(actionId) ? actionId : REJECT_REASONS[0];
-      rejectGigReview(pending.id, { ...adminIdentity, note: reason });
-      logAction({
-        kind: 'moderation',
-        summary: `複審退回任務：${reason}`,
-        targetId: pending.id,
-        targetLabel: pending.label,
-      });
+      const ok = await decideGigReview(pending.id, 'reject', reason);
+      if (ok) {
+        logAction({
+          kind: 'moderation',
+          summary: `複審退回任務：${reason}`,
+          targetId: pending.id,
+          targetLabel: pending.label,
+        });
+      }
     }
 
     if (pending.kind === 'bid-approve') {
-      approveBidReview(pending.id, adminIdentity);
-      logAction({
-        kind: 'moderation',
-        summary: '複審放行提案：報價內容確認無誤',
-        targetId: pending.id,
-        targetLabel: pending.label,
-      });
+      const ok = await decideBidReview(pending.id, 'approve');
+      if (ok) {
+        logAction({
+          kind: 'moderation',
+          summary: '複審放行提案：報價內容確認無誤',
+          targetId: pending.id,
+          targetLabel: pending.label,
+        });
+      }
     }
 
     if (pending.kind === 'bid-reject') {
       const reason = REJECT_REASONS.includes(actionId) ? actionId : REJECT_REASONS[0];
-      rejectBidReview(pending.id, { ...adminIdentity, note: reason });
-      logAction({
-        kind: 'moderation',
-        summary: `複審退回提案：${reason}`,
-        targetId: pending.id,
-        targetLabel: pending.label,
-      });
+      const ok = await decideBidReview(pending.id, 'reject', reason);
+      if (ok) {
+        logAction({
+          kind: 'moderation',
+          summary: `複審退回提案：${reason}`,
+          targetId: pending.id,
+          targetLabel: pending.label,
+        });
+      }
     }
 
     if (pending.kind === 'talent-approve') {
@@ -201,6 +207,12 @@ export default function AdminReviewScreen() {
         contentContainerClassName="px-5 py-5 pb-12 gap-5"
         showsVerticalScrollIndicator={false}
       >
+        {contentError ? (
+          <View className="border-coral/25 bg-coral-soft rounded-xl border px-4 py-3">
+            <Text className="text-coral text-[13px] leading-5">{contentError}</Text>
+          </View>
+        ) : null}
+
         <View className="flex-row gap-3">
           <KpiCard
             className="flex-1"
@@ -543,7 +555,7 @@ export default function AdminReviewScreen() {
         title={sheetTitle()}
         message={pending ? `對象：${pending.label}。所有複審動作都會寫入稽核紀錄。` : undefined}
         actions={sheetActions()}
-        onSelect={runAction}
+        onSelect={(actionId) => void runAction(actionId)}
         onCancel={() => setPending(null)}
       />
     </View>

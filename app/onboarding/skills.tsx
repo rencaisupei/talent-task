@@ -22,7 +22,7 @@ import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
 import { CATEGORY_COUNT, MAX_TALENT_TAGS, TOTAL_TAG_COUNT } from '@/lib/omniTags';
 import { useAdminStore } from '@/lib/stores/admin';
-import { useSessionStore } from '@/lib/stores/session';
+import { useMyUserId, useSessionStore } from '@/lib/stores/session';
 import type { AiReviewResult } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -32,7 +32,7 @@ export default function SkillCertificationScreen() {
   const region = useSessionStore((state) => state.region);
   const setRegion = useSessionStore((state) => state.setRegion);
   const displayName = useSessionStore((state) => state.displayName);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const chooseRole = useSessionStore((state) => state.chooseRole);
   const credentialUri = useSessionStore((state) => state.credentialUri);
   const setCredentialUri = useSessionStore((state) => state.setCredentialUri);

@@ -9,7 +9,7 @@ import {
   WEEKLY_TREND_BY_CATEGORY,
 } from '@/lib/seed';
 import { useChatStore } from '@/lib/stores/chat';
-import { useGigStore } from '@/lib/stores/gigs';
+import { useAdminContentStore } from '@/lib/stores/adminContent';
 import { PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
 import type { WeeklyPoint } from '@/lib/types';
 
@@ -26,7 +26,8 @@ export interface PlatformAnalytics {
 }
 
 export function usePlatformAnalytics(categoryId: string): PlatformAnalytics {
-  const gigs = useGigStore((state) => state.gigs);
+  // 分析只在管理平台使用，因此讀的是管理端的完整任務清單（含待複審與已下架）。
+  const gigs = useAdminContentStore((state) => state.gigs);
   const conversations = useChatStore((state) => state.conversations);
   const isPremium = useSessionStore((state) => state.isPremium);
 

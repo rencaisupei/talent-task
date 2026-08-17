@@ -19,7 +19,7 @@ import { COLORS } from '@/lib/colors';
 import { goBackOrReplace } from '@/lib/navigation';
 import { useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
-import { useSessionStore } from '@/lib/stores/session';
+import { useSessionStore, useMyUserId } from '@/lib/stores/session';
 import type { UserRole } from '@/lib/types';
 
 export default function ReviewScreen() {
@@ -28,7 +28,7 @@ export default function ReviewScreen() {
   const reviews = useReviewStore((state) => state.reviews);
   const addReview = useReviewStore((state) => state.addReview);
 
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const displayName = useSessionStore((state) => state.displayName);
 
   const [stars, setStars] = useState(5);

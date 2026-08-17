@@ -33,7 +33,7 @@ import { useGigStore } from '@/lib/stores/gigs';
 import { useMaintenanceStore } from '@/lib/stores/maintenance';
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 import { useReviewStore } from '@/lib/stores/reviews';
-import { PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
+import { PREMIUM_PRICE_TWD, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import { reviewsForUser, summarizeReviews, trustScore, trustSignals } from '@/lib/trust';
 import type { VerificationStatus } from '@/lib/types';
 
@@ -56,7 +56,7 @@ export default function ProfileScreen() {
   const credentialVerified = useSessionStore((state) => state.credentialVerified);
   const credentialUri = useSessionStore((state) => state.credentialUri);
   const isPremium = useSessionStore((state) => state.isPremium);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const email = useSessionStore((state) => state.email);
   const authStatus = useSessionStore((state) => state.authStatus);
   const switchRole = useSessionStore((state) => state.switchRole);

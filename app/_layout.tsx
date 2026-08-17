@@ -27,6 +27,7 @@ import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { AuthGate } from '@/components/AuthGate';
+import { CloudSync } from '@/components/CloudSync';
 import { MaintenanceRunner } from '@/components/MaintenanceRunner';
 import { PushBridge } from '@/components/PushBridge';
 import { WebAdminGate } from '@/components/WebAdminGate';
@@ -146,6 +147,7 @@ export default function RootLayout() {
       <HeroUINativeProvider>
         <RootNavigator />
         <AuthGate />
+        <CloudSync />
         <WebAdminGate />
         <PushBridge />
         <MaintenanceRunner />

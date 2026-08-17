@@ -5,16 +5,18 @@ import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { BidCard } from '@/components/BidCard';
+import { CloudListState } from '@/components/CloudListState';
 import { GigCard } from '@/components/GigCard';
 import { NotificationBell } from '@/components/NotificationBell';
 import { SegmentedTabs, type SegmentOption } from '@/components/SegmentedTabs';
 import { EmptyState } from '@/components/SectionHeading';
+import { SignInNotice } from '@/components/SignInNotice';
 import { COLORS } from '@/lib/colors';
 import { bidsByTalent, bidsForGig, useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
 import { useSavedStore } from '@/lib/stores/saved';
-import { useSessionStore } from '@/lib/stores/session';
+import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import type { Bid, Gig } from '@/lib/types';
 
 type ClientSegment = 'all' | 'open' | 'active' | 'done';
@@ -55,8 +57,13 @@ function ScreenHeader({
 function ClientTasks() {
   const gigs = useGigStore((state) => state.gigs);
   const bids = useBidStore((state) => state.bids);
+  const loadState = useGigStore((state) => state.loadState);
+  const isRefreshing = useGigStore((state) => state.isRefreshing);
+  const errorMessage = useGigStore((state) => state.errorMessage);
+  const refreshGigs = useGigStore((state) => state.refreshGigs);
   const reviews = useReviewStore((state) => state.reviews);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
+  const isSignedIn = useIsSignedIn();
 
   const [segment, setSegment] = useState<ClientSegment>('all');
 
@@ -97,6 +104,12 @@ function ClientTasks() {
     <View className="bg-background flex-1">
       <ScreenHeader title="任務管理" caption="追蹤提案、進行中與已完成的委託">
         <SegmentedTabs options={options} value={segment} onChange={setSegment} />
+        {isSignedIn ? null : (
+          <SignInNotice
+            title="登入後才看得到自己的任務"
+            caption="任務存在雲端並綁定帳號，登入後即可在任何裝置管理同一批委託。"
+          />
+        )}
       </ScreenHeader>
 
       <FlashList
@@ -104,6 +117,8 @@ function ClientTasks() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        refreshing={isRefreshing}
+        onRefresh={() => void refreshGigs()}
         renderItem={({ item }) => {
           const gigBidCount = bidsForGig(bids, item.id).filter(
             (bid) => bid.status === 'pending',
@@ -165,10 +180,17 @@ function ClientTasks() {
           );
         }}
         ListEmptyComponent={
-          <EmptyState
-            title="這個分類沒有任務"
-            caption="切換分類，或從首頁 30 秒發布新的急件。"
-            icon={<ClipboardList size={22} color={COLORS.brand} strokeWidth={2.1} />}
+          <CloudListState
+            loadState={isSignedIn ? loadState : 'ready'}
+            errorMessage={errorMessage}
+            onRetry={() => void refreshGigs()}
+            emptyTitle={isSignedIn ? '這個分類沒有任務' : '尚未有任務紀錄'}
+            emptyCaption={
+              isSignedIn
+                ? '切換分類，或從首頁 30 秒發布新的急件。'
+                : '登入後這裡會顯示你發布的任務與收到的提案。'
+            }
+            emptyIcon={<ClipboardList size={22} color={COLORS.brand} strokeWidth={2.1} />}
           />
         }
       />
@@ -179,9 +201,20 @@ function ClientTasks() {
 function TalentTasks() {
   const gigs = useGigStore((state) => state.gigs);
   const bids = useBidStore((state) => state.bids);
+  const loadState = useBidStore((state) => state.loadState);
+  const isRefreshing = useBidStore((state) => state.isRefreshing);
+  const errorMessage = useBidStore((state) => state.errorMessage);
+  const refreshBids = useBidStore((state) => state.refreshBids);
+  const refreshGigs = useGigStore((state) => state.refreshGigs);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
   const toggleSaved = useSavedStore((state) => state.toggleSaved);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
+  const isSignedIn = useIsSignedIn();
+
+  const handleRefresh = () => {
+    void refreshBids();
+    void refreshGigs();
+  };
 
   const [segment, setSegment] = useState<TalentSegment>('bids');
 
@@ -216,6 +249,12 @@ function TalentTasks() {
     <View className="bg-background flex-1">
       <ScreenHeader title="我的接案" caption="管理提案進度、進行中案件與收藏">
         <SegmentedTabs options={options} value={segment} onChange={setSegment} />
+        {isSignedIn ? null : (
+          <SignInNotice
+            title="登入後才能投遞提案"
+            caption="提案會送到發案者的雲端任務上，因此需要帳號；瀏覽任務牆與收藏不需要登入。"
+          />
+        )}
       </ScreenHeader>
 
       {segment === 'bids' ? (
@@ -224,6 +263,8 @@ function TalentTasks() {
           keyExtractor={(item: Bid) => item.id}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
           renderItem={({ item }) => (
             <View className="pb-3">
               {item.review?.state === 'pending' ? (
@@ -238,10 +279,18 @@ function TalentTasks() {
             </View>
           )}
           ListEmptyComponent={
-            <EmptyState
-              title="還沒有投遞提案"
-              caption="在任務牆挑選符合標籤的急件，填寫報價與可到場時間即可投遞。"
-              icon={<Send size={22} color={COLORS.brand} strokeWidth={2.1} />}
+            <CloudListState
+              loadState={isSignedIn ? loadState : 'ready'}
+              errorMessage={errorMessage}
+              onRetry={handleRefresh}
+              loadingLabel="正在讀取你的提案…"
+              emptyTitle="還沒有投遞提案"
+              emptyCaption={
+                isSignedIn
+                  ? '在任務牆挑選符合標籤的急件，填寫報價與可到場時間即可投遞。'
+                  : '登入後即可投遞提案，並在這裡追蹤每一份報價的狀態。'
+              }
+              emptyIcon={<Send size={22} color={COLORS.brand} strokeWidth={2.1} />}
             />
           }
         />
@@ -251,6 +300,8 @@ function TalentTasks() {
           keyExtractor={(item: Gig) => item.id}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
           renderItem={({ item }) => (
             <View className="pb-3">
               <GigCard

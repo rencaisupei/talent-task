@@ -6,24 +6,28 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } fro
 
 import { AiReviewCard } from '@/components/AiReviewCard';
 import { EmptyState } from '@/components/SectionHeading';
+import { SignInNotice } from '@/components/SignInNotice';
 import { StaticTag } from '@/components/TagChip';
 import { publishReviewFromAi, runAiReview } from '@/lib/aiReview';
+import { requireSignIn } from '@/lib/authGuard';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
 import { myBidForGig, useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
-import { useSessionStore } from '@/lib/stores/session';
+import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import { type AiReviewResult, BID_ETA_OPTIONS, BUDGET_LEVELS } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function BidScreen() {
   const { gigId } = useLocalSearchParams<{ gigId: string }>();
   const gigs = useGigStore((state) => state.gigs);
+  const loadState = useGigStore((state) => state.loadState);
   const bids = useBidStore((state) => state.bids);
   const submitBid = useBidStore((state) => state.submitBid);
 
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
+  const isSignedIn = useIsSignedIn();
   const displayName = useSessionStore((state) => state.displayName);
   const region = useSessionStore((state) => state.region);
 
@@ -38,9 +42,19 @@ export default function BidScreen() {
   const [eta, setEta] = useState<string>(existing?.etaLabel ?? BID_ETA_OPTIONS[0]);
   const [message, setMessage] = useState(existing?.message ?? '');
   const [reviewing, setReviewing] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<AiReviewResult | null>(null);
 
   if (!gig) {
+    if (loadState === 'loading' || loadState === 'idle') {
+      return (
+        <View className="bg-background flex-1 items-center justify-center gap-3 px-6">
+          <Spinner size="md" />
+          <Text className="text-muted text-[13px]">正在讀取任務…</Text>
+        </View>
+      );
+    }
+
     return (
       <View className="bg-background flex-1 items-center justify-center px-6">
         <EmptyState title="找不到這筆任務" caption="任務可能已結案或被移除。" />
@@ -58,13 +72,16 @@ export default function BidScreen() {
   const budget = BUDGET_LEVELS.find((level) => level.id === gig.budgetLevel);
   const numericQuote = Number(quote.replace(/[^\d]/g, ''));
   const canSubmit =
+    isSignedIn &&
     message.trim().length >= 10 &&
     (isNegotiable || (Number.isFinite(numericQuote) && numericQuote > 0));
 
   const handleSubmit = async () => {
     if (!canSubmit || reviewing) return;
+    if (!requireSignIn()) return;
     setReviewing(true);
     setFlagged(null);
+    setSubmitError(null);
 
     const ai = await runAiReview({
       target: 'gig',
@@ -77,7 +94,7 @@ export default function BidScreen() {
     });
     const review = publishReviewFromAi(ai);
 
-    submitBid({
+    const result = await submitBid({
       gig,
       talentId: userId,
       talentName: displayName,
@@ -89,6 +106,11 @@ export default function BidScreen() {
     });
 
     setReviewing(false);
+
+    if (result.status === 'error') {
+      setSubmitError(result.message);
+      return;
+    }
 
     if (review.state === 'approved') {
       goBackOrReplace({ pathname: '/gig/[id]', params: { id: gig.id } });
@@ -216,6 +238,19 @@ export default function BidScreen() {
           </Text>
         </View>
 
+        {isSignedIn ? null : (
+          <SignInNotice
+            title="投遞提案需要先登入"
+            caption="提案會送到發案者的雲端任務上，並以你的帳號名稱顯示報價與可到場時間。"
+          />
+        )}
+
+        {submitError ? (
+          <View className="border-coral/25 bg-coral-soft rounded-xl border px-4 py-3">
+            <Text className="text-coral text-[13px] leading-5">{submitError}</Text>
+          </View>
+        ) : null}
+
         {flagged ? (
           <View className="gap-3">
             <AiReviewCard result={flagged} title="提案已送交管理員複審" />
@@ -241,7 +276,13 @@ export default function BidScreen() {
 
         <Button size="lg" isDisabled={!canSubmit || reviewing} onPress={() => void handleSubmit()}>
           <Button.Label>
-            {reviewing ? '認證中…' : existing ? '認證並更新提案' : '認證並送出提案'}
+            {reviewing
+              ? '認證中…'
+              : !isSignedIn
+                ? '登入後即可投遞'
+                : existing
+                  ? '認證並更新提案'
+                  : '認證並送出提案'}
           </Button.Label>
         </Button>
       </ScrollView>

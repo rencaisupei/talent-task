@@ -19,7 +19,7 @@ import { COLORS } from '@/lib/colors';
 import { formatClockTime } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
 import { useChatStore } from '@/lib/stores/chat';
-import { useSessionStore } from '@/lib/stores/session';
+import { useSessionStore, useMyUserId } from '@/lib/stores/session';
 import { cn } from '@/lib/utils';
 
 const REPORT_REASONS = ['要求私下匯款或離開平台', '疑似詐騙或投資話術', '言語騷擾或不當內容'];
@@ -32,7 +32,7 @@ export default function ChatDetailScreen() {
   const reportConversation = useChatStore((state) => state.reportConversation);
 
   const role = useSessionStore((state) => state.role);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
   const displayName = useSessionStore((state) => state.displayName);
 
   const [draft, setDraft] = useState('');

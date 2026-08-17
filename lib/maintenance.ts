@@ -1,4 +1,5 @@
 import { checkForAppUpdate } from '@/lib/appUpdate';
+import { closeStaleGigsRemote } from '@/lib/remote/gigs';
 import { useChatStore } from '@/lib/stores/chat';
 import { useGigStore } from '@/lib/stores/gigs';
 import {
@@ -13,7 +14,10 @@ import { useSessionStore } from '@/lib/stores/session';
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** 逾期未成交的任務自動結案的天數。 */
+/**
+ * 逾期未成交的任務自動結案的天數。
+ * 任務資料在雲端，這項維護由伺服器端的 daily-maintenance 排程執行。
+ */
 export const STALE_GIG_DAYS = 14;
 /** 已讀通知保留天數。 */
 export const NOTIFICATION_RETENTION_DAYS = 30;
@@ -36,6 +40,26 @@ interface TaskOutcome {
 function safeTask(key: string, label: string, run: () => TaskOutcome): DeviceMaintenanceTask {
   try {
     const outcome = run();
+    return {
+      key,
+      label,
+      status: outcome.status ?? 'done',
+      affected: outcome.affected,
+      message: outcome.message,
+    };
+  } catch {
+    return { key, label, status: 'failed', affected: 0, message: '這項維護執行失敗，下次會再試。' };
+  }
+}
+
+/** 需要打雲端的維護任務版本。 */
+async function safeAsyncTask(
+  key: string,
+  label: string,
+  run: () => Promise<TaskOutcome>,
+): Promise<DeviceMaintenanceTask> {
+  try {
+    const outcome = await run();
     return {
       key,
       label,
@@ -74,7 +98,6 @@ function whenHydrated(store: HydratableStore): Promise<void> {
  */
 export async function waitForLocalData(): Promise<void> {
   await Promise.all([
-    whenHydrated(useGigStore),
     whenHydrated(useNotificationStore),
     whenHydrated(useChatStore),
     whenHydrated(useSessionStore),
@@ -91,26 +114,46 @@ export async function runDeviceMaintenance(
   const started = Date.now();
   const tasks: DeviceMaintenanceTask[] = [];
 
-  const staleGigs = safeTask('stale-gigs', `逾期 ${STALE_GIG_DAYS} 天未成交的任務自動結案`, () => {
-    const expired = useGigStore.getState().expireStaleGigs(STALE_GIG_DAYS * DAY);
-    if (expired.length === 0) {
-      return { affected: 0, message: '沒有逾期任務。', status: 'skipped' };
-    }
+  tasks.push(
+    await safeAsyncTask('stale-gigs', `逾期 ${STALE_GIG_DAYS} 天未成交的任務自動結案`, async () => {
+      const gigStore = useGigStore.getState();
+      const myId = useSessionStore.getState().authUserId;
+      const activeBefore = gigStore.gigs
+        .filter(
+          (gig) => gig.clientId === myId && (gig.status === 'open' || gig.status === 'talking'),
+        )
+        .map((gig) => gig.id);
 
-    const { userId } = useSessionStore.getState();
-    const mine = expired.filter((gig) => gig.clientId === userId);
-    if (mine.length > 0) {
-      useNotificationStore.getState().pushNotification({
-        kind: 'system',
-        title: `${mine.length} 件任務已自動結案`,
-        body: `超過 ${STALE_GIG_DAYS} 天仍未成交的任務已停止曝光，需要的話可重新發布。`,
-        gigId: mine[0].id,
-      });
-    }
+      // 結案規則在資料庫函式裡，裝置端與伺服器排程共用同一份邏輯。
+      const closed = await closeStaleGigsRemote(STALE_GIG_DAYS);
+      if (closed === null) {
+        return { affected: 0, message: '無法連線到雲端資料，下次會再試。', status: 'failed' };
+      }
+      if (closed === 0) {
+        return { affected: 0, message: '沒有逾期任務。', status: 'skipped' };
+      }
 
-    return { affected: expired.length, message: `已結案 ${expired.length} 件逾期任務。` };
-  });
-  tasks.push(staleGigs);
+      await gigStore.refreshGigs();
+
+      const stillActive = new Set(
+        useGigStore
+          .getState()
+          .gigs.filter((gig) => gig.status === 'open' || gig.status === 'talking')
+          .map((gig) => gig.id),
+      );
+      const mineClosed = activeBefore.filter((gigId) => !stillActive.has(gigId));
+      if (mineClosed.length > 0) {
+        useNotificationStore.getState().pushNotification({
+          kind: 'system',
+          title: `${mineClosed.length} 件任務已自動結案`,
+          body: `超過 ${STALE_GIG_DAYS} 天仍未成交的任務已停止曝光，需要的話可重新發布。`,
+          gigId: mineClosed[0],
+        });
+      }
+
+      return { affected: closed, message: `已結案 ${closed} 件逾期任務。` };
+    }),
+  );
 
   tasks.push(
     safeTask('chat-quota', '對話配額月度重置檢查', () => {

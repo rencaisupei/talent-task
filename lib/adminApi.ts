@@ -1,12 +1,18 @@
 import { ADMIN_ROLE_PERMISSIONS, type AdminPermission } from '@/lib/adminPermissions';
 import { getBiltClient } from '@/lib/bilt';
-import type { AdminAccount, AdminRole, ManagedAdminAccount } from '@/lib/types';
+import { rowToBid } from '@/lib/remote/bids';
+import { rowToGig } from '@/lib/remote/gigs';
+import { isBidRow, isGigRow } from '@/lib/remote/rows';
+import type { AdminAccount, AdminRole, Bid, Gig, ManagedAdminAccount } from '@/lib/types';
 
 /** 管理員驗證與帳號管理都走這個後端函式，前端不持有任何密碼或雜湊。 */
 const ADMIN_AUTH_FUNCTION = 'admin-auth';
 
 /** 每日系統維護排程（伺服器端），與管理員登入共用同一組 session token。 */
 const MAINTENANCE_FUNCTION = 'daily-maintenance';
+
+/** 任務與提案的管理動作（下架、恢復、複審決定）。 */
+const ADMIN_CONTENT_FUNCTION = 'admin-content';
 
 const BACKEND_UNAVAILABLE_MESSAGE =
   '尚未設定後端連線（EXPO_PUBLIC_BILT_URL 與 EXPO_PUBLIC_BILT_ANON_KEY），無法驗證管理員身分。';
@@ -610,4 +616,110 @@ export async function adminFetchMaintenanceConfig(
 /** 重新產生排程金鑰，舊金鑰立即失效。 */
 export async function adminRotateMaintenanceKey(token: string): Promise<MaintenanceConfigOutcome> {
   return toConfigOutcome(await call({ action: 'rotate-key', token }, MAINTENANCE_FUNCTION));
+}
+
+/* ------------------------------------------------------------------ */
+/* 任務與提案管理（雲端資料，需 service key 才看得到待複審與已下架內容）      */
+/* ------------------------------------------------------------------ */
+
+export interface AdminContentSnapshot {
+  gigs: Gig[];
+  bids: Bid[];
+}
+
+export type AdminContentOutcome =
+  | { kind: 'ok'; content: AdminContentSnapshot }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export type AdminGigOutcome =
+  | { kind: 'ok'; gig: Gig }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export type AdminBidOutcome =
+  | { kind: 'ok'; bid: Bid }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export type AdminReviewDecision = 'approve' | 'reject';
+
+/** 取得全部任務與提案（含待複審、被退回與已下架）。 */
+export async function adminFetchContent(token: string): Promise<AdminContentOutcome> {
+  const envelope = await call({ action: 'list', token }, ADMIN_CONTENT_FUNCTION);
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const rawGigs = envelope.payload.gigs;
+  const rawBids = envelope.payload.bids;
+
+  return {
+    kind: 'ok',
+    content: {
+      gigs: Array.isArray(rawGigs) ? rawGigs.filter(isGigRow).map(rowToGig) : [],
+      bids: Array.isArray(rawBids) ? rawBids.filter(isBidRow).map(rowToBid) : [],
+    },
+  };
+}
+
+function toGigOutcome(envelope: Envelope): AdminGigOutcome {
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const raw = envelope.payload.gig;
+  if (!isGigRow(raw)) return { kind: 'failed', message: '伺服器回應格式不正確。' };
+
+  return { kind: 'ok', gig: rowToGig(raw) };
+}
+
+function toBidOutcome(envelope: Envelope): AdminBidOutcome {
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const raw = envelope.payload.bid;
+  if (!isBidRow(raw)) return { kind: 'failed', message: '伺服器回應格式不正確。' };
+
+  return { kind: 'ok', bid: rowToBid(raw) };
+}
+
+export async function adminTakedownGig(
+  token: string,
+  gigId: string,
+  reason: string,
+): Promise<AdminGigOutcome> {
+  return toGigOutcome(
+    await call({ action: 'takedown-gig', token, gigId, reason }, ADMIN_CONTENT_FUNCTION),
+  );
+}
+
+export async function adminRestoreGig(token: string, gigId: string): Promise<AdminGigOutcome> {
+  return toGigOutcome(await call({ action: 'restore-gig', token, gigId }, ADMIN_CONTENT_FUNCTION));
+}
+
+export async function adminDecideGigReview(
+  token: string,
+  gigId: string,
+  decision: AdminReviewDecision,
+  note?: string,
+): Promise<AdminGigOutcome> {
+  return toGigOutcome(
+    await call({ action: 'gig-review', token, gigId, decision, note }, ADMIN_CONTENT_FUNCTION),
+  );
+}
+
+export async function adminDecideBidReview(
+  token: string,
+  bidId: string,
+  decision: AdminReviewDecision,
+  note?: string,
+): Promise<AdminBidOutcome> {
+  return toBidOutcome(
+    await call({ action: 'bid-review', token, bidId, decision, note }, ADMIN_CONTENT_FUNCTION),
+  );
 }

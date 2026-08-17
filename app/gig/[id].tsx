@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button } from 'heroui-native';
+import { Button, Spinner } from 'heroui-native';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -21,7 +21,9 @@ import { ChatQuotaPill } from '@/components/ChatQuotaPill';
 import { ConfirmSheet } from '@/components/ConfirmSheet';
 import MapView from '@/components/MapView';
 import { EmptyState, SectionHeading } from '@/components/SectionHeading';
+import { SignInNotice } from '@/components/SignInNotice';
 import { StaticTag } from '@/components/TagChip';
+import { requireSignIn } from '@/lib/authGuard';
 import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
 import { goBackOrReplace } from '@/lib/navigation';
@@ -32,7 +34,12 @@ import { useChatStore } from '@/lib/stores/chat';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
 import { useSavedStore } from '@/lib/stores/saved';
-import { FREE_MONTHLY_CHAT_QUOTA, useSessionStore } from '@/lib/stores/session';
+import {
+  FREE_MONTHLY_CHAT_QUOTA,
+  useIsSignedIn,
+  useMyUserId,
+  useSessionStore,
+} from '@/lib/stores/session';
 import { BUDGET_LEVELS } from '@/lib/types';
 
 type GigConfirmKind =
@@ -44,6 +51,8 @@ type GigConfirmKind =
 export default function GigDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const gigs = useGigStore((state) => state.gigs);
+  const loadState = useGigStore((state) => state.loadState);
+  const refreshGigs = useGigStore((state) => state.refreshGigs);
   const markTalking = useGigStore((state) => state.markTalking);
   const completeGig = useGigStore((state) => state.completeGig);
   const closeGig = useGigStore((state) => state.closeGig);
@@ -51,7 +60,8 @@ export default function GigDetailScreen() {
   const role = useSessionStore((state) => state.role);
   const chooseRole = useSessionStore((state) => state.chooseRole);
   const skills = useSessionStore((state) => state.skills);
-  const userId = useSessionStore((state) => state.userId);
+  const userId = useMyUserId();
+  const isSignedIn = useIsSignedIn();
   const displayName = useSessionStore((state) => state.displayName);
   const requestChatWith = useSessionStore((state) => state.requestChatWith);
 
@@ -67,6 +77,8 @@ export default function GigDetailScreen() {
   const toggleSaved = useSavedStore((state) => state.toggleSaved);
 
   const [confirm, setConfirm] = useState<GigConfirmKind | null>(null);
+  const [working, setWorking] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const gig = gigs.find((item) => item.id === id);
 
@@ -86,16 +98,34 @@ export default function GigDetailScreen() {
   );
 
   if (!gig) {
+    // 任務在雲端，第一次載入或深層連結進來時可能還沒讀到。
+    if (loadState === 'loading' || loadState === 'idle') {
+      return (
+        <View className="bg-background flex-1 items-center justify-center gap-3 px-6">
+          <Spinner size="md" />
+          <Text className="text-muted text-[13px]">正在讀取任務…</Text>
+        </View>
+      );
+    }
+
     return (
       <View className="bg-background flex-1 items-center justify-center px-6">
-        <EmptyState title="找不到這筆任務" caption="任務可能已結案或被移除。" />
-        <Pressable
-          onPress={() => goBackOrReplace('/(tabs)')}
-          className="mt-4"
-          accessibilityRole="button"
-        >
-          <Text className="text-brand-strong text-[14px] font-semibold">返回列表</Text>
-        </Pressable>
+        <EmptyState
+          title="找不到這筆任務"
+          caption={
+            loadState === 'error'
+              ? '目前無法連線到雲端資料，請確認網路後重試。'
+              : '任務可能已結案、被下架或尚未通過認證。'
+          }
+        />
+        <View className="mt-4 flex-row items-center gap-4">
+          <Pressable onPress={() => void refreshGigs()} accessibilityRole="button">
+            <Text className="text-brand-strong text-[14px] font-semibold">重新載入</Text>
+          </Pressable>
+          <Pressable onPress={() => goBackOrReplace('/(tabs)')} accessibilityRole="button">
+            <Text className="text-muted text-[14px] font-semibold">返回列表</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -120,6 +150,7 @@ export default function GigDetailScreen() {
       router.push({ pathname: '/chat/[id]', params: { id: existing.id } });
       return;
     }
+    if (!requireSignIn()) return;
     if (requestChatWith(peerId) === 'blocked') {
       router.push('/subscription');
       return;
@@ -130,7 +161,7 @@ export default function GigDetailScreen() {
       talentName: conversation.talentName,
       openingMessage: conversation.openingMessage,
     });
-    markTalking(gig.id);
+    void markTalking(gig.id);
     router.push({ pathname: '/chat/[id]', params: { id: conversationId } });
   };
 
@@ -189,17 +220,36 @@ export default function GigDetailScreen() {
     }
   };
 
-  const runConfirm = () => {
-    if (!confirm) return;
-    if (confirm.type === 'accept') acceptBid(confirm.bidId);
-    if (confirm.type === 'withdraw') withdrawBid(confirm.bidId);
-    if (confirm.type === 'complete') completeGig(gig.id);
+  const runConfirm = async () => {
+    if (!confirm || working) return;
+    setWorking(true);
+    setActionError(null);
+
+    if (confirm.type === 'accept') {
+      const ok = await acceptBid(confirm.bidId);
+      if (!ok) setActionError('選定人才失敗，請確認網路後再試。');
+    }
+    if (confirm.type === 'withdraw') {
+      const ok = await withdrawBid(confirm.bidId);
+      if (!ok) setActionError('撤回提案失敗，請確認網路後再試。');
+    }
+    if (confirm.type === 'complete') {
+      const result = await completeGig(gig.id);
+      if (result.status === 'error') setActionError(result.message);
+    }
     if (confirm.type === 'close') {
-      closeGig(gig.id);
+      const result = await closeGig(gig.id);
+      setWorking(false);
       setConfirm(null);
+      if (result.status === 'error') {
+        setActionError(result.message);
+        return;
+      }
       goBackOrReplace('/(tabs)');
       return;
     }
+
+    setWorking(false);
     setConfirm(null);
   };
 
@@ -242,6 +292,12 @@ export default function GigDetailScreen() {
         contentContainerClassName="px-5 py-5 gap-5 pb-10"
         showsVerticalScrollIndicator={false}
       >
+        {actionError ? (
+          <View className="border-coral/25 bg-coral-soft rounded-xl border px-4 py-3">
+            <Text className="text-coral text-[13px] leading-5">{actionError}</Text>
+          </View>
+        ) : null}
+
         <View className="border-hairline rounded-xl border bg-white p-4">
           <View className="flex-row flex-wrap items-center gap-2">
             <StaticTag label={gig.tag} tone="brand" />
@@ -397,6 +453,13 @@ export default function GigDetailScreen() {
           <View className="gap-3">
             <ChatQuotaPill onPress={() => router.push('/subscription')} />
 
+            {isSignedIn ? null : (
+              <SignInNotice
+                title="登入後才能投遞提案"
+                caption="提案會送到發案者的雲端任務上並顯示你的名稱，因此需要帳號。"
+              />
+            )}
+
             {myBid ? (
               <>
                 <SectionHeading title="我的提案" caption="客戶會在此比較報價與可到場時間。" />
@@ -421,7 +484,10 @@ export default function GigDetailScreen() {
             ) : (
               <Button
                 size="lg"
-                onPress={() => router.push({ pathname: '/bid/[gigId]', params: { gigId: gig.id } })}
+                onPress={() => {
+                  if (!requireSignIn()) return;
+                  router.push({ pathname: '/bid/[gigId]', params: { gigId: gig.id } });
+                }}
               >
                 <Button.Label>投遞提案並報價</Button.Label>
               </Button>
@@ -593,7 +659,7 @@ export default function GigDetailScreen() {
             tone: confirmText.danger ? 'danger' : 'primary',
           },
         ]}
-        onSelect={runConfirm}
+        onSelect={() => void runConfirm()}
         onCancel={() => setConfirm(null)}
       />
     </View>

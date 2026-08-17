@@ -1,12 +1,17 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { regionCoordinate } from '@/lib/regions';
-import { SEED_GIGS } from '@/lib/seed';
+import {
+  fetchRemoteGigs,
+  insertRemoteGig,
+  markGigTalkingRemote,
+  updateRemoteGig,
+} from '@/lib/remote/gigs';
+import { notifyContentChanged } from '@/lib/remote/live';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import { useSessionStore } from '@/lib/stores/session';
 import type { BudgetLevelId, Gig, GigLocation, PublishReview } from '@/lib/types';
+
+/** 雲端資料的載入狀態；畫面用它決定顯示骨架、空狀態或錯誤。 */
+export type CloudLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface PublishGigInput {
   categoryId: string;
@@ -15,17 +20,14 @@ export interface PublishGigInput {
   location: GigLocation;
   budgetLevel: BudgetLevelId;
   isUrgent: boolean;
+  /** 發案者的 auth.users.id；訪客無法發布。 */
   clientId: string;
   clientName: string;
   /** 發布前的即時審核結果，未通過者不會出現在任務牆。 */
   review: PublishReview;
 }
 
-export interface ReviewDecisionInput {
-  adminId: string;
-  adminName: string;
-  note?: string;
-}
+export type GigWriteResult = { status: 'ok'; gig: Gig } | { status: 'error'; message: string };
 
 /** 是否可公開曝光（示範資料沒有審核紀錄，視為已通過）。 */
 export function isGigVisible(gig: Gig): boolean {
@@ -37,247 +39,147 @@ export function gigsAwaitingReview(gigs: Gig[]): Gig[] {
   return gigs.filter((gig) => gig.review?.state === 'pending');
 }
 
-/** 這筆任務是否屬於目前登入的使用者（決定要不要對他發通知）。 */
-function isMyClientId(clientId: string): boolean {
-  const { userId } = useSessionStore.getState();
-  return userId.length > 0 && clientId === userId;
-}
-
 interface GigState {
   gigs: Gig[];
-  publishGig: (input: PublishGigInput) => Gig;
-  /** 管理員複審放行，任務開始曝光。 */
-  approveGigReview: (gigId: string, input: ReviewDecisionInput) => void;
-  /** 管理員複審退回，任務不予上架。 */
-  rejectGigReview: (gigId: string, input: ReviewDecisionInput) => void;
-  markTalking: (gigId: string) => void;
-  assignGig: (gigId: string, talentId: string, talentName: string) => void;
-  completeGig: (gigId: string) => void;
-  closeGig: (gigId: string) => void;
-  /** 管理員強制下架任務（記錄下架原因）。 */
-  takedownGig: (gigId: string, reason: string) => void;
-  /** 管理員恢復上架，任務回到等待媒合。 */
-  restoreGig: (gigId: string) => void;
-  /** 每日維護：逾期未成交的任務自動結案，回傳被結案的任務。 */
-  expireStaleGigs: (maxAgeMs: number) => Gig[];
+  loadState: CloudLoadState;
+  isRefreshing: boolean;
+  errorMessage: string | null;
+  lastSyncedAt: number | null;
+
+  /** 從雲端重新讀取可見的任務（RLS 決定範圍）。 */
+  refreshGigs: () => Promise<void>;
+  publishGig: (input: PublishGigInput) => Promise<GigWriteResult>;
+  /** 人才開啟對話時把任務推進到「對話中」。 */
+  markTalking: (gigId: string) => Promise<void>;
+  completeGig: (gigId: string) => Promise<GigWriteResult>;
+  closeGig: (gigId: string) => Promise<GigWriteResult>;
 }
 
-function isPersistedGigState(value: unknown): value is { gigs?: Gig[] } {
-  return typeof value === 'object' && value !== null;
-}
+/**
+ * 任務資料存在 bilt-cloud 的 gigs 資料表，這個 store 是雲端資料的快取：
+ * 讀取靠 refreshGigs（由 components/CloudSync 定期與即時觸發），
+ * 寫入一律先送到雲端，成功後才更新本機陣列。
+ */
+export const useGigStore = create<GigState>()((set) => ({
+  gigs: [],
+  loadState: 'idle',
+  isRefreshing: false,
+  errorMessage: null,
+  lastSyncedAt: null,
 
-/** 補齊地圖模式需要的座標（沿用縣市中心點）。 */
-function withCoordinate(gig: Gig): Gig {
-  if (gig.location.latitude !== undefined && gig.location.longitude !== undefined) return gig;
-  const coordinate = regionCoordinate(gig.location.region);
-  return { ...gig, location: { ...gig.location, ...coordinate } };
-}
+  refreshGigs: async () => {
+    set((state) => ({
+      isRefreshing: true,
+      loadState: state.loadState === 'ready' ? 'ready' : 'loading',
+    }));
 
-export const useGigStore = create<GigState>()(
-  persist(
-    (set, get) => ({
-      gigs: SEED_GIGS,
+    const result = await fetchRemoteGigs();
+    if (result.status === 'error') {
+      set((state) => ({
+        isRefreshing: false,
+        // 已經有資料時保留畫面，只提示同步失敗。
+        loadState: state.gigs.length > 0 ? 'ready' : 'error',
+        errorMessage: result.message,
+      }));
+      return;
+    }
 
-      publishGig: (input) => {
-        const coordinate =
-          input.location.latitude !== undefined && input.location.longitude !== undefined
-            ? {}
-            : regionCoordinate(input.location.region);
-        const gig: Gig = {
-          id: `gig_${Date.now()}`,
-          title: `${input.tag}｜${input.isUrgent ? '急件立即處理' : '徵求專業協助'}`,
-          categoryId: input.categoryId,
-          tag: input.tag,
-          detail: input.detail,
-          location: { ...input.location, ...coordinate },
-          budgetLevel: input.budgetLevel,
-          isUrgent: input.isUrgent,
-          clientId: input.clientId,
-          clientName: input.clientName,
-          createdAt: Date.now(),
-          status: 'open',
-          review: input.review,
-        };
-        set((state) => ({ gigs: [gig, ...state.gigs] }));
+    set({
+      gigs: result.data,
+      loadState: 'ready',
+      isRefreshing: false,
+      errorMessage: null,
+      lastSyncedAt: Date.now(),
+    });
+  },
 
-        const passed = input.review.state === 'approved';
-        useNotificationStore.getState().pushNotification({
-          kind: passed ? 'system' : 'moderation',
-          title: passed ? '認證通過，任務已廣播' : '任務已送交管理員複審',
-          body: passed
-            ? `「${gig.title}」通過即時認證，已發送給全台符合「${gig.tag}」的人才。`
-            : `「${gig.title}」未通過即時認證（${input.review.ai.reasons[0] ?? '內容需人工確認'}），管理員複審通過後才會曝光。`,
-          gigId: gig.id,
-        });
-        return gig;
-      },
+  publishGig: async (input) => {
+    const title = `${input.tag}｜${input.isUrgent ? '急件立即處理' : '徵求專業協助'}`;
+    const result = await insertRemoteGig({
+      clientId: input.clientId,
+      clientName: input.clientName,
+      title,
+      categoryId: input.categoryId,
+      tag: input.tag,
+      detail: input.detail,
+      location: input.location,
+      budgetLevel: input.budgetLevel,
+      isUrgent: input.isUrgent,
+      review: input.review,
+    });
 
-      approveGigReview: (gigId, { adminId, adminName, note }) => {
-        const gig = get().gigs.find((item) => item.id === gigId);
-        set((state) => ({
-          gigs: state.gigs.map((item) =>
-            item.id === gigId && item.review
-              ? {
-                  ...item,
-                  status: item.status === 'closed' ? 'open' : item.status,
-                  review: {
-                    ...item.review,
-                    state: 'approved',
-                    adminId,
-                    adminName,
-                    adminNote: note,
-                    decidedAt: Date.now(),
-                  },
-                }
-              : item,
-          ),
-        }));
-        if (gig && isMyClientId(gig.clientId)) {
-          useNotificationStore.getState().pushNotification({
-            kind: 'moderation',
-            title: '複審通過，任務已上架',
-            body: `「${gig.title}」經管理員複審確認無詐騙風險，已開始推播給符合標籤的人才。`,
-            gigId: gig.id,
-          });
-        }
-      },
+    if (result.status === 'error') {
+      set({ errorMessage: result.message });
+      return { status: 'error', message: result.message };
+    }
 
-      rejectGigReview: (gigId, { adminId, adminName, note }) => {
-        const gig = get().gigs.find((item) => item.id === gigId);
-        set((state) => ({
-          gigs: state.gigs.map((item) =>
-            item.id === gigId && item.review
-              ? {
-                  ...item,
-                  status: 'closed',
-                  review: {
-                    ...item.review,
-                    state: 'rejected',
-                    adminId,
-                    adminName,
-                    adminNote: note,
-                    decidedAt: Date.now(),
-                  },
-                }
-              : item,
-          ),
-        }));
-        if (gig && isMyClientId(gig.clientId)) {
-          useNotificationStore.getState().pushNotification({
-            kind: 'moderation',
-            title: '複審未通過，任務未上架',
-            body: `「${gig.title}」因「${note ?? '內容有詐騙風險'}」未通過複審，請修正內容後重新發布。`,
-            gigId: gig.id,
-          });
-        }
-      },
+    const gig = result.data;
+    set((state) => ({ gigs: [gig, ...state.gigs.filter((item) => item.id !== gig.id)] }));
+    notifyContentChanged();
 
-      markTalking: (gigId) =>
-        set((state) => ({
-          gigs: state.gigs.map((gig) =>
-            gig.id === gigId && gig.status === 'open' ? { ...gig, status: 'talking' } : gig,
-          ),
-        })),
+    const passed = input.review.state === 'approved';
+    useNotificationStore.getState().pushNotification({
+      kind: passed ? 'system' : 'moderation',
+      title: passed ? '認證通過，任務已廣播' : '任務已送交管理員複審',
+      body: passed
+        ? `「${gig.title}」通過即時認證，已發送給全台符合「${gig.tag}」的人才。`
+        : `「${gig.title}」未通過即時認證（${input.review.ai.reasons[0] ?? '內容需人工確認'}），管理員複審通過後才會曝光。`,
+      gigId: gig.id,
+    });
 
-      assignGig: (gigId, talentId, talentName) =>
-        set((state) => ({
-          gigs: state.gigs.map((gig) =>
-            gig.id === gigId
-              ? {
-                  ...gig,
-                  status: 'assigned',
-                  assignedTalentId: talentId,
-                  assignedTalentName: talentName,
-                }
-              : gig,
-          ),
-        })),
+    return { status: 'ok', gig };
+  },
 
-      completeGig: (gigId) => {
-        const gig = get().gigs.find((item) => item.id === gigId);
-        set((state) => ({
-          gigs: state.gigs.map((item) =>
-            item.id === gigId ? { ...item, status: 'completed', completedAt: Date.now() } : item,
-          ),
-        }));
-        if (gig) {
-          useNotificationStore.getState().pushNotification({
-            kind: 'review',
-            title: '任務已完成，等待你的評價',
-            body: `「${gig.title}」已標記完成，留下評價協助建立平台信任度。`,
-            gigId: gig.id,
-          });
-        }
-      },
+  markTalking: async (gigId) => {
+    const changed = await markGigTalkingRemote(gigId);
+    if (!changed) return;
 
-      closeGig: (gigId) =>
-        set((state) => ({
-          gigs: state.gigs.map((gig) => (gig.id === gigId ? { ...gig, status: 'closed' } : gig)),
-        })),
+    set((state) => ({
+      gigs: state.gigs.map((gig) =>
+        gig.id === gigId && gig.status === 'open' ? { ...gig, status: 'talking' } : gig,
+      ),
+    }));
+    notifyContentChanged();
+  },
 
-      takedownGig: (gigId, reason) => {
-        const gig = get().gigs.find((item) => item.id === gigId);
-        set((state) => ({
-          gigs: state.gigs.map((item) =>
-            item.id === gigId
-              ? { ...item, status: 'closed', takedownReason: reason, takedownAt: Date.now() }
-              : item,
-          ),
-        }));
-        if (gig && isMyClientId(gig.clientId)) {
-          useNotificationStore.getState().pushNotification({
-            kind: 'system',
-            title: '任務已被管理員下架',
-            body: `「${gig.title}」因「${reason}」暫停曝光，修正後可聯繫客服恢復上架。`,
-            gigId: gig.id,
-          });
-        }
-      },
+  completeGig: async (gigId) => {
+    const completedAt = new Date().toISOString();
+    const result = await updateRemoteGig(
+      gigId,
+      { status: 'completed', completed_at: completedAt },
+      '標記完成失敗，請稍後再試。',
+    );
 
-      restoreGig: (gigId) =>
-        set((state) => ({
-          gigs: state.gigs.map((gig) =>
-            gig.id === gigId
-              ? { ...gig, status: 'open', takedownReason: undefined, takedownAt: undefined }
-              : gig,
-          ),
-        })),
+    if (result.status === 'error') {
+      set({ errorMessage: result.message });
+      return { status: 'error', message: result.message };
+    }
 
-      expireStaleGigs: (maxAgeMs) => {
-        const cutoff = Date.now() - maxAgeMs;
-        const expired = get().gigs.filter(
-          (gig) =>
-            (gig.status === 'open' || gig.status === 'talking') &&
-            gig.takedownReason === undefined &&
-            gig.createdAt < cutoff,
-        );
-        if (expired.length === 0) return [];
+    const gig = result.data;
+    set((state) => ({ gigs: state.gigs.map((item) => (item.id === gig.id ? gig : item)) }));
+    notifyContentChanged();
 
-        const expiredIds = new Set(expired.map((gig) => gig.id));
-        const closedAt = Date.now();
-        set((state) => ({
-          gigs: state.gigs.map((gig) =>
-            expiredIds.has(gig.id) ? { ...gig, status: 'closed', autoClosedAt: closedAt } : gig,
-          ),
-        }));
+    useNotificationStore.getState().pushNotification({
+      kind: 'review',
+      title: '任務已完成，等待你的評價',
+      body: `「${gig.title}」已標記完成，留下評價協助建立平台信任度。`,
+      gigId: gig.id,
+    });
 
-        return expired;
-      },
-    }),
-    {
-      name: 'instantgig-gigs',
-      storage: createJSONStorage(() => AsyncStorage),
-      version: 3,
-      migrate: (persisted, version) => {
-        const state = isPersistedGigState(persisted) ? persisted : undefined;
-        if (version < 3) {
-          const existing = (state?.gigs ?? []).map(withCoordinate);
-          const existingIds = new Set(existing.map((gig) => gig.id));
-          const missingSeeds = SEED_GIGS.filter((gig) => !existingIds.has(gig.id));
-          return { ...state, gigs: [...missingSeeds, ...existing] };
-        }
-        return persisted;
-      },
-    },
-  ),
-);
+    return { status: 'ok', gig };
+  },
+
+  closeGig: async (gigId) => {
+    const result = await updateRemoteGig(gigId, { status: 'closed' }, '結束任務失敗，請稍後再試。');
+    if (result.status === 'error') {
+      set({ errorMessage: result.message });
+      return { status: 'error', message: result.message };
+    }
+
+    const gig = result.data;
+    set((state) => ({ gigs: state.gigs.map((item) => (item.id === gig.id ? gig : item)) }));
+    notifyContentChanged();
+
+    return { status: 'ok', gig };
+  },
+}));

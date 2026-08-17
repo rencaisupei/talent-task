@@ -40,12 +40,10 @@ interface SessionState {
   /** 登入狀態；由 AuthGate 依 bilt auth session 寫入，不持久化。 */
   authStatus: AuthStatus;
   /**
-   * 本機任務、提案、對話與評價的擁有者 id。
-   * 這些資料目前都存在裝置上（AsyncStorage），與帳號無關，因此固定為 LOCAL_USER_ID；
-   * 等資料遷移到後端資料表後才會改成使用 authUserId。
+   * 已登入使用者的 auth.users.id；訪客為空字串。
+   * 任務與提案存在雲端（gigs / bids 資料表），擁有者就是這個 id。
+   * 畫面請改用 useMyUserId()，它會在登入狀態確定前回傳空字串。
    */
-  userId: string;
-  /** 已登入使用者的 auth.users.id；訪客為空字串。 */
   authUserId: string;
   email: string | null;
   /** 後端 profile 是否已套用，避免尚未載入就把預設值寫回後端。 */
@@ -119,7 +117,6 @@ const profileDefaults = {
 const initialState = {
   hydrated: false,
   authStatus: 'unknown' as AuthStatus,
-  userId: LOCAL_USER_ID,
   authUserId: '',
   email: null as string | null,
   profileLoaded: false,
@@ -293,7 +290,6 @@ export const useSessionStore = create<SessionState>()(
           quotaMonth: monthKey(),
           hydrated: true,
           authStatus: state.authStatus,
-          userId: state.userId,
           authUserId: state.authUserId,
           email: state.email,
           profileLoaded: state.profileLoaded,
@@ -330,3 +326,16 @@ export const useSessionStore = create<SessionState>()(
     },
   ),
 );
+
+/**
+ * 目前登入身分的 id：雲端任務與提案的擁有者。
+ * 訪客與尚未確認登入狀態時回傳空字串，因此「我的任務」「我的提案」不會誤判。
+ */
+export function useMyUserId(): string {
+  return useSessionStore((state) => (state.authStatus === 'signedIn' ? state.authUserId : ''));
+}
+
+/** 目前是否已登入（發布任務、投遞提案、開啟對話都需要）。 */
+export function useIsSignedIn(): boolean {
+  return useSessionStore((state) => state.authStatus === 'signedIn');
+}

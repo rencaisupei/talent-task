@@ -34,7 +34,7 @@ function applySessionVerification(
   if (!request) return;
   usePlatformUserStore.getState().setVerification(request.talentId, status);
   const session = useSessionStore.getState();
-  if (request.talentId === session.userId) {
+  if (request.talentId === session.authUserId) {
     session.setVerification(status);
     if (status === 'approved' && request.credentialUri !== undefined) {
       session.setCredentialVerified(true);
@@ -114,7 +114,7 @@ export const useAdminStore = create<AdminState>()(
         if (!request) return;
 
         const session = useSessionStore.getState();
-        if (request.talentId !== session.userId) return;
+        if (request.talentId !== session.authUserId) return;
 
         session.setCredentialVerified(verified);
         useNotificationStore.getState().pushNotification({
