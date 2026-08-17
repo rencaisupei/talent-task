@@ -9,7 +9,7 @@ export function goBackOrReplace(fallback: Href) {
 /**
  * 根導覽器是否已掛載完成。
  *
- * 掛在 root layout 裡的閘門元件（AuthGate / WebAdminGate / PushBridge）第一次
+ * 掛在 root layout 裡的閘門元件（AuthGate / PushBridge）第一次
  * useEffect 會早於 expo-router 根導覽器完成掛載，此時呼叫 router.replace 會丟出
  * 「Attempted to navigate before mounting the Root Layout component」。
  * 這類第一次渲染就要導向的情境，一律等這個訊號為 true 再導。

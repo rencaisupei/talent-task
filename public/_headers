@@ -1,13 +1,32 @@
 # Response headers for Cloudflare static hosting (Workers static assets / Pages).
 # Copied verbatim into dist/ by `expo export -p web`.
 #
-# The whole web deployment is the admin platform (the consumer app ships as the
-# native mobile app only), so nothing here may be indexed.
+# The root site is the consumer app and may be indexed. /admin is the operator
+# platform: never indexed, never framed. Rules are matched per request path, so
+# the /admin rules also cover the SPA fallback responses for /admin/login etc.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+
+# Admin platform. Path prefix also covers the legacy /admin-dashboard route.
+/admin
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
   X-Robots-Tag: noindex, nofollow
+  X-Frame-Options: DENY
+
+/admin/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Robots-Tag: noindex, nofollow
+  X-Frame-Options: DENY
+
+/admin-dashboard
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Robots-Tag: noindex, nofollow
+  X-Frame-Options: DENY
 
 # Hashed asset paths never change contents.
 /_expo/static/*

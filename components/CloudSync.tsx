@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
+import { usePathname } from 'expo-router';
 
-import { IS_ADMIN_WEB } from '@/lib/adminHost';
+import { isAdminPath } from '@/lib/adminHost';
 import { purgeLegacyChatStorage } from '@/lib/localData';
 import { startChatLiveSync, startContentLiveSync } from '@/lib/remote/live';
 import { useBidStore } from '@/lib/stores/bids';
@@ -25,18 +26,20 @@ export function refreshCloudContent(): void {
 export function CloudSync() {
   const authStatus = useSessionStore((state) => state.authStatus);
   const authUserId = useSessionStore((state) => state.authUserId);
+  // 管理平台（網頁 /admin）用 admin-content 讀完整資料，不需要一般使用者的同步。
+  // 只在兩側之間切換時才會重建訂閱，管理平台內部換頁不受影響。
+  const onAdminRoute = isAdminPath(usePathname());
 
   useEffect(() => {
-    // 正式網頁版整站是管理平台，那裡用 admin-content 讀完整資料，不需要一般使用者的同步。
-    if (IS_ADMIN_WEB) return undefined;
+    if (onAdminRoute) return undefined;
     // 'unknown' 代表還在確認裝置上的登入狀態。
     if (authStatus === 'unknown') return undefined;
 
     return startContentLiveSync({ onRefresh: refreshCloudContent });
-  }, [authStatus, authUserId]);
+  }, [authStatus, authUserId, onAdminRoute]);
 
   useEffect(() => {
-    if (IS_ADMIN_WEB) return undefined;
+    if (onAdminRoute) return undefined;
 
     // 對話一定屬於某個帳號，訪客沒有對話可讀。
     if (authStatus !== 'signedIn' || authUserId.length === 0) {
@@ -53,7 +56,7 @@ export function CloudSync() {
       onThreadRefresh: (conversationId) =>
         void useChatStore.getState().refreshMessages(conversationId),
     });
-  }, [authStatus, authUserId]);
+  }, [authStatus, authUserId, onAdminRoute]);
 
   return null;
 }

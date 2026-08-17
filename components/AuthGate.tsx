@@ -2,7 +2,7 @@ import type { Session } from '@biltme/backend';
 import { router, usePathname } from 'expo-router';
 import { useEffect } from 'react';
 
-import { IS_ADMIN_WEB, isAdminPath } from '@/lib/adminHost';
+import { isAdminPath } from '@/lib/adminHost';
 import { getStoredSession, subscribeToAuthChanges } from '@/lib/auth';
 import { IS_BILT_CONFIGURED } from '@/lib/bilt';
 import { resetLocalUserData } from '@/lib/localData';
@@ -42,20 +42,18 @@ function handleSession(session: Session | null): void {
  *
  * 登入是選用的——未登入也能直接瀏覽任務牆與接案內容，因此這裡不會把使用者導向登入頁；
  * 只有已經在登入頁而狀態變成已登入時，才導回主畫面。
- * 管理平台有自己的 admin-auth 登入，因此 /admin 底下的路徑完全不受這裡影響；
- * 正式網頁版整站都是管理平台（IS_ADMIN_WEB），此時不建立任何一般使用者的登入監聽。
+ * 管理平台有自己的 admin-auth 登入，因此 /admin 底下的路徑完全不受這裡影響
+ * （網頁版同時服務一般使用者網站與 /admin 管理平台）。
  */
 export function AuthGate() {
   const pathname = usePathname();
   const navigationReady = useNavigationReady();
   const authStatus = useSessionStore((state) => state.authStatus);
   const onAuthRoute = pathname.startsWith('/auth');
-  // 開發時瀏覽器可同時看到兩側介面，管理路徑不受一般使用者登入狀態影響。
-  const disabled = IS_ADMIN_WEB || isAdminPath(pathname);
+  // 管理路徑不受一般使用者登入狀態影響，否則管理員會被導到一般使用者登入頁。
+  const disabled = isAdminPath(pathname);
 
   useEffect(() => {
-    if (IS_ADMIN_WEB) return undefined;
-
     if (!IS_BILT_CONFIGURED) {
       useSessionStore.getState().applySignedOut();
       return undefined;

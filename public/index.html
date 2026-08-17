@@ -3,10 +3,11 @@
   Web HTML template (used by `expo export -p web` and the dev server because
   web.output is 'single' — app/+html.tsx only applies to 'static' output).
 
-  The web build IS the admin platform (the consumer app ships as the native
-  mobile app only), so the title and robots policy are hardcoded here instead of
-  being substituted from app.config.ts, whose name is the mobile app's name.
-  The lang attribute below is still substituted at build time.
+  The web deployment serves both sides: the root path is the consumer app (task
+  wall) and /admin is the operator platform. Because the export is a single page,
+  this file's title and meta apply to every route; app/admin/_layout.tsx swaps
+  the title and the robots meta at runtime while an admin route is open.
+  The lang attribute below is substituted at build time.
 -->
 <html lang="%LANG_ISO_CODE%">
   <head>
@@ -16,20 +17,36 @@
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
     />
-    <title>即時發管理平台</title>
+    <title>即時發 InstantGig｜全台急件即時媒合</title>
+    <meta
+      name="description"
+      content="即時發（InstantGig）是全台急件媒合服務：30 秒發布需求，附近的專家立即投標，雙向評價與信任度讓你放心成交。"
+    />
 
-    <!-- Admin-only site: never index it. Also enforced by robots.txt and host headers. -->
-    <meta name="robots" content="noindex, nofollow" />
+    <!-- Consumer site is indexable. /admin is excluded by robots.txt, the
+         X-Robots-Tag header in public/_headers, and a runtime robots meta. -->
+    <meta name="robots" content="index, follow" />
+
+    <!-- Social preview. og:url and og:image need absolute URLs, so add them once
+         the production domain is final (see README section 8). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="即時發 InstantGig" />
+    <meta property="og:locale" content="zh_TW" />
+    <meta property="og:title" content="即時發 InstantGig｜全台急件即時媒合" />
+    <meta
+      property="og:description"
+      content="30 秒發布需求，附近的專家立即投標。雙向評價與信任度讓你放心成交。"
+    />
 
     <!-- Web app manifest — the install contract for Android/Chrome -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
 
-    <!-- iOS home-screen support. No apple-mobile-web-app-title: iOS falls back to
-         <title>, which is the admin platform name above. -->
+    <!-- iOS home-screen support. -->
     <link rel="icon" type="image/png" href="/icons/instantgig-icon.png" />
     <link rel="apple-touch-icon" href="/icons/instantgig-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="即時發" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

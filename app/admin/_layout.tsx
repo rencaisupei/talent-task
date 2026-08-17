@@ -15,6 +15,8 @@ import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { ADMIN_ROLE_LABEL, type AdminRole } from '@/lib/types';
 
 const NOINDEX_META_ID = 'admin-robots-noindex';
+const ADMIN_WEB_TITLE = '即時發管理平台';
+const NOINDEX_CONTENT = 'noindex, nofollow';
 
 /**
  * 每個管理路由需要的權限。角色沒有該權限時，直接開網址也只會看到「權限不足」，
@@ -34,22 +36,40 @@ const ROUTE_PERMISSION: Record<string, AdminPermission> = {
 };
 
 /**
- * 管理平台不得被搜尋引擎收錄。靜態匯出是單頁（web.output = 'single'），
- * 索引標記在進入 /admin 時於執行階段插入，離開時移除。
- * 搭配 public/robots.txt 與主機端 X-Robots-Tag（網頁版整站都是管理平台）。
+ * 網頁是單頁匯出（web.output = 'single'），index.html 的標題與 robots 標記是給
+ * 一般使用者網站用的，因此進入 /admin 時在執行階段改寫，離開時還原：
+ *
+ * - 分頁標題換成管理平台名稱。
+ * - robots 改成 noindex（覆寫既有的 meta，沒有就插入一個）。
+ *
+ * 伺服器端另有兩層：`public/robots.txt` 的 `Disallow: /admin` 與
+ * `public/_headers` 對 /admin* 回應加的 `X-Robots-Tag`。
  */
-function useAdminNoIndexMeta(): void {
+function useAdminWebDocument(): void {
   useEffect(() => {
     if (!IS_ADMIN_PLATFORM_AVAILABLE || typeof document === 'undefined') return undefined;
-    if (document.getElementById(NOINDEX_META_ID)) return undefined;
+
+    const previousTitle = document.title;
+    document.title = ADMIN_WEB_TITLE;
+
+    const existing = document.querySelector('meta[name="robots"]');
+    if (existing instanceof HTMLMetaElement) {
+      const previousContent = existing.content;
+      existing.content = NOINDEX_CONTENT;
+      return () => {
+        document.title = previousTitle;
+        existing.content = previousContent;
+      };
+    }
 
     const meta = document.createElement('meta');
     meta.id = NOINDEX_META_ID;
     meta.name = 'robots';
-    meta.content = 'noindex, nofollow';
+    meta.content = NOINDEX_CONTENT;
     document.head.appendChild(meta);
 
     return () => {
+      document.title = previousTitle;
       meta.remove();
     };
   }, []);
@@ -57,7 +77,7 @@ function useAdminNoIndexMeta(): void {
 
 /** 管理員專屬平台的權限閘門：僅網頁版可進入，登入狀態與角色權限都在這裡判斷。 */
 export default function AdminLayout() {
-  useAdminNoIndexMeta();
+  useAdminWebDocument();
 
   const status = useAdminAuthStore((state) => state.status);
   const hydrated = useAdminAuthStore((state) => state.hydrated);

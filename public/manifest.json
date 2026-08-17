@@ -1,14 +1,26 @@
 {
-  "name": "即時發管理平台",
-  "short_name": "即時發管理",
-  "description": "即時發營運團隊的管理後台：審核、使用者、任務、營收與稽核紀錄。",
+  "name": "即時發 InstantGig",
+  "short_name": "即時發",
+  "description": "全台急件媒合：30 秒發布需求，附近的專家立即投標，雙向評價與信任度讓你放心成交。",
   "lang": "zh-Hant-TW",
-  "start_url": "/admin",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#00A896",
   "background_color": "#ffffff",
+  "shortcuts": [
+    {
+      "name": "發布需求",
+      "short_name": "發布",
+      "url": "/publish"
+    },
+    {
+      "name": "任務管理",
+      "short_name": "任務",
+      "url": "/tasks"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/instantgig-icon.png",

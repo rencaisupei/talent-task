@@ -1,4 +1,12 @@
-# 即時發（InstantGig）管理平台
-# 網頁版只提供管理員專屬平台，整站都不得被收錄。
+# 即時發（InstantGig）
+#
+# 根網域是一般使用者網站，允許收錄；/admin 是管理員專屬平台，一律不收錄。
+# Disallow 是路徑前綴比對，所以 /admin 這一行同時涵蓋 /admin/login 與舊路徑
+# /admin-dashboard。回應標頭的 X-Robots-Tag（public/_headers）與進入 /admin 時
+# 前端寫入的 robots meta 是同一件事的另外兩層。
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /admin
+
+# 沒有 sitemap：網站是單頁匯出（app.config.ts 的 web.output: 'single'），
+# 所有路徑回傳同一份 index.html，逐頁的標題與描述要改成 static 匯出才會有。

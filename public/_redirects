@@ -1,14 +1,13 @@
-# Edge redirects for the admin-only web deployment.
+# Edge redirects for the web deployment.
 # Copied verbatim into dist/ by `expo export -p web`.
 #
-# The web build is the admin platform only, so the root path is sent straight to
-# /admin at the edge — the client-side gate would otherwise have to do it after
-# the bundle loads.
-/    /admin    302
-
-# Do NOT add a `/* /index.html 200` catch-all here: redirect rules are applied
-# even when a real asset matches the request, so a catch-all would shadow the
-# hashed JS bundles under /_expo/. The SPA fallback comes from
+# There are intentionally no rules here. The root path is the consumer app
+# (task wall) and /admin is the operator platform, so nothing needs rewriting at
+# the edge — client-side routing handles both.
+#
+# Do NOT add a `/* /index.html 200` catch-all: redirect rules are applied even
+# when a real asset matches the request, so a catch-all would shadow the hashed
+# JS bundles under /_expo/. The SPA fallback comes from
 # `assets.not_found_handling = "single-page-application"` in wrangler.toml
 # instead (Cloudflare Pages does the same fallback automatically when the
 # deployment has no 404.html).

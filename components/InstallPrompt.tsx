@@ -121,7 +121,7 @@ export function InstallPrompt() {
             加入主畫面
           </Text.Paragraph>
           <Text.Paragraph type="body-xs" color="muted">
-            安裝管理平台，以全螢幕視窗開啟
+            安裝即時發，以全螢幕視窗開啟
           </Text.Paragraph>
         </View>
         <Pressable
@@ -157,7 +157,7 @@ export function InstallPrompt() {
             加入主畫面
           </Text.Paragraph>
           <Text.Paragraph type="body-xs" color="muted">
-            點選分享，再選「加入主畫面」即可安裝管理平台
+            點選分享，再選「加入主畫面」即可安裝即時發
           </Text.Paragraph>
         </View>
         <Pressable
