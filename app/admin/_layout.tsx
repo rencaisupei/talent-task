@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 
 import { AdminHeader } from '@/components/admin/AdminHeader';
-import { IS_ADMIN_WEB } from '@/lib/adminHost';
+import { IS_ADMIN_PLATFORM_AVAILABLE } from '@/lib/adminHost';
 import {
   ADMIN_PERMISSION_LABEL,
   ADMIN_ROLE_SUMMARY,
@@ -39,7 +39,7 @@ const ROUTE_PERMISSION: Record<string, AdminPermission> = {
  */
 function useAdminNoIndexMeta(): void {
   useEffect(() => {
-    if (!IS_ADMIN_WEB || typeof document === 'undefined') return undefined;
+    if (!IS_ADMIN_PLATFORM_AVAILABLE || typeof document === 'undefined') return undefined;
     if (document.getElementById(NOINDEX_META_ID)) return undefined;
 
     const meta = document.createElement('meta');
@@ -74,7 +74,7 @@ export default function AdminLayout() {
   const routeKey = adminIndex === -1 ? '' : segments.slice(adminIndex + 1).join('/');
   const isLoginRoute = routeKey === 'login';
 
-  if (!IS_ADMIN_WEB) return <Redirect href="/(tabs)" />;
+  if (!IS_ADMIN_PLATFORM_AVAILABLE) return <Redirect href="/(tabs)" />;
   if (status === 'checking') return <View className="bg-background flex-1" />;
   if (status === 'signed-out' && !isLoginRoute) return <Redirect href="/admin/login" />;
   if (status === 'signed-in' && isLoginRoute) return <Redirect href="/admin" />;

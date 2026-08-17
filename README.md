@@ -264,16 +264,22 @@ DNS 記錄會自動建立：
 
 ### 4. 網頁版的路由行為
 
-`lib/adminHost.ts` 的 `IS_ADMIN_WEB` 在網頁版恆為 `true`，`components/WebAdminGate.tsx`
-依此收斂路由：
+`lib/adminHost.ts` 的 `IS_ADMIN_WEB` 在**正式建置**的網頁版恆為 `true`，
+`components/WebAdminGate.tsx` 依此收斂路由：
 
 - 網頁上開任何路徑（含 `/`）都會導到 `/admin`，未登入則停在 `/admin/login`；
-  一般使用者介面在網頁上完全不可達，分頁標題固定顯示「即時發管理平台」。
-- 管理主控台與登入頁不顯示「返回一般使用者介面」，因為網頁沒有那一側。
-- 原生 App 相反：`app/admin/_layout.tsx` 在非 web 平台一律 `Redirect` 到 `/(tabs)`，
-  手機上沒有任何管理入口。
-- 本機驗證：`npx expo start --web` 開啟後應該直接看到管理員登入頁；
-  要驗一般使用者介面請用 Expo Go 或模擬器。
+  一般使用者介面在正式網頁上完全不可達，分頁標題固定顯示「即時發管理平台」。
+- 管理主控台與登入頁不顯示「返回一般使用者介面」，因為正式網頁沒有那一側。
+- 原生 App 相反：`app/admin/_layout.tsx` 只在 `IS_ADMIN_PLATFORM_AVAILABLE`（= 網頁）成立時
+  才渲染管理平台，手機上一律 `Redirect` 到 `/(tabs)`，沒有任何管理入口。
+
+開發例外（`ALLOW_USER_UI_ON_WEB = __DEV__ && web`）：用 `npx expo start --web` 時
+**不**收斂路由，`/` 會進一般使用者介面（未登入導到 `/auth/sign-in`），手動開 `/admin`
+仍可進管理平台，兩側可同時在瀏覽器檢視。`AuthGate` 對 `/admin` 底下的路徑一律不生效，
+所以一般使用者的登入狀態不會干擾管理員登入。這個例外只影響 dev server，
+`expo export` 產出的 `dist/` 行為不變（仍是整站管理平台）。
+
+- 正式行為驗證：`npm run build:web` 後用靜態伺服器開 `dist/`，應該直接看到管理員登入頁。
 
 ### 5. 其他主機（備用設定）
 

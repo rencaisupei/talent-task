@@ -1,10 +1,21 @@
 import { Platform } from 'react-native';
 
+const IS_WEB = Platform.OS === 'web';
+
 /**
- * 網頁版只提供管理員專屬平台：任何非 /admin 路徑都會被導到管理入口。
- * 一般使用者介面只在手機 App（原生）上執行，因此原生永遠為 false。
+ * 開發／預覽（Metro dev server）時允許在瀏覽器檢視一般使用者介面，
+ * 方便不開模擬器就能看手機 App 的畫面。正式建置（expo export）恆為 false。
  */
-export const IS_ADMIN_WEB = Platform.OS === 'web';
+export const ALLOW_USER_UI_ON_WEB = IS_WEB && __DEV__;
+
+/**
+ * 網頁版是否鎖定為管理員專屬平台：任何非 /admin 路徑都會被導到管理入口。
+ * 一般使用者介面只在手機 App（原生）上正式提供，因此原生永遠為 false。
+ */
+export const IS_ADMIN_WEB = IS_WEB && !ALLOW_USER_UI_ON_WEB;
+
+/** 管理平台是否可進入（只有網頁；開發時放行一般介面也仍可手動開 /admin）。 */
+export const IS_ADMIN_PLATFORM_AVAILABLE = IS_WEB;
 
 /** 管理入口路徑；網頁版的任何其他路徑都會被導回這裡。 */
 export const ADMIN_ENTRY_PATH = '/admin';
