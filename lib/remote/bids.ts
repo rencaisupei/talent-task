@@ -61,6 +61,7 @@ export interface RemoteBidDraft {
   gigId: string;
   gigTitle: string;
   tag: string;
+  /** 發案者的 auth.users.id；示範任務沒有帳號，會存成 null。 */
   clientId: string;
   talentId: string;
   talentName: string;
@@ -71,6 +72,13 @@ export interface RemoteBidDraft {
   review: PublishReview;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 示範任務的發案者是示範字串而不是帳號 id，寫入時必須換成 null。 */
+function accountIdOrNull(value: string): string | null {
+  return UUID_PATTERN.test(value) ? value : null;
+}
+
 export async function upsertRemoteBid(draft: RemoteBidDraft): Promise<RemoteResult<Bid>> {
   const client = getBiltClient();
   if (client === null) return remoteError(REMOTE_UNCONFIGURED_MESSAGE);
@@ -79,7 +87,7 @@ export async function upsertRemoteBid(draft: RemoteBidDraft): Promise<RemoteResu
     gig_id: draft.gigId,
     gig_title: draft.gigTitle,
     tag: draft.tag,
-    client_id: draft.clientId.length > 0 ? draft.clientId : null,
+    client_id: accountIdOrNull(draft.clientId),
     talent_id: draft.talentId,
     talent_name: draft.talentName,
     talent_region: draft.talentRegion,

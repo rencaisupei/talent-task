@@ -607,6 +607,38 @@ curl "https://<project>.cloud.bilt.me/functions/v1/daily-maintenance?key=<排程
 3. 也可以改用環境變數金鑰：在專案 secrets 加 `MAINTENANCE_CRON_KEY`，函式會同時接受它。
 4. 排程建議設在離峰時段（例如台北時間 04:00）。重複呼叫是安全的，同一天不會重跑。
 
+## 11. 任務與提案的雲端資料（gigs / bids）
+
+任務與提案已經不在裝置上，改存 bilt-cloud Postgres，所有使用者看到的是同一份資料。
+
+### 資料表與權限
+
+| 資料表 | 誰讀得到                                                                                                           | 誰寫得到                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `gigs` | 已通過認證且未下架的任務所有人（含未登入訪客）都讀得到；發案者與承接人才另外讀得到自己的待複審、被退回與已下架任務 | 只有 `client_id = auth.uid()` 的本人可以新增與修改 |
+| `bids` | 示範提案所有人可見；其餘只有投標的人才本人與該任務的發案者可見                                                     | 只有 `talent_id = auth.uid()` 的本人可以新增與修改 |
+
+- 共用示範資料以 `is_demo = true` 標記，`client_id` / `talent_id` 為 `null`（不屬於任何帳號，任何人都不能改）。
+- `bids` 的可見性需要查 `gigs`，政策不可直接子查詢（會造成 42P17 無限遞迴），改用 `SECURITY DEFINER` 的 `is_gig_client(gid)`。
+- 跨角色的狀態轉移不靠 RLS（RLS 無法限制「只能改哪些欄位」），改走資料庫函式：
+  - `accept_bid(bid_id)`：接受提案、退回其他待處理提案、指派任務。
+  - `mark_gig_talking(gid)`：人才開啟對話時把任務推進到「對話中」。
+  - `close_stale_gigs(max_age_days)`：逾期未成交自動結案（裝置端每日維護與伺服器排程共用同一份規則）。
+
+### 自動更新（Realtime）
+
+`lib/remote/live.ts` 同時做三件事：訂閱 `gigs` / `bids` 的 `postgres_changes`、監聽 broadcast 事件（本機寫入成功後會廣播）、每 20 秒輪詢一次並在 App 回到前景時補讀。
+
+**目前這個專案的資料庫 `wal_level` 是 `replica`**，Realtime 的 `postgres_changes` 需要 `logical` 才會推送資料列變更，因此實際生效的是輪詢與前景補讀（最慢 20 秒看到新內容）。等資料庫開啟邏輯複製後，同一份程式碼就會自動變成即時推送，不需要改任何東西。
+
+### 管理平台
+
+RLS 讓一般用戶端讀不到待複審與已下架的內容，因此管理平台改走 `admin-content` 邊緣函式（service key + 管理員 session token）：`list`、`takedown-gig`、`restore-gig`、`gig-review`、`bid-review`。權限沿用角色表（下架需 `gigs:manage`、複審需 `review:manage`）。
+
+### 尚未上雲的部分
+
+對話、訊息、評價、收藏與通知仍存在各自裝置上，因此聊天目前還不是跨裝置的。這是下一階段的工作。
+
 ## How can I make changes to my app?
 
 **Via Bilt (Easiest)**

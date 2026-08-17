@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { IS_ADMIN_WEB } from '@/lib/adminHost';
 import { startContentLiveSync } from '@/lib/remote/live';
 import { useBidStore } from '@/lib/stores/bids';
 import { useGigStore } from '@/lib/stores/gigs';
@@ -24,6 +25,8 @@ export function CloudSync() {
   const authUserId = useSessionStore((state) => state.authUserId);
 
   useEffect(() => {
+    // 正式網頁版整站是管理平台，那裡用 admin-content 讀完整資料，不需要一般使用者的同步。
+    if (IS_ADMIN_WEB) return undefined;
     // 'unknown' 代表還在確認裝置上的登入狀態。
     if (authStatus === 'unknown') return undefined;
 
