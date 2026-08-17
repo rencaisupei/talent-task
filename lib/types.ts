@@ -1,6 +1,10 @@
 export type UserRole = 'client' | 'talent';
 
-/** 本機示範帳號 ID（未接後端前的單一使用者）。 */
+/**
+ * 示範種子資料中代表「本機使用者」的 ID。
+ * 一般使用者的真實身分改由 bilt auth 提供（session store 的 userId = auth.users.id），
+ * 這個常數只留給網頁管理平台的示範資料使用。
+ */
 export const LOCAL_USER_ID = 'user_local';
 
 export type VerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';

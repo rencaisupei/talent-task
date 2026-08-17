@@ -26,6 +26,7 @@ import { initPostHog } from '@/lib/posthog';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { AuthGate } from '@/components/AuthGate';
 import { PushBridge } from '@/components/PushBridge';
 import { WebAdminGate } from '@/components/WebAdminGate';
 
@@ -147,6 +148,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>
         <RootNavigator />
+        <AuthGate />
         <WebAdminGate />
         <PushBridge />
         <InstallPrompt />
@@ -166,6 +168,7 @@ function RootNavigator() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="auth/sign-in" />
       <Stack.Screen name="onboarding/role" />
       <Stack.Screen name="onboarding/skills" />
       <Stack.Screen name="gig/[id]" />

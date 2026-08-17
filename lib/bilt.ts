@@ -1,7 +1,45 @@
 import { asyncStorage, createClient } from '@biltme/backend';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type BiltClient = ReturnType<typeof createClient>;
+/**
+ * profiles 資料表的最小 schema 型別。沒有這個型別時，supabase-js 的
+ * `Database` 泛型預設為 `any`，會讓 `.from('profiles').upsert(...)` 之類的
+ * 呼叫被推論成 `never`（已知的 supabase-js 型別行為），因此明確標註欄位型別。
+ */
+interface ProfilesTable {
+  Row: {
+    id: string;
+    display_name: string | null;
+    role: string | null;
+    region: string | null;
+    skills: string[] | null;
+    privacy_accepted: boolean | null;
+    updated_at: string | null;
+  };
+  Insert: {
+    id: string;
+    display_name?: string | null;
+    role?: string | null;
+    region?: string | null;
+    skills?: string[] | null;
+    privacy_accepted?: boolean | null;
+    updated_at?: string | null;
+  };
+  Update: Partial<ProfilesTable['Row']>;
+  Relationships: [];
+}
+
+interface BiltDatabase {
+  public: {
+    Tables: {
+      profiles: ProfilesTable;
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+  };
+}
+
+type BiltClient = ReturnType<typeof createClient<BiltDatabase>>;
 
 const BILT_URL = process.env.EXPO_PUBLIC_BILT_URL ?? '';
 const BILT_ANON_KEY = process.env.EXPO_PUBLIC_BILT_ANON_KEY ?? '';
@@ -18,7 +56,7 @@ let client: BiltClient | null = null;
 export function getBiltClient(): BiltClient | null {
   if (!IS_BILT_CONFIGURED) return null;
 
-  client ??= createClient(BILT_URL, BILT_ANON_KEY, {
+  client ??= createClient<BiltDatabase>(BILT_URL, BILT_ANON_KEY, {
     auth: {
       storage: asyncStorage(AsyncStorage),
       persistSession: true,

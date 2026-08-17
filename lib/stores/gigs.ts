@@ -5,13 +5,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { regionCoordinate } from '@/lib/regions';
 import { SEED_GIGS } from '@/lib/seed';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import {
-  type BudgetLevelId,
-  type Gig,
-  type GigLocation,
-  LOCAL_USER_ID,
-  type PublishReview,
-} from '@/lib/types';
+import { useSessionStore } from '@/lib/stores/session';
+import type { BudgetLevelId, Gig, GigLocation, PublishReview } from '@/lib/types';
 
 export interface PublishGigInput {
   categoryId: string;
@@ -40,6 +35,12 @@ export function isGigVisible(gig: Gig): boolean {
 /** 等待管理員複審的任務。 */
 export function gigsAwaitingReview(gigs: Gig[]): Gig[] {
   return gigs.filter((gig) => gig.review?.state === 'pending');
+}
+
+/** 這筆任務是否屬於目前登入的使用者（決定要不要對他發通知）。 */
+function isMyClientId(clientId: string): boolean {
+  const { userId } = useSessionStore.getState();
+  return userId.length > 0 && clientId === userId;
 }
 
 interface GigState {
@@ -129,7 +130,7 @@ export const useGigStore = create<GigState>()(
               : item,
           ),
         }));
-        if (gig && gig.clientId === LOCAL_USER_ID) {
+        if (gig && isMyClientId(gig.clientId)) {
           useNotificationStore.getState().pushNotification({
             kind: 'moderation',
             title: '複審通過，任務已上架',
@@ -159,7 +160,7 @@ export const useGigStore = create<GigState>()(
               : item,
           ),
         }));
-        if (gig && gig.clientId === LOCAL_USER_ID) {
+        if (gig && isMyClientId(gig.clientId)) {
           useNotificationStore.getState().pushNotification({
             kind: 'moderation',
             title: '複審未通過，任務未上架',
@@ -221,7 +222,7 @@ export const useGigStore = create<GigState>()(
               : item,
           ),
         }));
-        if (gig && gig.clientId === LOCAL_USER_ID) {
+        if (gig && isMyClientId(gig.clientId)) {
           useNotificationStore.getState().pushNotification({
             kind: 'system',
             title: '任務已被管理員下架',

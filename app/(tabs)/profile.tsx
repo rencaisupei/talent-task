@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock,
   Crown,
+  LogOut,
   RefreshCw,
   Repeat,
   ShieldCheck,
@@ -22,6 +23,7 @@ import { RatingStars } from '@/components/RatingStars';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
+import { signOut } from '@/lib/auth';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { CATEGORY_COUNT, TOTAL_TAG_COUNT } from '@/lib/omniTags';
@@ -52,6 +54,7 @@ export default function ProfileScreen() {
   const credentialUri = useSessionStore((state) => state.credentialUri);
   const isPremium = useSessionStore((state) => state.isPremium);
   const userId = useSessionStore((state) => state.userId);
+  const email = useSessionStore((state) => state.email);
   const switchRole = useSessionStore((state) => state.switchRole);
   const resetSession = useSessionStore((state) => state.resetSession);
 
@@ -60,7 +63,7 @@ export default function ProfileScreen() {
   const pushEnabled = usePushPrefsStore((state) => state.enabled);
   const pushPermission = usePushPrefsStore((state) => state.permission);
 
-  const [confirmAction, setConfirmAction] = useState<'switch' | 'reset' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'switch' | 'reset' | 'signOut' | null>(null);
 
   const summary = useMemo(
     () => summarizeReviews(reviewsForUser(reviews, userId)),
@@ -107,6 +110,12 @@ export default function ProfileScreen() {
       router.replace('/onboarding/role');
       return;
     }
+    if (confirmAction === 'signOut') {
+      setConfirmAction(null);
+      // 登出後由 AuthGate 監聽到狀態變化並導回登入頁。
+      void signOut();
+      return;
+    }
     setConfirmAction(null);
   };
 
@@ -127,6 +136,9 @@ export default function ProfileScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-ink text-[18px] font-bold tracking-tight">{displayName}</Text>
+              {email !== null ? (
+                <Text className="text-muted mt-0.5 text-[12px]">{email}</Text>
+              ) : null}
               <View className="mt-1.5 flex-row flex-wrap items-center gap-2">
                 <StaticTag label={role === 'client' ? '尋找專家' : '我要接案'} tone="brand" />
                 {role === 'talent' ? (
@@ -297,22 +309,42 @@ export default function ProfileScreen() {
             caption="回到身分選擇頁"
             onPress={handleReset}
           />
+          <View className="bg-hairline h-px" />
+          <ProfileRow
+            icon={<LogOut size={17} color={COLORS.coral} strokeWidth={2.1} />}
+            label="登出"
+            caption={email ?? '已登入這個裝置'}
+            onPress={() => setConfirmAction('signOut')}
+          />
         </View>
       </ScrollView>
 
       <ConfirmSheet
         visible={confirmAction !== null}
-        title={confirmAction === 'reset' ? '重設個人資料？' : '切換使用身分？'}
+        title={
+          confirmAction === 'reset'
+            ? '重設個人資料？'
+            : confirmAction === 'signOut'
+              ? '登出這個帳號？'
+              : '切換使用身分？'
+        }
         message={
           confirmAction === 'reset'
             ? '將清除身分、技能與訂閱狀態，回到身分選擇頁。'
-            : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
+            : confirmAction === 'signOut'
+              ? '任務與對話都存在你的帳號下，重新以同一個 Email 登入即可繼續。'
+              : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
         }
         actions={[
           {
             id: 'confirm',
-            label: confirmAction === 'reset' ? '確認重設' : '確認切換',
-            tone: confirmAction === 'reset' ? 'danger' : 'primary',
+            label:
+              confirmAction === 'reset'
+                ? '確認重設'
+                : confirmAction === 'signOut'
+                  ? '確認登出'
+                  : '確認切換',
+            tone: confirmAction === 'switch' ? 'primary' : 'danger',
           },
         ]}
         onSelect={handleConfirm}

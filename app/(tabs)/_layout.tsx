@@ -8,10 +8,14 @@ import { useSessionStore } from '@/lib/stores/session';
 
 export default function TabLayout() {
   const hydrated = useSessionStore((state) => state.hydrated);
+  const authStatus = useSessionStore((state) => state.authStatus);
+  const profileLoaded = useSessionStore((state) => state.profileLoaded);
   const role = useSessionStore((state) => state.role);
   const skills = useSessionStore((state) => state.skills);
 
-  if (!hydrated) {
+  // 等後端 profile 載入完才判斷要不要進 onboarding，
+  // 否則在新裝置上會先閃一次身分選擇頁，才被伺服器上的身分覆寫。
+  if (!hydrated || authStatus !== 'signedIn' || !profileLoaded) {
     return <View className="bg-background flex-1" />;
   }
 

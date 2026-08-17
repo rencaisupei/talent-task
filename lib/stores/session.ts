@@ -5,12 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { MAX_TALENT_TAGS } from '@/lib/omniTags';
 import { REGION_ANY } from '@/lib/regions';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import {
-  type AiReviewResult,
-  LOCAL_USER_ID,
-  type UserRole,
-  type VerificationStatus,
-} from '@/lib/types';
+import type { AiReviewResult, UserRole, VerificationStatus } from '@/lib/types';
 
 export const FREE_MONTHLY_CHAT_QUOTA = 2;
 export const PREMIUM_PRICE_TWD = 399;
@@ -19,13 +14,31 @@ export type ChatRequestResult = 'unlimited' | 'allowed' | 'existing' | 'blocked'
 
 export type UploadState = 'idle' | 'uploading' | 'done' | 'error';
 
+/** unknown 代表還在確認裝置上的登入狀態，畫面此時應維持等待。 */
+export type AuthStatus = 'unknown' | 'signedOut' | 'signedIn';
+
+/** 後端 profiles 資料表負責同步的欄位。 */
+export interface RemoteProfileFields {
+  displayName: string;
+  role: UserRole | null;
+  region: string;
+  skills: string[];
+  privacyAccepted: boolean;
+}
+
 export function monthKey(date: Date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 interface SessionState {
   hydrated: boolean;
+  /** 登入狀態；由 AuthGate 依 bilt auth session 寫入，不持久化。 */
+  authStatus: AuthStatus;
+  /** 已登入使用者的 uid（= auth.users.id）；未登入為空字串。 */
   userId: string;
+  email: string | null;
+  /** 後端 profile 是否已套用，避免尚未載入就把預設值寫回後端。 */
+  profileLoaded: boolean;
   displayName: string;
   role: UserRole | null;
   region: string;
@@ -46,6 +59,12 @@ interface SessionState {
   openedPeerIds: string[];
 
   markHydrated: () => void;
+  /** 套用 bilt auth 的登入身分；回傳 'switched' 代表換了帳號，呼叫端需清空本機資料。 */
+  applySignedIn: (input: { userId: string; email: string | null }) => 'same' | 'switched';
+  applySignedOut: () => void;
+  /** 以後端 profiles 的內容覆寫本機身分欄位。 */
+  applyRemoteProfile: (fields: RemoteProfileFields) => void;
+  markProfileLoaded: () => void;
   chooseRole: (role: UserRole) => void;
   switchRole: () => void;
   setPrivacyAccepted: (accepted: boolean) => void;
@@ -66,9 +85,8 @@ interface SessionState {
   resetSession: () => void;
 }
 
-const initialState = {
-  hydrated: false,
-  userId: LOCAL_USER_ID,
+/** 與使用者身分綁定的欄位；換帳號時整組重設。 */
+const profileDefaults = {
   displayName: '我',
   role: null as UserRole | null,
   region: REGION_ANY,
@@ -84,6 +102,15 @@ const initialState = {
   chatQuotaRemaining: FREE_MONTHLY_CHAT_QUOTA,
   quotaMonth: monthKey(),
   openedPeerIds: [] as string[],
+};
+
+const initialState = {
+  hydrated: false,
+  authStatus: 'unknown' as AuthStatus,
+  userId: '',
+  email: null as string | null,
+  profileLoaded: false,
+  ...profileDefaults,
 };
 
 /** 持久化欄位（partialize 的形狀），migrate 以此為輸出型別。 */
@@ -123,6 +150,42 @@ export const useSessionStore = create<SessionState>()(
       ...initialState,
 
       markHydrated: () => set({ hydrated: true }),
+
+      applySignedIn: ({ userId, email }) => {
+        const previous = get().userId;
+        const switched = previous.length > 0 && previous !== userId;
+
+        if (switched) {
+          set({
+            ...profileDefaults,
+            quotaMonth: monthKey(),
+            userId,
+            email,
+            authStatus: 'signedIn',
+            profileLoaded: false,
+          });
+          return 'switched';
+        }
+
+        set({ userId, email, authStatus: 'signedIn' });
+        return 'same';
+      },
+
+      // userId 保留不清：同一個帳號再次登入時不必重新拉一次資料，
+      // 換成別的帳號才會在 applySignedIn 觸發清空。
+      applySignedOut: () => set({ authStatus: 'signedOut', email: null, profileLoaded: false }),
+
+      applyRemoteProfile: (fields) =>
+        set({
+          displayName: fields.displayName,
+          role: fields.role,
+          region: fields.region,
+          skills: fields.skills,
+          privacyAccepted: fields.privacyAccepted,
+          profileLoaded: true,
+        }),
+
+      markProfileLoaded: () => set({ profileLoaded: true }),
 
       chooseRole: (role) => set({ role }),
 
@@ -194,13 +257,24 @@ export const useSessionStore = create<SessionState>()(
         return 'allowed';
       },
 
-      resetSession: () => set({ ...initialState, hydrated: true }),
+      // 只重設身分資料，登入狀態保留（登出是另一個動作）。
+      resetSession: () =>
+        set((state) => ({
+          ...profileDefaults,
+          quotaMonth: monthKey(),
+          hydrated: true,
+          authStatus: state.authStatus,
+          userId: state.userId,
+          email: state.email,
+          profileLoaded: state.profileLoaded,
+        })),
     }),
     {
       name: 'instantgig-session',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         userId: state.userId,
+        email: state.email,
         displayName: state.displayName,
         role: state.role,
         region: state.region,
