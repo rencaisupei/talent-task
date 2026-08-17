@@ -5,7 +5,12 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { MAX_TALENT_TAGS } from '@/lib/omniTags';
 import { REGION_ANY } from '@/lib/regions';
 import { useNotificationStore } from '@/lib/stores/notifications';
-import type { AiReviewResult, UserRole, VerificationStatus } from '@/lib/types';
+import {
+  LOCAL_USER_ID,
+  type AiReviewResult,
+  type UserRole,
+  type VerificationStatus,
+} from '@/lib/types';
 
 export const FREE_MONTHLY_CHAT_QUOTA = 2;
 export const PREMIUM_PRICE_TWD = 399;
@@ -34,8 +39,14 @@ interface SessionState {
   hydrated: boolean;
   /** 登入狀態；由 AuthGate 依 bilt auth session 寫入，不持久化。 */
   authStatus: AuthStatus;
-  /** 已登入使用者的 uid（= auth.users.id）；未登入為空字串。 */
+  /**
+   * 本機任務、提案、對話與評價的擁有者 id。
+   * 這些資料目前都存在裝置上（AsyncStorage），與帳號無關，因此固定為 LOCAL_USER_ID；
+   * 等資料遷移到後端資料表後才會改成使用 authUserId。
+   */
   userId: string;
+  /** 已登入使用者的 auth.users.id；訪客為空字串。 */
+  authUserId: string;
   email: string | null;
   /** 後端 profile 是否已套用，避免尚未載入就把預設值寫回後端。 */
   profileLoaded: boolean;
@@ -59,8 +70,8 @@ interface SessionState {
   openedPeerIds: string[];
 
   markHydrated: () => void;
-  /** 套用 bilt auth 的登入身分；回傳 'switched' 代表換了帳號，呼叫端需清空本機資料。 */
-  applySignedIn: (input: { userId: string; email: string | null }) => 'same' | 'switched';
+  /** 套用 bilt auth 的登入身分；回傳 'switched' 代表換了另一個帳號，呼叫端需清空本機資料。 */
+  applySignedIn: (input: { authUserId: string; email: string | null }) => 'same' | 'switched';
   applySignedOut: () => void;
   /** 以後端 profiles 的內容覆寫本機身分欄位。 */
   applyRemoteProfile: (fields: RemoteProfileFields) => void;
@@ -107,7 +118,8 @@ const profileDefaults = {
 const initialState = {
   hydrated: false,
   authStatus: 'unknown' as AuthStatus,
-  userId: '',
+  userId: LOCAL_USER_ID,
+  authUserId: '',
   email: null as string | null,
   profileLoaded: false,
   ...profileDefaults,
@@ -141,6 +153,21 @@ function migrateSession(persisted: unknown, version: number | undefined): Persis
     delete state.openedClientIds;
   }
 
+  // v1：userId 曾經存 auth.users.id，現在改為固定的本機資料擁有者 id，
+  // 舊值搬到 authUserId，並讓 userId 回到 initialState 的 LOCAL_USER_ID。
+  if (from < 2) {
+    const legacy = state.userId;
+    if (
+      state.authUserId === undefined &&
+      typeof legacy === 'string' &&
+      legacy.length > 0 &&
+      legacy !== LOCAL_USER_ID
+    ) {
+      state.authUserId = legacy;
+    }
+    delete state.userId;
+  }
+
   return state;
 }
 
@@ -151,15 +178,15 @@ export const useSessionStore = create<SessionState>()(
 
       markHydrated: () => set({ hydrated: true }),
 
-      applySignedIn: ({ userId, email }) => {
-        const previous = get().userId;
-        const switched = previous.length > 0 && previous !== userId;
+      applySignedIn: ({ authUserId, email }) => {
+        const previous = get().authUserId;
+        const switched = previous.length > 0 && previous !== authUserId;
 
         if (switched) {
           set({
             ...profileDefaults,
             quotaMonth: monthKey(),
-            userId,
+            authUserId,
             email,
             authStatus: 'signedIn',
             profileLoaded: false,
@@ -167,11 +194,11 @@ export const useSessionStore = create<SessionState>()(
           return 'switched';
         }
 
-        set({ userId, email, authStatus: 'signedIn' });
+        set({ authUserId, email, authStatus: 'signedIn' });
         return 'same';
       },
 
-      // userId 保留不清：同一個帳號再次登入時不必重新拉一次資料，
+      // authUserId 保留不清：同一個帳號再次登入時不必重新拉一次資料，
       // 換成別的帳號才會在 applySignedIn 觸發清空。
       applySignedOut: () => set({ authStatus: 'signedOut', email: null, profileLoaded: false }),
 
@@ -265,6 +292,7 @@ export const useSessionStore = create<SessionState>()(
           hydrated: true,
           authStatus: state.authStatus,
           userId: state.userId,
+          authUserId: state.authUserId,
           email: state.email,
           profileLoaded: state.profileLoaded,
         })),
@@ -273,7 +301,7 @@ export const useSessionStore = create<SessionState>()(
       name: 'instantgig-session',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        userId: state.userId,
+        authUserId: state.authUserId,
         email: state.email,
         displayName: state.displayName,
         role: state.role,
@@ -291,7 +319,7 @@ export const useSessionStore = create<SessionState>()(
         quotaMonth: state.quotaMonth,
         openedPeerIds: state.openedPeerIds,
       }),
-      version: 1,
+      version: 2,
       migrate: (persisted, version) => migrateSession(persisted, version),
       onRehydrateStorage: () => (state) => {
         state?.markHydrated();

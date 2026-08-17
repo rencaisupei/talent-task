@@ -6,10 +6,10 @@ import { useReviewStore } from '@/lib/stores/reviews';
 import { useSavedStore } from '@/lib/stores/saved';
 
 /**
- * 換帳號（含第一次登入真實帳號）時清空本機使用者資料。
+ * 換成另一個真實帳號時清空本機使用者資料。
  *
- * 示範種子資料是假資料，不會上傳到後端，也不該混進真實帳號的任務與對話裡，
- * 因此登入後一律從空白開始，之後改由後端資料表提供內容。
+ * 示範種子資料是假資料，不會上傳到後端，也不該混進另一個人的任務與對話裡。
+ * 未登入（訪客）與登入同一個帳號都不會觸發，因此裝置上的內容會保留。
  */
 export function resetLocalUserData(): void {
   useGigStore.setState({ gigs: [] });

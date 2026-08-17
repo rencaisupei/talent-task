@@ -13,16 +13,13 @@ export default function TabLayout() {
   const role = useSessionStore((state) => state.role);
   const skills = useSessionStore((state) => state.skills);
 
-  // 等後端 profile 載入完才判斷要不要進 onboarding，
-  // 否則在新裝置上會先閃一次身分選擇頁，才被伺服器上的身分覆寫。
-  if (!hydrated || authStatus !== 'signedIn' || !profileLoaded) {
+  // 訪客可以直接進任務牆瀏覽，只等本機資料 hydrate 完成；
+  // 已登入者多等後端 profile 載入，否則新裝置上會先閃一次錯的身分視角。
+  if (!hydrated || (authStatus === 'signedIn' && !profileLoaded)) {
     return <View className="bg-background flex-1" />;
   }
 
-  if (!role) {
-    return <Redirect href="/onboarding/role" />;
-  }
-
+  // 還沒選身分（訪客或剛註冊）一律先看任務牆，身分可在「帳戶」分頁切換。
   if (role === 'talent' && skills.length === 0) {
     return <Redirect href="/onboarding/skills" />;
   }

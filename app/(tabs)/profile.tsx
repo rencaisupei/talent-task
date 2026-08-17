@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock,
   Crown,
+  LogIn,
   LogOut,
   RefreshCw,
   Repeat,
@@ -55,6 +56,7 @@ export default function ProfileScreen() {
   const isPremium = useSessionStore((state) => state.isPremium);
   const userId = useSessionStore((state) => state.userId);
   const email = useSessionStore((state) => state.email);
+  const authStatus = useSessionStore((state) => state.authStatus);
   const switchRole = useSessionStore((state) => state.switchRole);
   const resetSession = useSessionStore((state) => state.resetSession);
 
@@ -112,7 +114,7 @@ export default function ProfileScreen() {
     }
     if (confirmAction === 'signOut') {
       setConfirmAction(null);
-      // 登出後由 AuthGate 監聽到狀態變化並導回登入頁。
+      // 登出後仍留在目前畫面：未登入也能繼續瀏覽任務牆。
       void signOut();
       return;
     }
@@ -310,12 +312,21 @@ export default function ProfileScreen() {
             onPress={handleReset}
           />
           <View className="bg-hairline h-px" />
-          <ProfileRow
-            icon={<LogOut size={17} color={COLORS.coral} strokeWidth={2.1} />}
-            label="登出"
-            caption={email ?? '已登入這個裝置'}
-            onPress={() => setConfirmAction('signOut')}
-          />
+          {authStatus === 'signedIn' ? (
+            <ProfileRow
+              icon={<LogOut size={17} color={COLORS.coral} strokeWidth={2.1} />}
+              label="登出"
+              caption={email ?? '已登入這個裝置'}
+              onPress={() => setConfirmAction('signOut')}
+            />
+          ) : (
+            <ProfileRow
+              icon={<LogIn size={17} color={COLORS.brandStrong} strokeWidth={2.1} />}
+              label="登入或註冊"
+              caption="用 Email 驗證碼登入，跨裝置同步身分與技能標籤"
+              onPress={() => router.push('/auth/sign-in')}
+            />
+          )}
         </View>
       </ScrollView>
 
@@ -332,7 +343,7 @@ export default function ProfileScreen() {
           confirmAction === 'reset'
             ? '將清除身分、技能與訂閱狀態，回到身分選擇頁。'
             : confirmAction === 'signOut'
-              ? '任務與對話都存在你的帳號下，重新以同一個 Email 登入即可繼續。'
+              ? '登出後仍可以瀏覽任務牆；這台裝置上的任務與對話會保留，重新以同一個 Email 登入即可繼續同步身分。'
               : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
         }
         actions={[

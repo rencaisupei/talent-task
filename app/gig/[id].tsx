@@ -49,6 +49,8 @@ export default function GigDetailScreen() {
   const closeGig = useGigStore((state) => state.closeGig);
 
   const role = useSessionStore((state) => state.role);
+  const chooseRole = useSessionStore((state) => state.chooseRole);
+  const skills = useSessionStore((state) => state.skills);
   const userId = useSessionStore((state) => state.userId);
   const displayName = useSessionStore((state) => state.displayName);
   const requestChatWith = useSessionStore((state) => state.requestChatWith);
@@ -138,6 +140,12 @@ export default function GigDetailScreen() {
       talentName: displayName,
       openingMessage: `您好，我可以承接「${gig.tag}」這項任務，方便說明現場細節嗎？`,
     });
+
+  /** 訪客或還沒選身分的人在任務詳情直接切成接案身分。 */
+  const handleBecomeTalent = () => {
+    chooseRole('talent');
+    if (skills.length === 0) router.push('/onboarding/skills');
+  };
 
   const handleAcceptBid = (bidId: string, talentName: string) =>
     setConfirm({ type: 'accept', bidId, talentName });
@@ -426,6 +434,22 @@ export default function GigDetailScreen() {
               投遞提案不佔用對話配額；免費版每月最多與 {FREE_MONTHLY_CHAT_QUOTA}{' '}
               位不同對象開啟新對話。
             </Text>
+          </View>
+        ) : null}
+
+        {role === null &&
+        !isOwner &&
+        isVisible &&
+        gig.status !== 'completed' &&
+        gig.status !== 'closed' ? (
+          <View className="border-brand/25 bg-brand-soft gap-3 rounded-xl border p-4">
+            <Text className="text-ink text-[15px] font-semibold">想接這件任務？</Text>
+            <Text className="text-ink-soft text-[13px] leading-5">
+              切換為「我要接案」身分並選好技能標籤，就能投遞提案並與客戶開啟對話。
+            </Text>
+            <Button size="md" onPress={handleBecomeTalent}>
+              <Button.Label>切換為接案身分</Button.Label>
+            </Button>
           </View>
         ) : null}
 

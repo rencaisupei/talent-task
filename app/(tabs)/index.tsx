@@ -57,7 +57,11 @@ function TalentHome() {
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
   const toggleSaved = useSavedStore((state) => state.toggleSaved);
 
-  const [filters, setFilters] = useState<GigFilters>(DEFAULT_GIG_FILTERS);
+  const [filters, setFilters] = useState<GigFilters>(() => ({
+    ...DEFAULT_GIG_FILTERS,
+    // 還沒選技能標籤時不套用標籤篩選，否則任務牆一進來會是空的。
+    skillOnly: skills.length > 0,
+  }));
   const [isSheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<BrowseMode>('list');
 

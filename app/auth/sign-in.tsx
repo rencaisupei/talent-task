@@ -1,5 +1,5 @@
 import { Button, Input, InputOTP, Label, TextField } from 'heroui-native';
-import { ArrowLeft, Mail, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Mail, ShieldCheck, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { BrandWordmark } from '@/components/BrandLogo';
 import { isValidEmail, normalizeEmail, sendLoginCode, verifyLoginCode } from '@/lib/auth';
 import { IS_BILT_CONFIGURED } from '@/lib/bilt';
 import { COLORS } from '@/lib/colors';
+import { goBackOrReplace } from '@/lib/navigation';
 
 const CODE_LENGTH = 6;
 
@@ -74,7 +75,19 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <BrandWordmark size={56} />
+        <View className="flex-row items-center justify-between gap-3">
+          <BrandWordmark size={56} />
+          <Pressable
+            onPress={() => goBackOrReplace('/(tabs)')}
+            accessibilityRole="button"
+            accessibilityLabel="關閉登入頁"
+            disabled={busy}
+            hitSlop={8}
+            className="border-hairline bg-canvas h-9 w-9 items-center justify-center rounded-xl border"
+          >
+            <X size={17} color={COLORS.ink} strokeWidth={2.2} />
+          </Pressable>
+        </View>
 
         <View>
           <Text
@@ -85,7 +98,7 @@ export default function SignInScreen() {
           </Text>
           <Text className="text-muted mt-2 text-[15px] leading-6">
             {step === 'email'
-              ? '用 Email 收 6 位數驗證碼登入，不需要記密碼。第一次登入會自動建立帳號。'
+              ? '登入是選用的：不登入也能瀏覽任務牆。登入後身分、技能標籤與地區會跨裝置同步，第一次登入會自動建立帳號。'
               : `已寄出 6 位數驗證碼到 ${normalizeEmail(email)}，請於 10 分鐘內輸入。`}
           </Text>
         </View>
@@ -197,8 +210,8 @@ export default function SignInScreen() {
             <Text className="text-ink text-[15px] font-semibold">為什麼需要登入</Text>
           </View>
           <Text className="text-ink-soft text-[13px] leading-5">
-            任務、提案與對話都存在你的帳號下，換手機或重裝 App
-            都會完整保留；媒合雙方也需要可辨識的身分才能建立信任度。
+            登入後身分、技能標籤與服務地區會存在你的帳號下，換手機或重裝 App 都會保留；
+            媒合雙方也需要可辨識的身分才能建立信任度。
           </Text>
         </View>
       </ScrollView>

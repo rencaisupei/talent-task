@@ -157,7 +157,7 @@ export async function loadProfileIntoSession(userId: string): Promise<void> {
  */
 export function startProfileSync(): () => void {
   const unsubscribe = useSessionStore.subscribe((state) => {
-    if (state.authStatus !== 'signedIn' || state.userId.length === 0 || !state.profileLoaded)
+    if (state.authStatus !== 'signedIn' || state.authUserId.length === 0 || !state.profileLoaded)
       return;
 
     const fields = fieldsFromSession();
@@ -165,7 +165,7 @@ export function startProfileSync(): () => void {
     if (next === syncedSignature) return;
 
     syncedSignature = next;
-    const userId = state.userId;
+    const userId = state.authUserId;
     if (syncTimer) clearTimeout(syncTimer);
     syncTimer = setTimeout(() => {
       syncTimer = null;

@@ -1,7 +1,6 @@
 import type { Session } from '@biltme/backend';
 import { router, usePathname } from 'expo-router';
 import { useEffect } from 'react';
-import { View } from 'react-native';
 
 import { IS_ADMIN_WEB, isAdminPath } from '@/lib/adminHost';
 import { getStoredSession, subscribeToAuthChanges } from '@/lib/auth';
@@ -11,7 +10,6 @@ import { useNavigationReady } from '@/lib/navigation';
 import { loadProfileIntoSession, resetProfileSyncState, startProfileSync } from '@/lib/profiles';
 import { useSessionStore } from '@/lib/stores/session';
 
-const SIGN_IN_PATH = '/auth/sign-in';
 const APP_PATH = '/(tabs)';
 
 /** 已載入 profile 的 uid，避免 getSession 與 onAuthStateChange 重複抓取。 */
@@ -27,23 +25,25 @@ function handleSession(session: Session | null): void {
     return;
   }
 
-  const userId = session.user.id;
-  if (store.applySignedIn({ userId, email: session.user.email ?? null }) === 'switched') {
+  const authUserId = session.user.id;
+  if (store.applySignedIn({ authUserId, email: session.user.email ?? null }) === 'switched') {
     resetProfileSyncState();
     resetLocalUserData();
   }
 
-  if (profileLoadedFor !== userId) {
-    profileLoadedFor = userId;
-    void loadProfileIntoSession(userId);
+  if (profileLoadedFor !== authUserId) {
+    profileLoadedFor = authUserId;
+    void loadProfileIntoSession(authUserId);
   }
 }
 
 /**
- * 一般使用者必須登入才能使用 App：未登入時導向 Email 驗證碼登入頁。
+ * 登入狀態同步：把 bilt auth 的 session 寫進 session store，並在登入後載入後端 profile。
  *
- * 管理平台有自己的 admin-auth 登入，因此這道閘門不管 /admin 底下的路徑；
- * 正式網頁版整站都是管理平台（IS_ADMIN_WEB），此時閘門完全不生效。
+ * 登入是選用的——未登入也能直接瀏覽任務牆與接案內容，因此這裡不會把使用者導向登入頁；
+ * 只有已經在登入頁而狀態變成已登入時，才導回主畫面。
+ * 管理平台有自己的 admin-auth 登入，因此 /admin 底下的路徑完全不受這裡影響；
+ * 正式網頁版整站都是管理平台（IS_ADMIN_WEB），此時不建立任何一般使用者的登入監聽。
  */
 export function AuthGate() {
   const pathname = usePathname();
@@ -73,22 +73,12 @@ export function AuthGate() {
 
   useEffect(() => {
     // 根導覽器掛載完成前不能導向，否則 expo-router 會直接丟錯。
-    if (disabled || !navigationReady || authStatus === 'unknown') return;
+    if (disabled || !navigationReady) return;
 
-    if (authStatus === 'signedOut' && !onAuthRoute) {
-      router.replace(SIGN_IN_PATH);
-      return;
-    }
     if (authStatus === 'signedIn' && onAuthRoute) {
       router.replace(APP_PATH);
     }
   }, [authStatus, onAuthRoute, navigationReady, disabled]);
 
-  if (disabled) return null;
-
-  // 確認登入狀態與導向登入頁的空檔蓋一層底色，避免一般畫面閃現。
-  const covering = authStatus === 'unknown' || (authStatus === 'signedOut' && !onAuthRoute);
-  if (!covering) return null;
-
-  return <View className="bg-background absolute inset-0 z-50" />;
+  return null;
 }
