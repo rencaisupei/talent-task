@@ -7,8 +7,9 @@
 # This is an assets-only Worker: there is no `main` entry point, Cloudflare just
 # serves dist/ from the edge. `not_found_handling` gives the single-page-app
 # fallback so deep links such as /admin/login resolve to index.html instead of
-# 404. Response headers and the / -> /admin redirect live in public/_headers and
-# public/_redirects, which the export copies verbatim into dist/.
+# 404. Response headers live in public/_headers (public pages indexable, /admin
+# noindex); public/_redirects intentionally holds no rules. Both are copied
+# verbatim into dist/ by the export.
 #
 # `name` must match the Worker created in the Cloudflare dashboard, otherwise a
 # local `npm run deploy:web` publishes to a different Worker.

@@ -276,6 +276,32 @@ Settings → **Domains & Routes** → Add → **Custom domain** 加入 `instantg
   但**同一個 Worker 服務的是同一份靜態網站**，子網域的根路徑仍是一般使用者網站，
   路徑分流無法靠 DNS 完成。
 
+#### Cloudflare 儀表板的「訪客無法存取」提醒
+
+新加入的 zone 還沒有任何記錄時，Cloudflare 概覽頁會出現這幾則提醒：
+
+| 提醒                                       | 該怎麼做                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| 訪客無法存取 `instantgig.tw`（缺 A／CNAME） | **不要手動加 A／AAAA**。照本節加 Custom domain，記錄會自動建立            |
+| 訪客無法存取 `www.instantgig.tw`           | 同上，`www` 再加一次 Custom domain                                        |
+| 電子郵件無法送達、可能被偽造（缺 MX／SPF）  | 與網站無關，見下方「網域信箱」                                            |
+
+提醒本身不是錯誤，只是「這個 zone 目前沒有指向任何伺服器」。Workers 自訂網域沒有源站
+IP 可填，手動建立的 A 記錄會指到錯的地方，也會讓自訂網域驗證卡在 Pending。順序一定是
+**先部署 Worker → 再加 Custom domain**：Worker 不存在時 Domains & Routes 沒有東西可綁。
+
+#### 網域信箱（選配，但建議處理防偽造）
+
+- **不打算用 `@instantgig.tw` 收信**：Email → **DNS wizard** → 選「不需要在這個網域收信」，
+  它會寫入 `v=spf1 -all`、`_dmarc` 的 `p=reject` 與空的 DKIM 記錄，讓別人無法冒用你的
+  網域寄信。網站完全不受影響。
+- **要收信**：最省事的是 Cloudflare **Email Routing**（免費，自動寫入 MX 並轉寄到你現有
+  的信箱），但它**只能收轉、不能寄**；要能寄信得用 Google Workspace／Microsoft 365 等，
+  依它們給的 MX、SPF、DKIM 記錄設定。
+- 若第 7 節的 Access 政策用 `Emails ending in @instantgig.tw`，那些信箱必須真的收得到信，
+  否則收不到一次性驗證碼。改用 `Emails` 逐筆填現有信箱（Gmail 等）就沒有這個依賴。
+- `MX` 記錄不能開 Proxied，郵件主機的 A／CNAME 保持 **DNS only**。
+
 ### 4. 網頁版的路由行為
 
 網頁與手機 App 跑同一份程式碼，差別只有管理平台的可用性（`lib/adminHost.ts` 的
