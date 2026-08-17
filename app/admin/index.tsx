@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   UserCog,
   Users,
+  Wrench,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -140,6 +141,14 @@ export default function AdminHomeScreen() {
         label: '管理員操作紀錄',
         caption: `${formatNumber(auditEntries.length)} 筆稽核紀錄`,
         href: '/admin/audit',
+      },
+      {
+        key: 'maintenance',
+        permission: 'audit:view',
+        icon: <Wrench size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '每日系統維護',
+        caption: '排程設定與伺服器端維護紀錄',
+        href: '/admin/maintenance',
       },
     ];
 

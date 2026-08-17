@@ -101,6 +101,8 @@ export interface Gig {
   /** 管理員下架原因（有值代表由管理員強制下架）。 */
   takedownReason?: string;
   takedownAt?: number;
+  /** 每日維護把逾期未成交的任務自動結案的時間。 */
+  autoClosedAt?: number;
   /** 發布前的即時審核結果；未帶值代表示範資料（視為已通過）。 */
   review?: PublishReview;
 }
@@ -312,6 +314,7 @@ export type AdminActionKind =
   | 'announcement'
   | 'report'
   | 'moderation'
+  | 'maintenance'
   | 'account';
 
 export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
@@ -323,6 +326,7 @@ export const ADMIN_ACTION_LABEL: Record<AdminActionKind, string> = {
   announcement: '公告推播',
   report: '檢舉處理',
   moderation: '發布複審',
+  maintenance: '系統維護',
   account: '管理員帳號',
 };
 

@@ -538,6 +538,7 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 | 開通、取消與退款訂閱  | ✓              |                    |                    |
 | 系統公告與推播        | ✓              |                    |                    |
 | 稽核與登入紀錄        | ✓              | ✓                  | ✓                  |
+| 執行系統維護排程      | ✓              |                    |                    |
 | 管理員帳號管理        | ✓              |                    |                    |
 
 - 主控台只列出該角色可用的模組；直接輸入沒權限的網址會看到「權限不足」畫面
@@ -558,6 +559,53 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
   只影響開啟該頁的瀏覽器。要讓管理動作對所有使用者生效，得先把這些資料搬上後端。
 - 不要把啟用碼與登入網址寫在同一封信裡；離職時同步移除 `admin_accounts` 的帳號與
   Cloudflare Access 白名單。
+
+### 10. 每日一次系統自動維護
+
+維護分兩側，各自每天執行一次，互不影響。
+
+**手機 App（裝置端）**
+
+- 觸發時機：開啟 App、從背景回到前景、App 長時間開著跨日（`components/MaintenanceRunner.tsx`）。
+  同一天只會真的執行一次，判斷依據是台北時區日期（`lib/maintenance.ts` 的 `taipeiDayKey`）。
+- 維護內容：逾期 14 天未成交的任務自動結案、免費對話配額月度重置檢查、
+  通知中心保留最近 30 天已讀通知（未讀一律保留）、每則對話保留最近 200 條訊息、
+  檢查 App 是否有新版本。
+- 使用者可在「帳戶 → 系統維護」（`app/maintenance.tsx`）看到上次維護時間、每項結果、
+  最近 20 次紀錄，也能手動再跑一次。
+- 版本更新：原生走 `expo-updates`（開發模式與 Expo Go 的 `Updates.isEnabled` 為 false，
+  會回報略過；要真的收到更新需先在 EAS 設好更新通道）。網頁走 service worker
+  （`npm run build:pwa` 產生的 `sw.js`），開發伺服器沒有註冊 service worker 所以一律略過。
+
+**伺服器端（管理平台）**
+
+- 函式：`daily-maintenance`（`verify_jwt=false`）。維護內容：清除過期的 `admin_sessions`、
+  解除到期的帳號鎖定、清理 90 天前的 `admin_login_events`、清理 180 天前的 `maintenance_runs`。
+- 紀錄寫進 `maintenance_runs`（RLS 開啟且沒有政策，只有函式的 service key 能讀寫），
+  管理平台「每日系統維護」頁（`app/admin/maintenance.tsx`）可檢視，需要 `audit:view`；
+  手動執行需要 `maintenance:run`（預設只有 owner）。
+- 每日去重：同一個台北日期已有 `ok`／`partial` 紀錄就直接回報已完成，
+  只有 `force: true`（頁面上的「仍要重新執行」）會重跑。
+
+**設定外部排程（讓它不必等管理員登入）**
+
+1. 以 owner 登入管理平台 → 每日系統維護 → 排程設定，複製呼叫網址與排程金鑰
+   （金鑰存在 `maintenance_config`，第一次開啟頁面時自動產生，可隨時「重新產生」）。
+2. 在任何每日排程服務（例如 cron-job.org、GitHub Actions 排程、自己的伺服器 crontab）
+   設定每天呼叫一次：
+
+```sh
+curl -X POST "https://<project>.cloud.bilt.me/functions/v1/daily-maintenance" \
+  -H "content-type: application/json" \
+  -H "x-maintenance-key: <排程金鑰>" \
+  -d '{"action":"run"}'
+
+# 只能發 GET 的排程服務可以改用：
+curl "https://<project>.cloud.bilt.me/functions/v1/daily-maintenance?key=<排程金鑰>"
+```
+
+3. 也可以改用環境變數金鑰：在專案 secrets 加 `MAINTENANCE_CRON_KEY`，函式會同時接受它。
+4. 排程建議設在離峰時段（例如台北時間 04:00）。重複呼叫是安全的，同一天不會重跑。
 
 ## How can I make changes to my app?
 

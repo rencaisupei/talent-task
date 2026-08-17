@@ -89,7 +89,8 @@ interface SessionState {
   setProfileReview: (result: AiReviewResult | null) => void;
   activatePremium: () => void;
   cancelPremium: () => void;
-  syncQuotaMonth: () => void;
+  /** 跨月時重置免費對話配額；回傳是否真的重置了。 */
+  syncQuotaMonth: () => boolean;
   /** 與某位對象開啟新對話：客戶找人才、人才回覆客戶都會扣同一份配額。 */
   requestChatWith: (peerId: string) => ChatRequestResult;
   hasOpenedChatWith: (peerId: string) => boolean;
@@ -258,13 +259,14 @@ export const useSessionStore = create<SessionState>()(
 
       syncQuotaMonth: () => {
         const current = monthKey();
-        if (get().quotaMonth !== current) {
-          set({
-            quotaMonth: current,
-            chatQuotaRemaining: FREE_MONTHLY_CHAT_QUOTA,
-            openedPeerIds: [],
-          });
-        }
+        if (get().quotaMonth === current) return false;
+
+        set({
+          quotaMonth: current,
+          chatQuotaRemaining: FREE_MONTHLY_CHAT_QUOTA,
+          openedPeerIds: [],
+        });
+        return true;
       },
 
       hasOpenedChatWith: (peerId) => get().openedPeerIds.includes(peerId),

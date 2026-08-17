@@ -25,6 +25,8 @@ interface ChatState {
   ) => ChatMessage | null;
   reportConversation: (conversationId: string, reason: string, reporterName: string) => void;
   findConversationForGig: (gigId: string, talentId: string) => Conversation | undefined;
+  /** 每日維護：每則對話只保留最近 N 條訊息，並清掉沒有對應對話的訊息，回傳清掉的訊息數。 */
+  pruneMessages: (keepPerConversation: number) => number;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -129,6 +131,29 @@ export const useChatStore = create<ChatState>()(
           body: `已將與 ${conversation.clientName} 的對話送交安全審核，處理結果會在此通知。`,
           conversationId,
         });
+      },
+
+      pruneMessages: (keepPerConversation) => {
+        const { conversations, messages } = get();
+        const liveIds = new Set(conversations.map((conversation) => conversation.id));
+        const next: Record<string, ChatMessage[]> = {};
+        let removed = 0;
+
+        for (const [conversationId, list] of Object.entries(messages)) {
+          if (!liveIds.has(conversationId)) {
+            removed += list.length;
+            continue;
+          }
+          if (list.length <= keepPerConversation) {
+            next[conversationId] = list;
+            continue;
+          }
+          removed += list.length - keepPerConversation;
+          next[conversationId] = list.slice(list.length - keepPerConversation);
+        }
+
+        if (removed > 0) set({ messages: next });
+        return removed;
       },
     }),
     {

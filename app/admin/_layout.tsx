@@ -29,6 +29,7 @@ const ROUTE_PERMISSION: Record<string, AdminPermission> = {
   revenue: 'revenue:view',
   announcements: 'announcements:send',
   audit: 'audit:view',
+  maintenance: 'audit:view',
   accounts: 'admins:manage',
 };
 
@@ -105,6 +106,7 @@ export default function AdminLayout() {
       <Stack.Screen name="revenue" />
       <Stack.Screen name="announcements" />
       <Stack.Screen name="audit" />
+      <Stack.Screen name="maintenance" />
       <Stack.Screen name="accounts" />
     </Stack>
   );

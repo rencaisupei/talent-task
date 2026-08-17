@@ -27,6 +27,7 @@ import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { AuthGate } from '@/components/AuthGate';
+import { MaintenanceRunner } from '@/components/MaintenanceRunner';
 import { PushBridge } from '@/components/PushBridge';
 import { WebAdminGate } from '@/components/WebAdminGate';
 
@@ -147,6 +148,7 @@ export default function RootLayout() {
         <AuthGate />
         <WebAdminGate />
         <PushBridge />
+        <MaintenanceRunner />
         <InstallPrompt />
       </HeroUINativeProvider>
     </GestureHandlerRootView>
@@ -172,6 +174,7 @@ function RootNavigator() {
       <Stack.Screen name="chat/[id]" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="notification-settings" />
+      <Stack.Screen name="maintenance" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="admin" />

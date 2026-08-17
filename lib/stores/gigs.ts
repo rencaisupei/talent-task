@@ -58,6 +58,8 @@ interface GigState {
   takedownGig: (gigId: string, reason: string) => void;
   /** 管理員恢復上架，任務回到等待媒合。 */
   restoreGig: (gigId: string) => void;
+  /** 每日維護：逾期未成交的任務自動結案，回傳被結案的任務。 */
+  expireStaleGigs: (maxAgeMs: number) => Gig[];
 }
 
 function isPersistedGigState(value: unknown): value is { gigs?: Gig[] } {
@@ -240,6 +242,27 @@ export const useGigStore = create<GigState>()(
               : gig,
           ),
         })),
+
+      expireStaleGigs: (maxAgeMs) => {
+        const cutoff = Date.now() - maxAgeMs;
+        const expired = get().gigs.filter(
+          (gig) =>
+            (gig.status === 'open' || gig.status === 'talking') &&
+            gig.takedownReason === undefined &&
+            gig.createdAt < cutoff,
+        );
+        if (expired.length === 0) return [];
+
+        const expiredIds = new Set(expired.map((gig) => gig.id));
+        const closedAt = Date.now();
+        set((state) => ({
+          gigs: state.gigs.map((gig) =>
+            expiredIds.has(gig.id) ? { ...gig, status: 'closed', autoClosedAt: closedAt } : gig,
+          ),
+        }));
+
+        return expired;
+      },
     }),
     {
       name: 'instantgig-gigs',

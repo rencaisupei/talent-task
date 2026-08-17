@@ -15,6 +15,7 @@ export type AdminPermission =
   | 'revenue:manage'
   | 'announcements:send'
   | 'audit:view'
+  | 'maintenance:run'
   | 'admins:manage';
 
 export const ADMIN_PERMISSIONS: readonly AdminPermission[] = [
@@ -26,6 +27,7 @@ export const ADMIN_PERMISSIONS: readonly AdminPermission[] = [
   'revenue:manage',
   'announcements:send',
   'audit:view',
+  'maintenance:run',
   'admins:manage',
 ];
 
@@ -38,6 +40,7 @@ export const ADMIN_PERMISSION_LABEL: Record<AdminPermission, string> = {
   'revenue:manage': '開通、取消與退款訂閱',
   'announcements:send': '系統公告與推播',
   'audit:view': '稽核與登入紀錄',
+  'maintenance:run': '執行系統維護排程',
   'admins:manage': '管理員帳號管理',
 };
 
@@ -51,6 +54,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[
     'revenue:manage',
     'announcements:send',
     'audit:view',
+    'maintenance:run',
     'admins:manage',
   ],
   moderator: ['review:manage', 'users:view', 'users:manage', 'gigs:manage', 'audit:view'],

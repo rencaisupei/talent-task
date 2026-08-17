@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Star,
   Tags,
+  Wrench,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -26,9 +27,10 @@ import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
 import { signOut } from '@/lib/auth';
 import { COLORS } from '@/lib/colors';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatRelativeTime } from '@/lib/format';
 import { CATEGORY_COUNT, TOTAL_TAG_COUNT } from '@/lib/omniTags';
 import { useGigStore } from '@/lib/stores/gigs';
+import { useMaintenanceStore } from '@/lib/stores/maintenance';
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 import { useReviewStore } from '@/lib/stores/reviews';
 import { PREMIUM_PRICE_TWD, useSessionStore } from '@/lib/stores/session';
@@ -64,6 +66,9 @@ export default function ProfileScreen() {
   const gigs = useGigStore((state) => state.gigs);
   const pushEnabled = usePushPrefsStore((state) => state.enabled);
   const pushPermission = usePushPrefsStore((state) => state.permission);
+  const maintenanceRuns = useMaintenanceStore((state) => state.runs);
+  const updateStatus = useMaintenanceStore((state) => state.updateStatus);
+  const lastMaintenanceAt = maintenanceRuns[0]?.at ?? null;
 
   const [confirmAction, setConfirmAction] = useState<'switch' | 'reset' | 'signOut' | null>(null);
 
@@ -282,6 +287,19 @@ export default function ProfileScreen() {
                   : '目前已關閉全部推播'
             }
             onPress={() => router.push('/notification-settings')}
+          />
+          <View className="bg-hairline h-px" />
+          <ProfileRow
+            icon={<Wrench size={17} color={COLORS.ink} strokeWidth={2.1} />}
+            label="系統維護"
+            caption={
+              updateStatus === 'available'
+                ? '有新版本可套用・每天自動維護一次'
+                : lastMaintenanceAt === null
+                  ? '每天自動維護一次'
+                  : `上次維護 ${formatRelativeTime(lastMaintenanceAt)}`
+            }
+            onPress={() => router.push('/maintenance')}
           />
           <View className="bg-hairline h-px" />
           <ProfileRow

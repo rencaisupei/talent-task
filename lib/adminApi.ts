@@ -5,6 +5,9 @@ import type { AdminAccount, AdminRole, ManagedAdminAccount } from '@/lib/types';
 /** 管理員驗證與帳號管理都走這個後端函式，前端不持有任何密碼或雜湊。 */
 const ADMIN_AUTH_FUNCTION = 'admin-auth';
 
+/** 每日系統維護排程（伺服器端），與管理員登入共用同一組 session token。 */
+const MAINTENANCE_FUNCTION = 'daily-maintenance';
+
 const BACKEND_UNAVAILABLE_MESSAGE =
   '尚未設定後端連線（EXPO_PUBLIC_BILT_URL 與 EXPO_PUBLIC_BILT_ANON_KEY），無法驗證管理員身分。';
 const NETWORK_MESSAGE = '無法連線到驗證服務，請確認網路後再試。';
@@ -77,14 +80,17 @@ type Envelope =
   | { ok: true; payload: Record<string, unknown> }
   | { ok: false; unconfigured: boolean; message: string };
 
-async function call(body: Record<string, unknown>): Promise<Envelope> {
+async function call(
+  body: Record<string, unknown>,
+  functionName: string = ADMIN_AUTH_FUNCTION,
+): Promise<Envelope> {
   const client = getBiltClient();
   if (client === null) {
     return { ok: false, unconfigured: true, message: BACKEND_UNAVAILABLE_MESSAGE };
   }
 
   try {
-    const { data, error } = await client.functions.invoke(ADMIN_AUTH_FUNCTION, { body });
+    const { data, error } = await client.functions.invoke(functionName, { body });
     if (error !== null || !isRecord(data)) {
       return { ok: false, unconfigured: false, message: NETWORK_MESSAGE };
     }
@@ -394,4 +400,214 @@ export async function adminFetchLoginEvents(
     : [];
 
   return { kind: 'ok', events };
+}
+
+/* ------------------------------------------------------------------ */
+/* 每日系統維護排程                                                    */
+/* ------------------------------------------------------------------ */
+
+export type MaintenanceTaskStatus = 'done' | 'failed';
+
+export type MaintenanceRunStatus = 'ok' | 'partial' | 'failed';
+
+export type MaintenanceSource = 'cron' | 'manual';
+
+export const MAINTENANCE_SOURCE_LABEL: Record<MaintenanceSource, string> = {
+  cron: '排程自動',
+  manual: '管理員手動',
+};
+
+export const MAINTENANCE_RUN_STATUS_LABEL: Record<MaintenanceRunStatus, string> = {
+  ok: '全部完成',
+  partial: '部分失敗',
+  failed: '執行失敗',
+};
+
+export interface MaintenanceTaskReport {
+  key: string;
+  label: string;
+  status: MaintenanceTaskStatus;
+  affected: number;
+  message: string;
+}
+
+export interface MaintenanceRunRecord {
+  id: string;
+  at: number;
+  /** 台北時區日期（YYYY-MM-DD）；每日去重就靠這個欄位。 */
+  dayKey: string;
+  source: MaintenanceSource;
+  triggeredBy: string | null;
+  status: MaintenanceRunStatus;
+  tasks: MaintenanceTaskReport[];
+  durationMs: number;
+  note: string | null;
+}
+
+export type MaintenanceRunOutcome =
+  | { kind: 'ok'; run: MaintenanceRunRecord }
+  /** 今天已經執行過，回傳當天那一筆紀錄。 */
+  | { kind: 'skipped'; run: MaintenanceRunRecord | null; message: string }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export type MaintenanceListOutcome =
+  | { kind: 'ok'; runs: MaintenanceRunRecord[] }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export interface MaintenanceScheduleConfig {
+  cronKey: string;
+  rotatedAt: number;
+  /** 排程服務要呼叫的網址。 */
+  endpoint: string;
+  /** 後端另外設了 MAINTENANCE_CRON_KEY 環境變數。 */
+  envKeyConfigured: boolean;
+}
+
+export type MaintenanceConfigOutcome =
+  | { kind: 'ok'; config: MaintenanceScheduleConfig }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+function readTaskStatus(value: unknown): MaintenanceTaskStatus | null {
+  return value === 'done' || value === 'failed' ? value : null;
+}
+
+function readRunStatus(value: unknown): MaintenanceRunStatus | null {
+  return value === 'ok' || value === 'partial' || value === 'failed' ? value : null;
+}
+
+function readSource(value: unknown): MaintenanceSource | null {
+  return value === 'cron' || value === 'manual' ? value : null;
+}
+
+function parseMaintenanceTask(value: unknown): MaintenanceTaskReport | null {
+  if (!isRecord(value)) return null;
+
+  const key = readString(value.key);
+  const label = readString(value.label);
+  const status = readTaskStatus(value.status);
+  if (key === null || label === null || status === null) return null;
+
+  return {
+    key,
+    label,
+    status,
+    affected: readNumber(value.affected) ?? 0,
+    message: readString(value.message) ?? '',
+  };
+}
+
+function parseMaintenanceRun(value: unknown): MaintenanceRunRecord | null {
+  if (!isRecord(value)) return null;
+
+  const id = readString(value.id);
+  const at = readNumber(value.at);
+  const dayKey = readString(value.dayKey);
+  const source = readSource(value.source);
+  const status = readRunStatus(value.status);
+  if (id === null || at === null || dayKey === null || source === null || status === null) {
+    return null;
+  }
+
+  const rawTasks = value.tasks;
+  const tasks = Array.isArray(rawTasks)
+    ? rawTasks
+        .map(parseMaintenanceTask)
+        .filter((item): item is MaintenanceTaskReport => item !== null)
+    : [];
+
+  return {
+    id,
+    at,
+    dayKey,
+    source,
+    triggeredBy: readString(value.triggeredBy),
+    status,
+    tasks,
+    durationMs: readNumber(value.durationMs) ?? 0,
+    note: readString(value.note),
+  };
+}
+
+/** 手動觸發伺服器端維護；force 為 true 時忽略「今天已執行過」。 */
+export async function adminRunMaintenance(
+  token: string,
+  force = false,
+): Promise<MaintenanceRunOutcome> {
+  const envelope = await call({ action: 'run', token, force }, MAINTENANCE_FUNCTION);
+  if (!envelope.ok) return { kind: 'failed', message: envelope.message };
+
+  const { payload } = envelope;
+  if (payload.status === 'expired') return { kind: 'expired' };
+  if (payload.status === 'forbidden') return { kind: 'forbidden' };
+  if (payload.status === 'skipped') {
+    return {
+      kind: 'skipped',
+      run: parseMaintenanceRun(payload.run),
+      message: serverMessage(payload, '今天已經執行過每日維護。'),
+    };
+  }
+  if (payload.status !== 'ok') {
+    return { kind: 'failed', message: serverMessage(payload, '維護執行失敗，請稍後再試。') };
+  }
+
+  const run = parseMaintenanceRun(payload.run);
+  return run === null ? { kind: 'failed', message: '伺服器回應格式不正確。' } : { kind: 'ok', run };
+}
+
+export async function adminFetchMaintenanceRuns(
+  token: string,
+  limit = 20,
+): Promise<MaintenanceListOutcome> {
+  const envelope = await call({ action: 'runs', token, limit }, MAINTENANCE_FUNCTION);
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const raw = envelope.payload.runs;
+  const runs = Array.isArray(raw)
+    ? raw.map(parseMaintenanceRun).filter((item): item is MaintenanceRunRecord => item !== null)
+    : [];
+
+  return { kind: 'ok', runs };
+}
+
+function toConfigOutcome(envelope: Envelope): MaintenanceConfigOutcome {
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const { payload } = envelope;
+  const cronKey = readString(payload.cronKey);
+  const endpoint = readString(payload.endpoint);
+  if (cronKey === null || endpoint === null) {
+    return { kind: 'failed', message: '伺服器回應格式不正確。' };
+  }
+
+  return {
+    kind: 'ok',
+    config: {
+      cronKey,
+      endpoint,
+      rotatedAt: readNumber(payload.rotatedAt) ?? Date.now(),
+      envKeyConfigured: payload.envKeyConfigured === true,
+    },
+  };
+}
+
+/** 取得排程呼叫網址與金鑰（需要管理員帳號管理權限）。 */
+export async function adminFetchMaintenanceConfig(
+  token: string,
+): Promise<MaintenanceConfigOutcome> {
+  return toConfigOutcome(await call({ action: 'config', token }, MAINTENANCE_FUNCTION));
+}
+
+/** 重新產生排程金鑰，舊金鑰立即失效。 */
+export async function adminRotateMaintenanceKey(token: string): Promise<MaintenanceConfigOutcome> {
+  return toConfigOutcome(await call({ action: 'rotate-key', token }, MAINTENANCE_FUNCTION));
 }

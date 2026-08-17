@@ -14,6 +14,8 @@ interface NotificationState {
   markRead: (id: string) => void;
   markAllRead: () => void;
   clearAll: () => void;
+  /** 每日維護：清掉已讀的過舊通知，並限制保留筆數，回傳清掉的筆數。 */
+  pruneNotifications: (options: { maxAgeMs: number; keep: number }) => number;
 }
 
 export function countUnread(items: AppNotification[]): number {
@@ -27,7 +29,7 @@ function hasNotificationItems(value: unknown): value is { items?: AppNotificatio
 
 export const useNotificationStore = create<NotificationState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       items: SEED_NOTIFICATIONS,
 
       pushNotification: (input) => {
@@ -64,6 +66,18 @@ export const useNotificationStore = create<NotificationState>()(
         set((state) => ({ items: state.items.map((item) => ({ ...item, isRead: true })) })),
 
       clearAll: () => set({ items: [] }),
+
+      pruneNotifications: ({ maxAgeMs, keep }) => {
+        const cutoff = Date.now() - maxAgeMs;
+        const { items } = get();
+        const kept = items
+          .filter((item) => !item.isRead || item.createdAt >= cutoff)
+          .slice(0, Math.max(keep, 0));
+
+        const removed = items.length - kept.length;
+        if (removed > 0) set({ items: kept });
+        return removed;
+      },
     }),
     {
       name: 'instantgig-notifications',

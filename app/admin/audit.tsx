@@ -10,6 +10,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   UserCog,
+  Wrench,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -33,6 +34,7 @@ const FILTER_ORDER: AdminActionKind[] = [
   'subscription',
   'announcement',
   'report',
+  'maintenance',
   'account',
   'auth',
 ];
@@ -46,6 +48,7 @@ function iconFor(kind: AdminActionKind) {
     subscription: <CreditCard size={15} color={COLORS.ink} strokeWidth={2.2} />,
     announcement: <BellRing size={15} color={COLORS.ink} strokeWidth={2.2} />,
     report: <ShieldAlert size={15} color={COLORS.coral} strokeWidth={2.2} />,
+    maintenance: <Wrench size={15} color={COLORS.ink} strokeWidth={2.2} />,
     account: <UserCog size={15} color={COLORS.brandStrong} strokeWidth={2.2} />,
     auth: <KeyRound size={15} color={COLORS.muted} strokeWidth={2.2} />,
   };
