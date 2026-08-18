@@ -128,9 +128,7 @@ export default function SubscriptionScreen() {
             </>
           ) : (
             <Button size="lg" isDisabled={processing} onPress={handleSubscribe}>
-              <Button.Label>
-                {`透過 ${storeName} 訂閱進階版 ${formatCurrency(PREMIUM_PRICE_TWD)} / 月`}
-              </Button.Label>
+              <Button.Label>{`訂閱進階版 ${formatCurrency(PREMIUM_PRICE_TWD)} / 月`}</Button.Label>
             </Button>
           )}
         </View>
