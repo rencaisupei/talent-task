@@ -47,6 +47,7 @@
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "error",
     "react-compiler/react-compiler": "error",
+    "no-underscore-dangle": ["warn", { "allow": ["__BILT_CONFIG__"] }],
     "@typescript-eslint/no-unused-vars": [
       "error",
       {

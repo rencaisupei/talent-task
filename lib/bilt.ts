@@ -1,6 +1,8 @@
 import { asyncStorage, createClient } from '@biltme/backend';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { BILT_CONNECTION, IS_BILT_CONFIGURED } from '@/lib/biltConfig';
+
 import type {
   BidInsert,
   BidRow,
@@ -179,14 +181,12 @@ type BiltDatabase = {
 
 type BiltClient = ReturnType<typeof createClient<BiltDatabase>>;
 
-const BILT_URL = process.env.EXPO_PUBLIC_BILT_URL ?? '';
-const BILT_ANON_KEY = process.env.EXPO_PUBLIC_BILT_ANON_KEY ?? '';
-
 /**
- * 後端連線資訊是在建置時寫進 bundle 的。部署時若沒提供，
- * 應用仍必須能正常啟動（AI 審核自動退回裝置端規則），因此不在模組載入時建立用戶端。
+ * 連線資訊的來源判定全部在 lib/biltConfig.ts（網頁執行階段設定檔 → Expo manifest 的
+ * extra → 建置時環境變數）。連線資訊缺失時應用仍必須能正常啟動（AI 審核退回裝置端
+ * 規則、任務牆顯示讀取失敗），因此不在模組載入時建立用戶端。
  */
-export const IS_BILT_CONFIGURED = BILT_URL.length > 0 && BILT_ANON_KEY.length > 0;
+export { IS_BILT_CONFIGURED };
 
 let client: BiltClient | null = null;
 
@@ -194,7 +194,7 @@ let client: BiltClient | null = null;
 export function getBiltClient(): BiltClient | null {
   if (!IS_BILT_CONFIGURED) return null;
 
-  client ??= createClient<BiltDatabase>(BILT_URL, BILT_ANON_KEY, {
+  client ??= createClient<BiltDatabase>(BILT_CONNECTION.url, BILT_CONNECTION.anonKey, {
     auth: {
       storage: asyncStorage(AsyncStorage),
       persistSession: true,

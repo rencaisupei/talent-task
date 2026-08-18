@@ -4,6 +4,10 @@
 module.exports = {
   globDirectory: 'dist/',
   globPatterns: ['**/*.{js,css,html,json,png,jpg,jpeg,gif,svg,ico,webp,woff,woff2,ttf,otf}'],
+  // bilt-config.js holds the backend connection settings and is meant to be
+  // editable on the deployed site without a rebuild. Precaching it would pin the
+  // old values in installed clients, so it is always fetched from the network.
+  globIgnores: ['bilt-config.js'],
   swDest: 'dist/sw.js',
   // Expo web JS bundles regularly exceed workbox's 2 MiB default.
   maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,

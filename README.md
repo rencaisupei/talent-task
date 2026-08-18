@@ -119,9 +119,10 @@ Bilt will handle the build and provide you with download links or submission-rea
    - Project name：`instantgig`（要與 `wrangler.toml` 的 `name` 一致）
    - Build command：`npm run build:web`
    - Deploy command：`npx wrangler deploy`（預設值，不用改）
-   - Build variables（**必填**，管理員登入要用）：
+   - Build variables（連線設定的其中一種給法，見 0.1）：
      `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`、
      `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
+     （不想設變數的話，改 `public/bilt-config.js` 再 commit 也可以）
 3. 按 **Create and deploy**，等狀態跑到 Success。網址就是
    `https://instantgig.<你的子網域>.workers.dev`，打開會看到任務牆；
    管理平台在同一個網址的 `/admin`。
@@ -133,21 +134,51 @@ Bilt will handle the build and provide you with download links or submission-rea
 
 上線後要接著處理的兩件事：
 
-- **環境變數是必要的**：使用者登入與管理員登入都要呼叫後端，
-  前端要靠 `EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY` 才能連上。
-  沒設的話任務牆會讀不到資料，管理員登入頁會顯示「尚未設定後端連線」。
-  這兩個值是**建置時**寫進 bundle 的，補設後要重新觸發建置。
+- **連線設定是必要的**：使用者登入與管理員登入都要呼叫後端。
+  連線資訊有兩種給法，任一種即可（見下面「連線設定怎麼給」）：
+  編輯 `dist/bilt-config.js`（部署後可改，不用重建），
+  或設定 Build variables `EXPO_PUBLIC_BILT_URL` 與 `EXPO_PUBLIC_BILT_ANON_KEY`。
+  兩邊都沒給的話任務牆會讀不到資料，登入頁會顯示「讀不到後端連線設定」。
 - **`/admin` 只有管理員帳密保護**：網站本身是公開的（本來就要公開），
   但管理入口也在同一個網域上，任何人都能開到登入頁。
   建議照第 7 節用 Cloudflare Access 只對 `/admin` 這個路徑再加一道網域層驗證。
+
+### 0.1 連線設定怎麼給
+
+`lib/biltConfig.ts` 是唯一解析點，依序嘗試三個來源，第一個「網址與金鑰都齊全」的勝出：
+
+1. **網頁執行階段設定檔** `public/bilt-config.js`（匯出時原樣複製成 `dist/bilt-config.js`）。
+   `index.html` 以同步 `<script>` 在 App bundle 之前載入它，所以**部署後改這個檔案就生效，
+   不必重新建置**。預設值是 `__BILT_URL__` / `__BILT_ANON_KEY__` 佔位字串，
+   保持原樣時這個來源會被忽略。只有網頁版有這個來源。
+2. **Expo manifest 的 `extra.bilt`**（`app.config.ts` 從環境變數填入）。
+   原生版與 Expo Go 走這條：manifest 是每次啟動才取得的，
+   不會被 Metro 的舊轉譯快取凍結成舊值。
+3. **建置時環境變數** `EXPO_PUBLIC_BILT_URL` / `EXPO_PUBLIC_BILT_ANON_KEY`（Babel 內嵌進 bundle）。
+
+網址與金鑰一定是「同一個來源成對取用」，不會出現新網址搭舊金鑰的組合。
+`EXPO_PUBLIC_BILT_ANON_KEY` 是公開金鑰（publishable key），本來就會出現在前端 bundle
+與 manifest 裡，資料保護靠資料庫的 RLS 政策；**不要**把 service key 放進任何一個來源。
+
+改 `dist/bilt-config.js` 的例子：
+
+```js
+globalThis.__BILT_CONFIG__ = {
+  url: 'https://<project-id>.cloud.bilt.me',
+  anonKey: '<anon-key>',
+};
+```
+
+`public/_headers` 已把 `/bilt-config.js` 設成 `max-age=0, must-revalidate`，
+改完不會被 CDN 快取住。
 
 ### 1. 本機匯出
 
 ```sh
 npm ci
 
-# 後端連線資訊會在建置時寫進 bundle。管理員登入需要它（帳密驗證在後端函式），
-# 沒設就只能看到「尚未設定後端連線」的登入頁
+# 連線設定的其中一種給法（另一種是改 public/bilt-config.js，見 0.1）。
+# 兩邊都沒給的話登入頁會顯示「讀不到後端連線設定」
 export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"
 export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
 
@@ -158,8 +189,8 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 `npm run build:pwa` 會在匯出後額外產生 `dist/sw.js`（Workbox 離線快取），
 需要可安裝的 PWA 時再用。
 
-`public/` 內的檔案（`index.html`、`manifest.json`、`robots.txt`、`_redirects`、
-`_headers`、`icons/`）會原樣複製進 `dist/`。
+`public/` 內的檔案（`index.html`、`bilt-config.js`、`manifest.json`、`robots.txt`、
+`_redirects`、`_headers`、`icons/`）會原樣複製進 `dist/`。
 
 ### 2. 部署到 Cloudflare Workers（建議方式）
 
@@ -190,13 +221,14 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
    - Deploy command：`npx wrangler deploy`（預設值）
    - Root directory：留空
    - 不需要填輸出目錄，它在 `wrangler.toml` 的 `[assets] directory` 裡
-5. **Build variables**（**必填**）：管理員登入與帳號管理都要呼叫後端函式，
-   缺少這兩個變數的建置會產出一個沒人能登入的網站。到 Worker → Settings →
-   **Build** → Variables and Secrets 設定：
+5. **Build variables**（連線設定的其中一種給法，見 0.1）：使用者登入、管理員登入與帳號
+   管理都要呼叫後端，連線設定兩邊都沒給的建置會產出一個沒人能登入的網站。
+   到 Worker → Settings → **Build** → Variables and Secrets 設定：
    - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
    - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
    - 這兩個值是**建置時**寫進 bundle 的，必須設在 Build 區塊（不是執行時的 Worker
-     變數），改完要重新觸發一次建置才會生效。
+     變數），改完要重新觸發一次建置才會生效。不想動變數的話，把值填進
+     `public/bilt-config.js` 再 commit（或部署後直接改 `dist/bilt-config.js`）。
    - Node 版本由 repo 根目錄的 `.node-version`（`20.19.4`）決定，不必再設
      `NODE_VERSION`；若要臨時換版，設 `NODE_VERSION` 會覆寫該檔案。
 6. **Create and deploy**，等第一次建置跑完（Building → Deploying → Success）。
@@ -219,14 +251,16 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
   沒有 `_expo/` 目錄**：表示 `public/` 複製完後 JS 打包就中斷了（多半是上一項，
   或 `JavaScript heap out of memory`）。正常的 `dist/index.html` 會被注入
   `<script src="/_expo/static/js/web/entry-*.js">`，且 `%LANG_ISO_CODE%` 已被取代。
-- `EXPO_PUBLIC_*` 設在執行時變數而不是 Build 變數，建置時讀不到（登入頁會顯示「尚未設定後端連線」）。
+- `EXPO_PUBLIC_*` 設在執行時變數而不是 Build 變數，建置時讀不到（登入頁會顯示
+  「讀不到後端連線設定」）。這種情況可以不重建，直接改 `dist/bilt-config.js` 補上。
 - `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
 - `workers.dev` 網址與每個預覽版本網址都會連帶公開 `/admin` 入口（只剩帳密保護）。
   綁好自訂網域後把 `workers.dev` 路由 Disable，並照第 7 節對 `/admin` 路徑加 Access。
 
 **方式 B：本機用 Wrangler 直接部署**
 
-本機部署不會讀儀表板的建置變數，`EXPO_PUBLIC_*` 必須在自己的 shell 匯出。
+本機部署不會讀儀表板的建置變數，`EXPO_PUBLIC_*` 必須在自己的 shell 匯出
+（或把值填進 `public/bilt-config.js`）。
 
 ```sh
 export EXPO_PUBLIC_BILT_URL="https://<project-id>.cloud.bilt.me"

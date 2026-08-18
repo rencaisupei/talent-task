@@ -17,6 +17,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
     />
+    <!-- 後端連線設定：同步載入且刻意不加 defer，必須在 App bundle 之前執行。
+         部署後改 dist/bilt-config.js 就能換連線設定，不必重新建置。 -->
+    <script src="/bilt-config.js"></script>
+
     <title>即時發 InstantGig｜全台急件即時媒合</title>
     <meta
       name="description"

@@ -305,7 +305,8 @@ export default function SignInScreen() {
         {IS_BILT_CONFIGURED ? null : (
           <View className="border-coral/30 bg-coral-soft rounded-xl border p-3">
             <Text className="text-ink text-[13px] leading-5">
-              這個版本沒有帶入後端連線設定，暫時無法登入。請重新建置並提供連線資訊。
+              這個版本讀不到後端連線設定，暫時無法登入。請重新整理／重新開啟這個版本再試；
+              若是自行部署的網站，請填好 bilt-config.js 裡的連線設定。
             </Text>
           </View>
         )}

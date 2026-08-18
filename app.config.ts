@@ -59,6 +59,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     extra: {
       appStoreAppId: process.env.BILT_APP_STORE_APP_ID,
+      // 後端連線資訊也走 manifest，不只靠 Babel 內嵌的 EXPO_PUBLIC_*：Expo Go 與原生
+      // 版每次啟動都會重新取得 manifest，所以就算 JS bundle 是在環境變數還沒設好之前
+      // 打包（或命中 Metro 的舊轉譯快取），這裡仍然拿得到當下的值。
+      // anonKey 是公開金鑰，出現在 manifest 與 bundle 都是預期行為。
+      bilt: {
+        url: process.env.EXPO_PUBLIC_BILT_URL ?? null,
+        anonKey: process.env.EXPO_PUBLIC_BILT_ANON_KEY ?? null,
+      },
     },
     plugins: [
       'expo-router',

@@ -42,3 +42,7 @@
 
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
+
+# 執行階段後端連線設定：改檔案就要立刻生效，不能被快取住。
+/bilt-config.js
+  Cache-Control: public, max-age=0, must-revalidate
