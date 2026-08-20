@@ -275,7 +275,10 @@ npm run deploy:web:preview  # 建置後只上傳預覽版本，不接線上流�
 `wrangler.toml` 已指定資產目錄，指令不要再附加 `dist` 或 `--assets` 參數。
 
 `deploy:web` **不會**產生 service worker，因此 `lib/registerServiceWorker.ts` 註冊
-`/sw.js` 時會 404（已 catch，網站照常運作，只是沒有離線快取與「加入主畫面」提示）。
+`/sw.js` 時會失敗（已 catch，網站照常運作，只是沒有離線快取與「加入主畫面」提示）。
+注意失敗原因不是 404：`wrangler.toml` 的 `not_found_handling = "single-page-application"`
+會讓 `/sw.js` 回傳 `index.html`，瀏覽器因為 MIME type 不是 JavaScript 而拒絕註冊。
+好處是舊的 service worker 不會殘留在使用者裝置上；壞處是 console 會有一行錯誤。
 要 PWA 就用 `deploy:pwa`。Git 自動部署要 PWA 時，把儀表板的 Build command 改成
 `npm run build:pwa`。
 
@@ -290,6 +293,27 @@ npm run deploy:web            # 或 deploy:pwa
 `wrangler` 輸出的最後一行會是
 `https://instantgig.<你的子網域>.workers.dev`，先用它確認網站起得來（會看到任務牆，
 `/admin` 會看到管理員登入頁），再做第 3 節綁定自訂網域。
+
+**線上畫面是舊版（例如還是舊品牌、舊配色）**
+
+這是單頁靜態匯出：只要沒有重新 build + deploy，線上會**完全正常地**繼續服務舊建置。
+沒有錯誤、沒有警告，只是內容是舊的。改了原始碼不等於改了線上網站。
+
+不要用瀏覽器判斷（瀏覽器快取與 service worker 會造成一樣的畫面），用：
+
+```sh
+npm run verify:live                              # 預設檢查 talent-core-pro.com
+npm run verify:live -- https://xxx.workers.dev   # 或指定其他網址
+```
+
+它會帶 cache-buster 直接向伺服器要 `/`、`/manifest.json`、`/bilt-config.js`、`/admin`，
+比對線上的標題與 PWA 名稱是否等於現在 `public/` 裡的值，並檢查連線設定與
+`/admin` 的 noindex 標頭。期望值是從原始碼讀出來的，改名後不必修改腳本。
+
+標題或 manifest 名稱不符＝線上是舊建置，重跑 `npm run deploy:web`
+（用 Git 自動部署的話推一次 commit 觸發重建，並確認建置真的成功）。
+全部通過但你的瀏覽器還是舊畫面，才是本機快取問題：開無痕視窗，或
+DevTools → Application → Service Workers → Unregister 後強制重新載入。
 
 **若你想改用 Cloudflare Pages**
 

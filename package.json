@@ -13,6 +13,7 @@
     "deploy:pwa": "npm run build:pwa && npx --yes wrangler@latest deploy",
     "deploy:web:preview": "npm run build:web && npx --yes wrangler@latest versions upload",
     "serve:web": "npx --yes serve dist --single --listen 4173",
+    "verify:live": "node scripts/verify-live.mjs",
     "lint": "oxlint --type-aware --type-check",
     "lint:css": "node scripts/lint-css.mjs",
     "format": "oxfmt --write .",
