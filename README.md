@@ -282,7 +282,10 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 6. **Create and deploy**，等第一次建置跑完（Building → Deploying → Success）。
    完成後先用 `https://instantgig.<子網域>.workers.dev` 開啟確認會看到任務牆，
    再開 `/admin` 確認會進到管理員登入頁。
-7. 之後每次 push 到 production 分支自動重新建置並部署；其他分支與 PR 會產生預覽版本網址。
+7. 之後每次 push 到 production 分支都會自動重新建置並部署。其他分支與 PR **預設不會**
+   建置：要到 Settings → Build → **Branch control** 勾選
+   **Builds for non-production branches** 才會，且那時跑的是 Non-production branch
+   deploy command（預設 `npx wrangler versions upload`，只產生預覽版本網址、不接線上流量）。
 
 建置或部署失敗時看 Deployments → 該筆 → Build log，常見原因：
 
@@ -304,6 +307,42 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 - `package-lock.json` 沒跟著 commit，`npm ci` 直接失敗。
 - `workers.dev` 網址與每個預覽版本網址都會連帶公開 `/admin` 入口（只剩帳密保護）。
   綁好自訂網域後把 `workers.dev` 路由 Disable，並照第 7 節對 `/admin` 路徑加 Access。
+
+**方式 A2：把 Git 接到「已經存在」的 Worker**
+
+`instantgig` 已經被本機 `npm run deploy:web` 建立過時走這條。**不要**再跑
+Import a repository —— 那會建立第二個 Worker，自訂網域、Access 政策與建置設定都得重做一次。
+
+1. Workers & Pages → 點 `instantgig` → **Settings** → **Builds** → **Connect**。
+   帳號還沒連過 Git 就會先跳授權：安裝的是 GitHub App **Cloudflare Workers and Pages**
+   （可以只勾這一個 repo）。repo 在組織底下時，授權者必須是組織 owner 或具有
+   GitHub App manager 角色，否則清單裡看不到那個 repo。
+   已連過帳號的話這裡會顯示 **Manage**（管理 repo 授權範圍或重新安裝）。
+2. 建置設定（欄位與方式 A 第 4 步相同）：
+   - Git repository：選這個 repo；Git branch：`main`（正式分支）
+   - Build command：`npm run build:web`（要 PWA／`dist/sw.js` 就改成 `npm run build:pwa`）
+   - Deploy command：`npx --yes wrangler@latest deploy`
+   - Root directory：留空
+   - API token：選 **Create new token**（Cloudflare 自動產生並沿用）
+   - Deploy command 刻意不用預設的 `npx wrangler deploy`：這個 repo 沒有把 `wrangler`
+     放進 dependencies，加 `--yes wrangler@latest` 才不會卡在 npx 的安裝確認提示
+     （`package.json` 的 deploy 指令用的也是同一個寫法）。
+   - 連線設定已經填進 repo 的 `public/bilt-config.js` 時，這裡不用再加 build 變數。
+3. **連接完成的當下不會建置。** 第一次建置一定要靠一次 push 觸發（Builds 頁在那之前
+   會一直是空的）：
+
+   ```sh
+   git commit --allow-empty -m "chore: trigger cloudflare build"
+   git push
+   ```
+
+4. 看結果：Worker 的 **Deployments** 分頁最下方 → **View build history** → 該筆 → Build log。
+   Success 後驗證：`npm run verify:live -- https://instantgig.<子網域>.workers.dev`。
+5. `wrangler.toml` 的 `name` 必須維持 `instantgig`：建置環境跑的是同一份設定檔，
+   名稱不符就會部署到另一個（新建的）Worker，你看的網域不會有任何變化。
+6. 要換成別的 repo：先 **Disconnect** 再重新 **Connect**，不能直接改。
+   只想讓建置產生版本但不自動上線，把 Deploy command 換成 `npx --yes wrangler@latest
+   versions upload`。
 
 **方式 B：本機用 Wrangler 直接部署**
 
