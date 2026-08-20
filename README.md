@@ -268,10 +268,28 @@ export EXPO_PUBLIC_BILT_ANON_KEY="<anon-key>"
 
 npx wrangler login
 npm run deploy:web          # 建置後部署為線上版本
+npm run deploy:pwa          # 同上，並產生 dist/sw.js（PWA 離線快取與安裝提示）
 npm run deploy:web:preview  # 建置後只上傳預覽版本，不接線上流量
 ```
 
 `wrangler.toml` 已指定資產目錄，指令不要再附加 `dist` 或 `--assets` 參數。
+
+`deploy:web` **不會**產生 service worker，因此 `lib/registerServiceWorker.ts` 註冊
+`/sw.js` 時會 404（已 catch，網站照常運作，只是沒有離線快取與「加入主畫面」提示）。
+要 PWA 就用 `deploy:pwa`。Git 自動部署要 PWA 時，把儀表板的 Build command 改成
+`npm run build:pwa`。
+
+第一次本機部署的完整順序：
+
+```sh
+npx wrangler login            # 開瀏覽器授權，只需做一次
+npm run lint && npm run lint:css
+npm run deploy:web            # 或 deploy:pwa
+```
+
+`wrangler` 輸出的最後一行會是
+`https://instantgig.<你的子網域>.workers.dev`，先用它確認網站起得來（會看到任務牆，
+`/admin` 會看到管理員登入頁），再做第 3 節綁定自訂網域。
 
 **若你想改用 Cloudflare Pages**
 
