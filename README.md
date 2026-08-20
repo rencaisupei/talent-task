@@ -363,6 +363,29 @@ npm run verify:live -- https://xxx.workers.dev   # 或指定其他網址
 全部通過但你的瀏覽器還是舊畫面，才是本機快取問題：開無痕視窗，或
 DevTools → Application → Service Workers → Unregister 後強制重新載入。
 
+**Builds 頁沒有任何建置紀錄，線上卻有網站在跑**
+
+代表線上那份內容不是 Git 建置產生的（多半是先前某次本機 `wrangler deploy`，或另一個
+專案留下的部署），所以 repo 推了新 commit 也不會有任何反應 —— 沒有東西在監看它。
+兩件事要分開確認：
+
+1. **哪個專案擁有這個網域**：Compute (Workers) 的清單會在每個項目旁列出它的 Domains；
+   或到 zone → DNS，`talent-core-pro.com` 那筆記錄的目標會寫出 Worker／Pages 名稱。
+   若不是 `instantgig`，那麼部署到 `instantgig` 不會改變你看到的畫面 —— 先把自訂網域
+   移到正確的 Worker（或把 `wrangler.toml` 的 `name` 改成擁有網域的那個 Worker）。
+2. **Git 是否真的接上**：Settings → Build 要看得到 repo 名稱與 production 分支。
+   只是「授權過 GitHub」不算接上。而且**接上的當下不會建置**，Workers Builds 只在
+   之後的新 commit 才觸發，所以接好後要再推一次 commit（或改動任一檔案後 commit）。
+
+想立刻上線、不等 Git 整合，用方式 B 從本機部署一次即可（repo 已是新版就先 `git pull`）：
+
+```sh
+npm ci
+npx wrangler login
+npm run deploy:web
+npm run verify:live
+```
+
 **若你想改用 Cloudflare Pages**
 
 Pages 仍可用，但要把 `wrangler.toml` 的 `[assets]` 區塊換回
