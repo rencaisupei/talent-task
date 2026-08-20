@@ -4,6 +4,9 @@
   "main": "expo-router/entry",
   "scripts": {
     "android": "expo run:android",
+    "android:release": "expo run:android --variant release",
+    "prebuild:android": "expo prebuild -p android --clean",
+    "prebuild:ios": "expo prebuild -p ios --clean",
     "ios": "expo run:ios",
     "expo-check": "expo install --check --npm",
     "export:web": "expo export -p web",

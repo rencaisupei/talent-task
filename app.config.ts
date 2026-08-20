@@ -3,50 +3,60 @@ import type { ConfigContext, ExpoConfig } from '@expo/config';
 type ExpoPlugins = NonNullable<ExpoConfig['plugins']>;
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const nativePlugins: ExpoPlugins =
-    process.env.EXPO_PLATFORM === 'native'
-      ? [
-          ['expo-dev-client', { launchMode: 'most-recent' }],
-          'react-native-maps',
-          [
-            'expo-notifications',
-            {
-              // 96x96 純白剪影＋透明背景：Android 只取 alpha 通道，彩色圖會被畫成白方塊。
-              icon: './public/icons/talentmatch-notification.png',
-              color: '#1F6FB2',
-              // 與 lib/push.ts 的 ensureAndroidChannel() 建立的通道同名。
-              defaultChannel: 'default',
-            },
-          ],
-          [
-            'expo-location',
-            {
-              // 只有「發布任務時偵測所在地區」會用到定位，因此只宣告使用中權限；
-              // 背景定位與動作感測都關閉，商店審核不會要求額外說明。
-              locationWhenInUsePermission:
-                '人才速配需要你的位置，才能把急件標到正確的地區並依距離排序附近的任務。',
-              locationAlwaysAndWhenInUsePermission: false,
-              locationAlwaysPermission: false,
-              motionUsagePermission: false,
-              isIosBackgroundLocationEnabled: false,
-              isAndroidBackgroundLocationEnabled: false,
-              isAndroidForegroundServiceEnabled: false,
-              isAndroidMotionActivityEnabled: false,
-            },
-          ],
-          [
-            'expo-image-picker',
-            {
-              // 只用相簿選取證照／作品照片，沒有拍照與錄音功能，
-              // 所以相機與麥克風的說明都設 false（不寫入 Info.plist、不加 RECORD_AUDIO）。
-              photosPermission:
-                '人才速配需要讀取相簿，才能讓你上傳專業證照或作品照片供平台認證審核。',
-              cameraPermission: false,
-              microphonePermission: false,
-            },
-          ],
-        ]
-      : [];
+  // Bilt 的原生建置會設 EXPO_PLATFORM=native；本機直接跑 `expo prebuild` 或
+  // `expo run:android` 時沒有這個變數，少了指令判斷就會產出一個沒有權限說明、
+  // 沒有通知圖示、也沒有地圖金鑰的原生專案 —— 而且完全不會報錯。
+  const isNativeBuild =
+    process.env.EXPO_PLATFORM === 'native' ||
+    process.argv.some((arg) => arg === 'prebuild' || arg.startsWith('run:'));
+
+  const nativePlugins: ExpoPlugins = isNativeBuild
+    ? [
+        ['expo-dev-client', { launchMode: 'most-recent' }],
+        // react-native-maps 沒有附 config plugin（套件裡沒有 app.plugin.js），
+        // 在這裡寫 'react-native-maps' 會讓 expo prebuild 解析外掛時直接失敗。
+        // Android 需要的金鑰 meta-data 由自備的外掛寫入（SDK 54 的 prebuild
+        // 不再自動處理 android.config.googleMaps.apiKey）。
+        ['./plugins/withAndroidGoogleMaps', { apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY }],
+        [
+          'expo-notifications',
+          {
+            // 96x96 純白剪影＋透明背景：Android 只取 alpha 通道，彩色圖會被畫成白方塊。
+            icon: './public/icons/talentmatch-notification.png',
+            color: '#1F6FB2',
+            // 與 lib/push.ts 的 ensureAndroidChannel() 建立的通道同名。
+            defaultChannel: 'default',
+          },
+        ],
+        [
+          'expo-location',
+          {
+            // 只有「發布任務時偵測所在地區」會用到定位，因此只宣告使用中權限；
+            // 背景定位與動作感測都關閉，商店審核不會要求額外說明。
+            locationWhenInUsePermission:
+              '人才速配需要你的位置，才能把急件標到正確的地區並依距離排序附近的任務。',
+            locationAlwaysAndWhenInUsePermission: false,
+            locationAlwaysPermission: false,
+            motionUsagePermission: false,
+            isIosBackgroundLocationEnabled: false,
+            isAndroidBackgroundLocationEnabled: false,
+            isAndroidForegroundServiceEnabled: false,
+            isAndroidMotionActivityEnabled: false,
+          },
+        ],
+        [
+          'expo-image-picker',
+          {
+            // 只用相簿選取證照／作品照片，沒有拍照與錄音功能，
+            // 所以相機與麥克風的說明都設 false（不寫入 Info.plist、不加 RECORD_AUDIO）。
+            photosPermission:
+              '人才速配需要讀取相簿，才能讓你上傳專業證照或作品照片供平台認證審核。',
+            cameraPermission: false,
+            microphonePermission: false,
+          },
+        ],
+      ]
+    : [];
 
   // Brand mark shown as the launcher icon and on the native launch screen.
   // Kept in public/icons alongside the web icons so every surface (native icon,
@@ -136,6 +146,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       config: {
         // Android 的地圖（react-native-maps）走 Google Maps，沒有金鑰時只會顯示灰底。
         // 建置時提供 GOOGLE_MAPS_ANDROID_API_KEY 即可，iOS 用 Apple Maps 不需要金鑰。
+        // 實際寫進 AndroidManifest 的是 plugins/withAndroidGoogleMaps.js：SDK 54 的
+        // prebuild 已經不會自己讀這個欄位，只留著當作金鑰的單一來源。
         googleMaps: {
           apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY,
         },

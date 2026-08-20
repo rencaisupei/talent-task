@@ -1089,7 +1089,9 @@ iOS 的地圖走 Apple Maps，不需要金鑰。**Android 走 Google Maps，沒�
 
 1. Google Cloud Console 建專案 → 啟用 **Maps SDK for Android** → 建立 API 金鑰。
 2. 金鑰限制建議選「Android 應用程式」，填入套件名稱（`BILT_ANDROID_PACKAGE`）與簽章憑證的 SHA-1。
-3. 建置環境設 `GOOGLE_MAPS_ANDROID_API_KEY`，`app.config.ts` 會寫進 AndroidManifest。
+3. 建置環境設 `GOOGLE_MAPS_ANDROID_API_KEY`，`plugins/withAndroidGoogleMaps.js` 會在 prebuild 時把它寫進 AndroidManifest 的 `com.google.android.geo.API_KEY`。（SDK 54 的 prebuild 已經不會自己讀 `android.config.googleMaps.apiKey`，也不要在 `plugins` 裡寫 `'react-native-maps'` —— 那個套件沒有 config plugin，會讓 prebuild 直接失敗。）
+
+本機建置與實機驗證的完整步驟見第 14 節。
 
 沒有金鑰也能正常使用 App：任務牆的清單模式不受影響，只有地圖模式會空白。
 
@@ -1106,6 +1108,87 @@ Android 狀態列的小圖示只取 alpha 通道，彩色圖會被畫成白方�
 ### 手機版沒有的東西
 
 管理平台只有網頁版（`IS_ADMIN_PLATFORM_AVAILABLE` 只在 web 為真），原生上打開 `/admin` 會被導回任務牆。裝置推播、定位與相簿相反：只有 iOS／Android 有，網頁版的 `lib/push.web.ts` 是同介面的空實作。
+
+## 14. 本機建置 Android APK（實機測試）
+
+Expo Go 裡測不到這一節要驗證的東西：**地圖（`react-native-maps`）沒有內建在 Expo Go**，通知的自訂小圖示與通道、以及權限說明文案也都要有原生建置才會出現。要在實機上看到真實行為，必須自己產生原生專案再建置。
+
+`android/` 與 `ios/` 都在 `.gitignore`，是**產生出來的**目錄，可以隨時刪掉重生；改了 `app.config.ts` 或裝了新的原生套件就要重跑一次 prebuild。
+
+### 前置需求
+
+| 項目        | 版本／說明                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| Node        | 22（見 `.node-version`）                                                                  |
+| JDK         | **17**（Android Studio 內建的 JBR 就是 17，命令列要自己設 `JAVA_HOME`）                   |
+| Android SDK | Android Studio → SDK Manager 裝 Platform 35 以上、Platform-Tools、Build-Tools             |
+| 環境變數    | `ANDROID_HOME`（例：macOS `~/Library/Android/sdk`、Windows `%LOCALAPPDATA%\Android\Sdk`） |
+| 實機        | 開發者選項 → USB 偵錯，`adb devices` 看得到                                               |
+
+### 步驟（命令列）
+
+```bash
+npm install
+
+# 連線設定與地圖金鑰。Expo CLI 會自動讀 .env（prebuild 與 Gradle 打包 JS 時都會）
+cp .env.example .env
+
+# 產生 android/（會套用 app.config.ts 的權限、圖示、地圖金鑰）
+npm run prebuild:android
+
+# 建置 release 變體、把 JS 打包進 APK、安裝到已連線的裝置
+npm run android:release
+```
+
+APK 在 `android/app/build/outputs/apk/release/app-release.apk`，可以直接傳給別人安裝。
+
+只是要改 JS 反覆測試的話用 `npm run android`（debug 變體，接 Metro，可即時重載）。debug 版不會把 JS 打包進去，離線或關掉 Metro 就開不起來，所以要給別人測請用 release。
+
+**簽章**：Expo 產生的專案，release 變體預設用 `android/app/debug.keystore` 簽章，所以不必準備任何憑證就能裝在實機上。要上架 Google Play 才需要自己的 keystore。
+
+### 步驟（Android Studio）
+
+1. 先在命令列跑一次 `npm run prebuild:android`。**Android Studio 不會執行 Expo 的 prebuild**，直接開一個沒有 `android/` 的專案只會看到空目錄。
+2. Open → 選 `android/`（不是專案根目錄），等 Gradle sync 完成。
+3. Build → Build Bundle(s) / APK(s) → Build APK(s)，或按 Run 直接裝到實機。
+4. 之後每次改 `app.config.ts`、圖示或權限，都要回到命令列重跑 `npm run prebuild:android`（`--clean` 會刪掉重生），Android Studio 才看得到新設定。
+
+### 實機要驗證的五件事
+
+**1. 地圖**：任務牆右上切到地圖模式。灰底代表金鑰沒進 manifest，先確認：
+
+```bash
+grep -A2 geo.API_KEY android/app/src/main/AndroidManifest.xml
+```
+
+看得到金鑰卻還是灰底，就是金鑰本身的限制對不上。金鑰限制選「Android 應用程式」時，SHA-1 要填**本機簽章憑證**的值：
+
+```bash
+keytool -list -v -keystore android/app/debug.keystore \
+  -alias androiddebugkey -storepass android -keypass android
+```
+
+套件名稱要填 `BILT_ANDROID_PACKAGE`（沒設就是預設的 `com.yourcompany.yourapp`）。測試階段也可以先用不設限制的金鑰。
+
+**2. 通知**：帳戶 → 通知設定 → 測試推播。這個 App 的通知全部是**本機排程通知**（`lib/push.ts` 只用 `scheduleNotificationAsync`，沒有任何推播權杖），所以**不需要 FCM，也不需要 `google-services.json`**。要看的是：Android 13 以上第一次會跳權限對話、狀態列的小圖示是白色剪影而不是白方塊、系統設定裡的通道名稱是「人才速配通知」、有音效與震動、以及**把 App 從多工滑掉之後點通知**會直接開到那則對話／任務（冷啟動導向）。
+
+**3. 權限**：定位在「發布任務 → 偵測我的位置」，只會問「使用 App 時」。相簿在「帳戶 → 專業認證 → 上傳證照」。反向確認同樣重要：系統設定 → App 資訊 → 權限裡**不應該**出現相機、麥克風、背景定位（被 `blockedPermissions` 擋掉）。
+
+**4. 深色模式**：把系統切成深色，App 應該仍然是白底，鍵盤、系統對話與原生 modal 都不變深色（`userInterfaceStyle: 'light'`）。
+
+**5. 後端**：任務牆要有資料、要能登入。一直轉圈或空白就是 `.env` 的兩個 `EXPO_PUBLIC_BILT_*` 沒填 —— 原生版的連線設定是**建置時**寫進 manifest 的，改了要重新建置。
+
+### 常見失敗訊息
+
+| 訊息                                                       | 原因與處理                                                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `Failed to resolve plugin for module "react-native-maps"`  | 舊版設定把它列進 `plugins`，但這個套件沒有 config plugin。目前已改成自備的 `plugins/withAndroidGoogleMaps.js`。 |
+| `SDK location not found`                                   | 沒設 `ANDROID_HOME`，或 `android/local.properties` 不見了 → 重跑 prebuild。                                     |
+| `Unsupported class file major version` / Gradle 認不出 JDK | JDK 不是 17。命令列要把 `JAVA_HOME` 指到 17。                                                                   |
+| 地圖灰底但完全沒有錯誤                                     | 金鑰沒給、Maps SDK for Android 沒啟用，或金鑰限制的 SHA-1／套件名稱不符。                                       |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE`                       | 裝置上已有同套件名稱但不同簽章的版本（例如先前的 Bilt 建置）→ 先卸載再裝。                                      |
+| 權限說明是英文或整個沒有                                   | prebuild 沒套到原生外掛。確認跑的是 `npm run prebuild:android`，並檢查 `AndroidManifest.xml` 有沒有定位權限。   |
+| 通知沒有音效或震動                                         | Android 不允許事後修改既有通道的重要性 → 卸載重裝才會用到新的通道設定。                                         |
 
 ## How can I make changes to my app?
 
