@@ -294,13 +294,47 @@ Settings → **Domains & Routes** → Add → **Custom domain** 加入 `talent-c
 | `talent-core-pro.com`     | CNAME    | `@`        | 由 Cloudflare 自動填入 | 網站主入口      |
 | `www.talent-core-pro.com` | CNAME    | `www`      | 由 Cloudflare 自動填入 | 加上 www 也能開 |
 
-**從舊網域（`instantgig.tw`）搬過來的順序**：先把新網域的兩個 Custom domain 加上並確認
-顯示 Active、實際開得起來，**再**移除舊網域的 Custom domain。反過來做會有一段時間兩邊
-都打不開。舊網域要繼續保留就把它留在同一個 Worker 上（同一份網站兩個入口都能開），
-或在 Rules → Redirect Rules 把 `hostname eq "instantgig.tw"` 301 轉到新網域。
 Worker 的名稱（`wrangler.toml` 的 `name`，目前是 `instantgig`）**不需要跟著改**：它只是
 Cloudflare 內部識別碼與 `workers.dev` 子網域，改名等於建立另一個 Worker，自訂網域、
 Access 政策與環境變數都要重新設定一次。
+
+#### 舊網域 `instantgig.tw`：不需要處理，也不需要重導
+
+2026-08-20 用 TWNIC 官方註冊資料查詢（`https://ccrdap.twnic.tw/tw/domain/instantgig.tw`）
+確認：**這個網域從未被註冊**，回應是 404（同一個查詢端點查 `twnic.tw` 會正常回傳資料，
+所以不是端點失效）。DNS 也完全查不到記錄。
+
+結論：
+
+- **沒有任何舊流量、書籤或外部連結指向 `instantgig.tw`**，因此沒有東西需要 301 重導。
+- 不需要為了「保留舊連結」去把它買下來。舊網域只出現在早期的程式註解與文件裡，已全部
+  改成 `talent-core-pro.com`。
+- 唯一還帶著 `instantgig.tw` 的是**管理員登入帳號** `admin@instantgig.tw`。它是登入識別碼，
+  不是收信信箱，登入時只跟後端機密 `ROOT_ADMIN_PASSWORD` 比對，網域不存在不影響登入
+  （見第 9 節）。也因為網域不存在，**這個位址永遠收不到信**——任何要寄信給管理者的功能
+  都必須用 `support@talent-core-pro.com`。
+- 本機儲存金鑰與 Realtime 頻道名稱仍以 `instantgig-` 開頭，那是使用者裝置上的資料鍵，
+  改名等於清空既有資料，**不要改**。
+
+**如果你之後真的註冊了 `instantgig.tw` 並想讓它導向新網域**，照這個順序做（不要把它加成
+Worker 的 Custom domain，那樣兩個網址會同時提供同一份網站，等於重複內容）：
+
+1. 在 Cloudflare 加入 `instantgig.tw` 這個 zone，把註冊商的 NS 換成 Cloudflare 給的兩台。
+2. DNS → Records 加一筆**佔位記錄**並開啟 Proxied（橘雲）：`AAAA`、名稱 `@`、值 `100::`；
+   `www` 再加一筆一樣的。沒有 Proxied 記錄，Redirect Rules 不會被執行。
+3. Rules → **Redirect Rules** → Create，Single Redirect：
+   - 比對：`(http.host eq "instantgig.tw") or (http.host eq "www.instantgig.tw")`
+   - 動作：Dynamic → 運算式
+     `concat("https://talent-core-pro.com", http.request.uri.path, http.request.uri.query != "" ? concat("?", http.request.uri.query) : "")`
+   - 狀態碼 **301**、勾選 Preserve query string 以外的欄位不必動。
+4. 驗證（三個都要通）：
+   ```bash
+   curl -sI https://instantgig.tw/            | head -n 5   # 301 → https://talent-core-pro.com/
+   curl -sI https://www.instantgig.tw/gig/abc | head -n 5   # 301 → 同路徑
+   curl -sI "https://instantgig.tw/?x=1"      | head -n 5   # 301 → 查詢字串保留
+   ```
+   看到 `HTTP/2 301` 與正確的 `location:` 才算完成。搜尋引擎需要幾週才會把索引換過去，
+   期間**不要把舊網域改成 302 或關掉**。
 
 注意事項：
 
@@ -378,6 +412,11 @@ IP 可填，手動建立的 A 記錄會指到錯的地方，也會讓自訂網�
 Cloudflare 的轉址規則就算命中真實檔案也會執行，catch-all 會蓋掉 `/_expo/` 的 JS bundle）。
 
 ### 6. 把 `talent-core-pro.com` 的 DNS 轉到 Cloudflare（DNS 已在 Cloudflare 就跳過本節）
+
+> **2026-08-20 實測：這一節可以跳過。** 註冊資料顯示 `talent-core-pro.com` 的註冊商就是
+> Cloudflare（註冊日 2026-08-09），name server 是 `damien.ns.cloudflare.com` 與
+> `leah.ns.cloudflare.com`，DNS 已由 Cloudflare 託管。同時 `@` 與 `www` 都還查不到任何
+> A／CNAME 記錄，所以網站目前開不起來——缺的是第 2 節的部署與第 3 節的 Custom domain。
 
 Cloudflare 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloudflare 託管。
 這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
