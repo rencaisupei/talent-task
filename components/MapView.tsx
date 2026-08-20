@@ -222,7 +222,7 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         style={[
           {
             alignItems: 'center',
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#F9FAFB',
             justifyContent: 'center',
             padding: 24,
           },
@@ -232,18 +232,18 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       >
         <Text
           style={{
-            color: '#0f172a',
+            color: '#111827',
             fontSize: 16,
             fontWeight: '700',
             marginBottom: 8,
             textAlign: 'center',
           }}
         >
-          Map unavailable in this runtime
+          這個版本沒有地圖模組
         </Text>
-        <Text style={{ color: '#64748b', fontSize: 13, lineHeight: 18, textAlign: 'center' }}>
-          This screen needs the native react-native-maps view. Use a development build or a runtime
-          that includes it.
+        <Text style={{ color: '#6B7280', fontSize: 13, lineHeight: 18, textAlign: 'center' }}>
+          地圖需要原生模組（react-native-maps）。請改用清單模式瀏覽任務，或安裝正式版 App
+          後再開地圖。
         </Text>
       </View>
     );

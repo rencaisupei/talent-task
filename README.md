@@ -183,11 +183,11 @@ globalThis.__BILT_CONFIG__ = {
 
 生效方式看你怎麼部署：
 
-| 部署方式 | 改哪個檔案 | 生效條件 |
-| --- | --- | --- |
-| Git 自動建置 | `public/bilt-config.js` → commit → push | 建置 Success 後自動生效 |
-| 本機 `npm run deploy:web` | `public/bilt-config.js` | 下次建置會複製進 `dist/` |
-| 已部署、不想重建 | 線上的 `dist/bilt-config.js` | 重新上傳這一個檔案即可 |
+| 部署方式                  | 改哪個檔案                              | 生效條件                 |
+| ------------------------- | --------------------------------------- | ------------------------ |
+| Git 自動建置              | `public/bilt-config.js` → commit → push | 建置 Success 後自動生效  |
+| 本機 `npm run deploy:web` | `public/bilt-config.js`                 | 下次建置會複製進 `dist/` |
+| 已部署、不想重建          | 線上的 `dist/bilt-config.js`            | 重新上傳這一個檔案即可   |
 
 `public/_headers` 已把 `/bilt-config.js` 設成 `max-age=0, must-revalidate`，
 `workbox-config.js` 也用 `globIgnores` 把它排除在 precache 之外，所以改完不會被
@@ -357,7 +357,7 @@ Import a repository —— 那會建立第二個 Worker，自訂網域、Access 
    名稱不符就會部署到另一個（新建的）Worker，你看的網域不會有任何變化。
 6. 要換成別的 repo：先 **Disconnect** 再重新 **Connect**，不能直接改。
    只想讓建置產生版本但不自動上線，把 Deploy command 換成 `npx --yes wrangler@latest
-   versions upload`。
+versions upload`。
 
 **方式 B：本機用 Wrangler 直接部署**
 
@@ -1062,6 +1062,50 @@ RLS 讓一般用戶端讀不到待複審與已下架的內容，因此管理平�
 ### 尚未上雲的部分
 
 推播開關（`pushPrefs`）刻意留在裝置上（那是裝置設定不是個人內容）；封禁、訂閱帳務與公告推播的管理動作也還是管理端本機狀態。
+
+## 13. 手機 App（iOS／Android）的原生設定
+
+網頁版與手機版是同一份程式碼，但手機版多了「權限、圖示、地圖金鑰」這幾件只有原生建置才會用到的設定。全部集中在 `app.config.ts`，改完要重新建置（`expo run:ios` / `expo run:android`，或 Bilt 的 iOS／Android 建置）才會生效——這些是原生設定，OTA 更新不會套用。
+
+### 權限（只宣告真正用到的）
+
+| 權限           | 何時會問使用者               | 說明文案的位置                                       |
+| -------------- | ---------------------------- | ---------------------------------------------------- |
+| 定位（使用中） | 發布任務按「偵測我的位置」時 | `expo-location` 外掛的 `locationWhenInUsePermission` |
+| 相簿           | 上傳專業證照／作品照片時     | `expo-image-picker` 外掛的 `photosPermission`        |
+| 通知           | 第一次啟動且推播開關為開時   | 由 `expo-notifications` 處理，iOS 沒有自訂文案       |
+
+沒有用到的權限刻意封鎖（`android.blockedPermissions`）：相機、麥克風、背景定位。相依套件的 manifest 會夾帶它們，留著會讓 Google Play 的權限清單出現使用者無法對應的項目。**日後真的加了拍照功能，要先把 `android.permission.CAMERA` 從封鎖清單移除，並把 `cameraPermission` 從 `false` 換成中文說明**，否則相機在正式版會直接失敗。
+
+背景定位、背景推播與前景服務全部關閉：App 只在使用者按下按鈕時取一次座標，開了反而要向商店額外說明用途。
+
+### iOS 的隱私清單（App Store 必需）
+
+`ios.privacyManifests` 宣告了四項「必要理由 API」：`UserDefaults`（AsyncStorage，所有 Zustand persist）、`FileTimestamp`、`DiskSpace`、`SystemBootTime`（`expo-updates`、`expo-image-picker` 與 React Native 內部使用）。缺這份清單上傳 App Store 會被自動退件。裝新套件時若 Apple 回信說少了理由碼，就在這個陣列補一筆。
+
+### Android 地圖需要 Google Maps 金鑰
+
+iOS 的地圖走 Apple Maps，不需要金鑰。**Android 走 Google Maps，沒有金鑰時地圖會是一片灰底**（不會報錯，很容易誤判成程式壞掉）。
+
+1. Google Cloud Console 建專案 → 啟用 **Maps SDK for Android** → 建立 API 金鑰。
+2. 金鑰限制建議選「Android 應用程式」，填入套件名稱（`BILT_ANDROID_PACKAGE`）與簽章憑證的 SHA-1。
+3. 建置環境設 `GOOGLE_MAPS_ANDROID_API_KEY`，`app.config.ts` 會寫進 AndroidManifest。
+
+沒有金鑰也能正常使用 App：任務牆的清單模式不受影響，只有地圖模式會空白。
+
+### 通知的小圖示與通道
+
+Android 狀態列的小圖示只取 alpha 通道，彩色圖會被畫成白方塊，所以另外準備了 `public/icons/talentmatch-notification.png`（純白剪影＋透明背景）。換圖時要維持「白色圖形＋透明背景」，尺寸至少 96×96。
+
+通知通道 `default`（名稱「人才速配通知」）在 App 啟動時就建立，不是等到請求權限才建立——否則已授權的裝置重裝後第一批通知會掉進系統的無名備援通道，沒有音效與震動。
+
+### 深層連結
+
+`scheme` 是 `talentmatch://`（舊的 `app://` 一併保留，移除會讓既有開發建置的連結失效）。推播點擊的導向不靠網址，而是通知裡的 `conversationId` / `gigId` / `talentId`（`components/PushBridge.tsx`）；App 被系統關掉時的那一次點擊由 `takeInitialPushTap()` 補上。
+
+### 手機版沒有的東西
+
+管理平台只有網頁版（`IS_ADMIN_PLATFORM_AVAILABLE` 只在 web 為真），原生上打開 `/admin` 會被導回任務牆。裝置推播、定位與相簿相反：只有 iOS／Android 有，網頁版的 `lib/push.web.ts` 是同介面的空實作。
 
 ## How can I make changes to my app?
 

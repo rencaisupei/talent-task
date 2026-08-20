@@ -11,6 +11,8 @@ import {
 } from '@expo-google-fonts/inter';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { I18nManager, Platform } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import * as DevClient from 'expo-dev-client';
 import { HeroUINativeProvider, useThemeColor } from 'heroui-native';
@@ -23,6 +25,7 @@ import {
 } from 'expo-router';
 
 import { initPostHog } from '@/lib/posthog';
+import { COLORS } from '@/lib/colors';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -137,6 +140,13 @@ export default function RootLayout() {
     registerServiceWorker();
   }, []);
 
+  // 原生根視圖的底色。介面鎖定淺色，沒有這一行的話 App 在深色模式的裝置上
+  // 旋轉、分割畫面或原生轉場的空隙會透出黑底。
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void SystemUI.setBackgroundColorAsync(COLORS.white);
+  }, []);
+
   useEffect(() => {
     if (loaded || error || Platform.OS === 'web') {
       void SplashScreen.hideAsync();
@@ -149,6 +159,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>
+        {/* 深色文字的狀態列：整個 App 都是白底，放在根層才能涵蓋 modal 與詳情頁。 */}
+        {/* eslint-disable-next-line react/style-prop-object -- expo-status-bar 的 style 是字串列舉，不是 RN style 物件 */}
+        <StatusBar style="dark" />
         <RootNavigator />
         <AuthGate />
         <CloudSync />

@@ -38,16 +38,23 @@ export function configurePushHandler(): void {
       shouldSetBadge: true,
     }),
   });
+  // Android 一定要先有通道才會顯示通知；等到「請求權限」才建立的話，已經授權過的
+  // 舊裝置重裝後第一批通知會掉到系統的無名備援通道（沒有音效與震動）。
+  void ensureAndroidChannel();
 }
 
 async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync('default', {
-    name: '人才速配通知',
-    importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 220, 120, 220],
-    lightColor: '#1F6FB2',
-  });
+  try {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: '人才速配通知',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 220, 120, 220],
+      lightColor: '#1F6FB2',
+    });
+  } catch {
+    // 舊版 Android（8.0 以下）沒有通道機制，忽略即可。
+  }
 }
 
 /** 讀取目前的系統推播權限狀態。 */
@@ -170,4 +177,21 @@ export function addPushTapListener(handler: (payload: PushTapPayload) => void): 
     handler(data ?? {});
   });
   return () => subscription.remove();
+}
+
+/**
+ * 冷啟動補償：App 被系統關掉時點推播進來，監聽器還沒掛上就已經錯過那次事件，
+ * 使用者會停在任務牆而不是該則訊息。這裡取出系統保留的最後一筆點擊。
+ * 取出後立刻清除，否則下次正常開啟 App 又會被同一筆舊通知帶走。
+ */
+export function takeInitialPushTap(): PushTapPayload | null {
+  if (!isPushSupported) return null;
+  try {
+    const response = Notifications.getLastNotificationResponse();
+    if (!response) return null;
+    Notifications.clearLastNotificationResponse();
+    return response.notification.request.content.data ?? {};
+  } catch {
+    return null;
+  }
 }

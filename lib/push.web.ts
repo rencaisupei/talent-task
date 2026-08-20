@@ -58,3 +58,8 @@ export function pushDeviceLabel(): string {
 export function addPushTapListener(_handler: (payload: PushTapPayload) => void): () => void {
   return () => undefined;
 }
+
+export function takeInitialPushTap(): PushTapPayload | null {
+  // 網頁版沒有系統推播，冷啟動也不會有待處理的點擊。
+  return null;
+}

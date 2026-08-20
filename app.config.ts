@@ -11,7 +11,38 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           [
             'expo-notifications',
             {
+              // 96x96 純白剪影＋透明背景：Android 只取 alpha 通道，彩色圖會被畫成白方塊。
+              icon: './public/icons/talentmatch-notification.png',
               color: '#1F6FB2',
+              // 與 lib/push.ts 的 ensureAndroidChannel() 建立的通道同名。
+              defaultChannel: 'default',
+            },
+          ],
+          [
+            'expo-location',
+            {
+              // 只有「發布任務時偵測所在地區」會用到定位，因此只宣告使用中權限；
+              // 背景定位與動作感測都關閉，商店審核不會要求額外說明。
+              locationWhenInUsePermission:
+                '人才速配需要你的位置，才能把急件標到正確的地區並依距離排序附近的任務。',
+              locationAlwaysAndWhenInUsePermission: false,
+              locationAlwaysPermission: false,
+              motionUsagePermission: false,
+              isIosBackgroundLocationEnabled: false,
+              isAndroidBackgroundLocationEnabled: false,
+              isAndroidForegroundServiceEnabled: false,
+              isAndroidMotionActivityEnabled: false,
+            },
+          ],
+          [
+            'expo-image-picker',
+            {
+              // 只用相簿選取證照／作品照片，沒有拍照與錄音功能，
+              // 所以相機與麥克風的說明都設 false（不寫入 Info.plist、不加 RECORD_AUDIO）。
+              photosPermission:
+                '人才速配需要讀取相簿，才能讓你上傳專業證照或作品照片供平台認證審核。',
+              cameraPermission: false,
+              microphonePermission: false,
             },
           ],
         ]
@@ -30,8 +61,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version: process.env.BILT_APP_VERSION ?? '1.0.0',
     orientation: 'portrait',
     icon: brandMark,
-    userInterfaceStyle: 'automatic',
-    scheme: 'app',
+    // 介面鎖定淺色（app/_layout.tsx 的 Uniwind.setTheme('light')）。這裡若留
+    // 'automatic'，系統在深色模式下會把原生元件（鍵盤、系統對話、原生 modal
+    // 背景、分享面板）畫成深色，和淺色版面混在一起。
+    userInterfaceStyle: 'light',
+    // 'talentmatch' 是對外的深層連結（推播與郵件回到 App 用）；
+    // 'app' 保留給既有的開發建置，移除會讓舊的 app:// 連結失效。
+    scheme: ['talentmatch', 'app'],
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -44,6 +80,30 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         CFBundleDevelopmentRegion: 'zh_TW',
         CFBundleLocalizations: ['zh-Hant-TW'],
       },
+      // App Store 自 2024 年起要求宣告「必要理由 API」，缺少這份清單會在上傳後被退件。
+      // UserDefaults：AsyncStorage（所有 Zustand persist）。
+      // FileTimestamp / DiskSpace / SystemBootTime：expo-updates、expo-image-picker
+      // 與 React Native 內部會讀取，理由碼皆為 Apple 文件中「僅供 App 自身使用」那組。
+      privacyManifests: {
+        NSPrivacyAccessedAPITypes: [
+          {
+            NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults',
+            NSPrivacyAccessedAPITypeReasons: ['CA92.1'],
+          },
+          {
+            NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryFileTimestamp',
+            NSPrivacyAccessedAPITypeReasons: ['C617.1'],
+          },
+          {
+            NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryDiskSpace',
+            NSPrivacyAccessedAPITypeReasons: ['E174.1'],
+          },
+          {
+            NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategorySystemBootTime',
+            NSPrivacyAccessedAPITypeReasons: ['35F9.1'],
+          },
+        ],
+      },
       supportsTablet: true,
       bundleIdentifier: process.env.BILT_IOS_BUNDLE_ID ?? 'com.yourcompany.yourapp',
     },
@@ -54,6 +114,31 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // so the full-bleed brandMark would lose the arrowhead.
         foregroundImage: './public/icons/talentmatch-maskable.png',
         backgroundColor: '#FFFFFF',
+      },
+      // 系統在 App 背後透出的底色（旋轉、分割畫面、啟動瞬間）。介面是純白極簡風，
+      // 沒有這一行的話深色模式下會先閃一次黑底。
+      backgroundColor: '#FFFFFF',
+      // 實際會用到的權限。定位＝發布任務時偵測地區；通知＝新訊息與提案動態；
+      // 震動＝通知通道的震動樣式。其餘由 config plugin 自動帶入。
+      permissions: [
+        'android.permission.ACCESS_COARSE_LOCATION',
+        'android.permission.ACCESS_FINE_LOCATION',
+        'android.permission.POST_NOTIFICATIONS',
+        'android.permission.VIBRATE',
+      ],
+      // 相依套件的 manifest 會夾帶這些權限，但 App 沒有拍照、錄音與背景定位功能。
+      // 留著會讓商店權限清單出現使用者無法對應的項目，也會拖慢審核。
+      blockedPermissions: [
+        'android.permission.CAMERA',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.ACCESS_BACKGROUND_LOCATION',
+      ],
+      config: {
+        // Android 的地圖（react-native-maps）走 Google Maps，沒有金鑰時只會顯示灰底。
+        // 建置時提供 GOOGLE_MAPS_ANDROID_API_KEY 即可，iOS 用 Apple Maps 不需要金鑰。
+        googleMaps: {
+          apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY,
+        },
       },
     },
     web: {

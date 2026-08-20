@@ -9,6 +9,7 @@ import {
   type PushTapPayload,
   requestPushPermission,
   syncPushPermission,
+  takeInitialPushTap,
 } from '@/lib/push';
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
 
@@ -57,6 +58,14 @@ export function PushBridge() {
       else pendingTapRef.current = payload;
     });
   }, [navigationReady, openFromPush]);
+
+  // 冷啟動（App 被系統關掉時點推播進來）：監聽器錯過的那一筆在這裡補上，
+  // 只在第一次渲染取一次，避免正常開啟 App 時被舊通知帶走。
+  useEffect(() => {
+    if (!isPushSupported) return;
+    const initial = takeInitialPushTap();
+    if (initial) pendingTapRef.current = initial;
+  }, []);
 
   useEffect(() => {
     if (!navigationReady) return;
