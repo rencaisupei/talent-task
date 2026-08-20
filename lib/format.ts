@@ -2,6 +2,12 @@ const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+/**
+ * 全站鎖定台灣繁體中文：所有數字與日期格式一律以這個地區代碼產生，
+ * 不跟隨裝置或瀏覽器語言。日期本身用手動組字串（Hermes 的 Intl 支援有限）。
+ */
+export const APP_LOCALE = 'zh-Hant-TW';
+
 /** 相對時間標記（繁體中文）。 */
 export function formatRelativeTime(timestamp: number, now: number = Date.now()): string {
   const diff = Math.max(0, now - timestamp);
@@ -27,7 +33,7 @@ export function formatDate(timestamp: number): string {
 }
 
 export function formatNumber(value: number): string {
-  return value.toLocaleString('zh-Hant-TW');
+  return value.toLocaleString(APP_LOCALE);
 }
 
 export function formatCurrency(value: number): string {

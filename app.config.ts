@@ -39,6 +39,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // 介面只有台灣繁體中文：明確宣告語系，系統才不會依裝置語言挑別的語系或顯示英文
+        // 的系統對話（權限說明、分享面板標題等）。
+        CFBundleDevelopmentRegion: 'zh_TW',
+        CFBundleLocalizations: ['zh-Hant-TW'],
       },
       supportsTablet: true,
       bundleIdentifier: process.env.BILT_IOS_BUNDLE_ID ?? 'com.yourcompany.yourapp',
@@ -57,6 +61,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // 'single' = SPA export: one index.html + client routing, so edge serving
       // needs only a single 404→index.html fallback rule.
       output: 'single',
+      // 網頁只有台灣繁體中文；public/index.html 的 lang 屬性也硬寫成同一個值。
+      lang: 'zh-Hant-TW',
       favicon: './public/icons/talentmatch-icon.png',
     },
     extra: {

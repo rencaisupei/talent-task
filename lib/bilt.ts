@@ -19,6 +19,8 @@ import type {
   ReviewRow,
   SavedGigInsert,
   SavedGigRow,
+  SupportTicketInsert,
+  SupportTicketRow,
   UnreadCountRow,
 } from '@/lib/remote/rows';
 
@@ -110,6 +112,17 @@ type NotificationsTable = {
   Relationships: [];
 };
 
+/**
+ * 聯絡我們的站內留言：任何人（含訪客）可送出，只有本人讀得到自己那幾筆。
+ * 處理結果由管理平台的 admin-content 函式寫入，因此這裡沒有 Update 形狀。
+ */
+type SupportTicketsTable = {
+  Row: SupportTicketRow;
+  Insert: SupportTicketInsert;
+  Update: Partial<SupportTicketInsert>;
+  Relationships: [];
+};
+
 type BiltDatabase = {
   public: {
     Tables: {
@@ -121,6 +134,7 @@ type BiltDatabase = {
       reviews: ReviewsTable;
       saved_gigs: SavedGigsTable;
       notifications: NotificationsTable;
+      support_tickets: SupportTicketsTable;
     };
     Views: Record<string, never>;
     Functions: {

@@ -1,9 +1,15 @@
 import { ScrollView, Text, View } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Mail } from 'lucide-react-native';
 import { Pressable } from 'react-native';
+import { router } from 'expo-router';
 
 import { COLORS } from '@/lib/colors';
-import { PRIVACY_POLICY_SECTIONS, PRIVACY_POLICY_SUMMARY } from '@/lib/legalCopy';
+import {
+  PRIVACY_POLICY_SECTIONS,
+  PRIVACY_POLICY_SUMMARY,
+  PRIVACY_POLICY_UPDATED_AT,
+  SUPPORT_EMAIL,
+} from '@/lib/legalCopy';
 import { goBackOrReplace } from '@/lib/navigation';
 
 export default function PrivacyScreen() {
@@ -36,7 +42,25 @@ export default function PrivacyScreen() {
           </View>
         ))}
 
-        <Text className="text-muted text-[12px]">最後更新：2026 年 8 月</Text>
+        <Pressable
+          onPress={() => router.push('/contact')}
+          accessibilityRole="button"
+          accessibilityLabel="前往聯絡我們"
+          className="border-hairline flex-row items-center gap-3 rounded-xl border bg-white p-4"
+        >
+          <View className="bg-canvas h-10 w-10 items-center justify-center rounded-xl">
+            <Mail size={18} color={COLORS.brandStrong} strokeWidth={2.2} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-ink text-[14px] font-semibold">聯絡我們</Text>
+            <Text className="text-muted mt-0.5 text-[12px] leading-4">
+              行使個人資料權利或提出檢舉：{SUPPORT_EMAIL}
+            </Text>
+          </View>
+          <ChevronRight size={16} color={COLORS.muted} strokeWidth={2.2} />
+        </Pressable>
+
+        <Text className="text-muted text-[12px]">最後更新：{PRIVACY_POLICY_UPDATED_AT}</Text>
       </ScrollView>
     </View>
   );

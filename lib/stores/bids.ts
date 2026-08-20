@@ -6,6 +6,7 @@ import {
   upsertRemoteBid,
   withdrawRemoteBid,
 } from '@/lib/remote/bids';
+import { formatCurrency } from '@/lib/format';
 import { notifyContentChanged } from '@/lib/remote/live';
 import { type CloudLoadState, useGigStore } from '@/lib/stores/gigs';
 import { useNotificationStore } from '@/lib/stores/notifications';
@@ -137,7 +138,7 @@ export const useBidStore = create<BidState>()((set, get) => ({
       kind: passed ? 'bid' : 'moderation',
       title: passed ? (existing ? '提案已更新' : '提案已送出') : '提案已送交管理員複審',
       body: passed
-        ? `已向「${gig.title}」送出${quote === null ? '面議' : `報價 NT$ ${quote.toLocaleString('zh-Hant-TW')}`}的提案，${etaLabel}可開始。`
+        ? `已向「${gig.title}」送出${quote === null ? '面議' : `報價 ${formatCurrency(quote)}`}的提案，${etaLabel}可開始。`
         : `提案未通過即時認證（${review.ai.reasons[0] ?? '內容需人工確認'}），複審通過後客戶才會看到。`,
       gigId: gig.id,
     });

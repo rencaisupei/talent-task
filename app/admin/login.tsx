@@ -281,6 +281,10 @@ export default function AdminLoginScreen() {
             請總管理員在「管理員帳號管理」重設你的密碼，系統會產生新的一次性啟用碼；
             首次登入時以啟用碼取代密碼，設定完成後啟用碼即失效。
           </Text>
+          <Text className="text-muted text-[12px] leading-5">
+            固定總管理員不適用上述重設：它的帳號與密碼存放在後端加密機密，任何管理員都改不了，
+            忘記時請更新機密 ROOT_ADMIN_PASSWORD 後直接以新密碼登入。
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

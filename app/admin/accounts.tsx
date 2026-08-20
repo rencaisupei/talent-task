@@ -3,6 +3,7 @@ import {
   CircleCheck,
   Copy,
   KeyRound,
+  Lock,
   RotateCcw,
   ScrollText,
   Trash2,
@@ -388,67 +389,80 @@ export default function AdminAccountsScreen() {
           </Button>
         </View>
 
-        <View className="border-hairline gap-4 rounded-xl border bg-white p-4">
-          <View className="flex-row items-center gap-2">
-            <KeyRound size={16} color={COLORS.ink} strokeWidth={2.2} />
-            <Text className="text-ink text-[15px] font-semibold">變更我的密碼</Text>
-          </View>
-
-          <TextField>
-            <Label>目前的密碼</Label>
-            <Input
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              placeholder="輸入現在使用的密碼"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={!showSecrets}
-            />
-          </TextField>
-
-          <TextField>
-            <Label>新密碼</Label>
-            <Input
-              value={nextPassword}
-              onChangeText={setNextPassword}
-              placeholder="至少 10 個字元，含英文與數字"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={!showSecrets}
-            />
-          </TextField>
-
-          <TextField>
-            <Label>再次輸入新密碼</Label>
-            <Input
-              value={confirmNextPassword}
-              onChangeText={setConfirmNextPassword}
-              placeholder="確認新密碼"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={!showSecrets}
-            />
-          </TextField>
-
-          <View className="flex-row items-center gap-3">
-            <View className="flex-1">
-              <Text className="text-ink text-[13px] font-semibold">顯示密碼欄位</Text>
-              <Text className="text-muted mt-0.5 text-[12px]">避免輸入錯誤</Text>
+        {currentAdmin?.isProtected === true ? (
+          <View className="border-brand/25 bg-brand-soft gap-2 rounded-xl border p-4">
+            <View className="flex-row items-center gap-2">
+              <Lock size={16} color={COLORS.brandStrong} strokeWidth={2.2} />
+              <Text className="text-ink text-[15px] font-semibold">你的密碼由機密管理</Text>
             </View>
-            <Switch isSelected={showSecrets} onSelectedChange={setShowSecrets} />
+            <Text className="text-ink-soft text-[12px] leading-5">
+              你登入的是固定總管理員帳號，密碼存放在後端加密機密
+              ROOT_ADMIN_PASSWORD，平台上無法變更，也不會被其他管理員重設。要更換密碼請更新該機密，更新後立即以新密碼登入即可。
+            </Text>
           </View>
+        ) : (
+          <View className="border-hairline gap-4 rounded-xl border bg-white p-4">
+            <View className="flex-row items-center gap-2">
+              <KeyRound size={16} color={COLORS.ink} strokeWidth={2.2} />
+              <Text className="text-ink text-[15px] font-semibold">變更我的密碼</Text>
+            </View>
 
-          <Button
-            size="md"
-            variant="tertiary"
-            isDisabled={
-              changingPassword || currentPassword.length === 0 || nextPassword.length === 0
-            }
-            onPress={() => void handleChangeOwnPassword()}
-          >
-            <Button.Label>{changingPassword ? '更新中…' : '更新密碼'}</Button.Label>
-          </Button>
-        </View>
+            <TextField>
+              <Label>目前的密碼</Label>
+              <Input
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="輸入現在使用的密碼"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!showSecrets}
+              />
+            </TextField>
+
+            <TextField>
+              <Label>新密碼</Label>
+              <Input
+                value={nextPassword}
+                onChangeText={setNextPassword}
+                placeholder="至少 10 個字元，含英文與數字"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!showSecrets}
+              />
+            </TextField>
+
+            <TextField>
+              <Label>再次輸入新密碼</Label>
+              <Input
+                value={confirmNextPassword}
+                onChangeText={setConfirmNextPassword}
+                placeholder="確認新密碼"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!showSecrets}
+              />
+            </TextField>
+
+            <View className="flex-row items-center gap-3">
+              <View className="flex-1">
+                <Text className="text-ink text-[13px] font-semibold">顯示密碼欄位</Text>
+                <Text className="text-muted mt-0.5 text-[12px]">避免輸入錯誤</Text>
+              </View>
+              <Switch isSelected={showSecrets} onSelectedChange={setShowSecrets} />
+            </View>
+
+            <Button
+              size="md"
+              variant="tertiary"
+              isDisabled={
+                changingPassword || currentPassword.length === 0 || nextPassword.length === 0
+              }
+              onPress={() => void handleChangeOwnPassword()}
+            >
+              <Button.Label>{changingPassword ? '更新中…' : '更新密碼'}</Button.Label>
+            </Button>
+          </View>
+        )}
 
         <View className="gap-3">
           <SectionHeading title="登入紀錄" caption="伺服器端記錄，含失敗與鎖定事件" />
@@ -532,8 +546,11 @@ function AccountCard({
           <Text className="text-muted mt-0.5 text-[12px]">{account.email}</Text>
           <View className="mt-2 flex-row flex-wrap gap-1.5">
             <StaticTag label={ADMIN_ROLE_LABEL[account.role]} tone="brand" />
+            {account.isProtected ? <StaticTag label="固定・不可變更" tone="brand" /> : null}
             {account.isActive ? null : <StaticTag label="已停用" tone="coral" />}
-            {account.hasPassword ? null : <StaticTag label="待設定密碼" tone="coral" />}
+            {account.isProtected || account.hasPassword ? null : (
+              <StaticTag label="待設定密碼" tone="coral" />
+            )}
             {isLocked ? <StaticTag label="鎖定中" tone="coral" /> : null}
           </View>
           <Text className="text-muted mt-2 text-[11px] leading-4">
@@ -545,44 +562,56 @@ function AccountCard({
         </View>
       </View>
 
-      <SegmentedTabs options={ROLE_OPTIONS} value={account.role} onChange={onChangeRole} />
-
-      <View className="flex-row items-center gap-3">
-        <View className="flex-1">
-          <Text className="text-ink text-[13px] font-semibold">帳號啟用</Text>
-          <Text className="text-muted mt-0.5 text-[11px]">
-            {isSelf ? '無法停用自己的帳號' : '停用後立即無法登入'}
+      {account.isProtected ? (
+        <View className="border-brand/25 bg-brand-soft flex-row items-start gap-2 rounded-xl border px-3 py-2.5">
+          <Lock size={14} color={COLORS.brandStrong} strokeWidth={2.2} />
+          <Text className="text-ink-soft flex-1 text-[12px] leading-4">
+            固定總管理員：帳號與密碼由伺服器端加密機密管理。這裡不能改角色、不能停用、不能刪除，也不能重設密碼——要換密碼請更新後端機密
+            ROOT_ADMIN_PASSWORD。
           </Text>
         </View>
-        <Switch
-          isSelected={account.isActive}
-          isDisabled={isSelf}
-          onSelectedChange={onToggleActive}
-        />
-      </View>
+      ) : (
+        <>
+          <SegmentedTabs options={ROLE_OPTIONS} value={account.role} onChange={onChangeRole} />
 
-      <View className="flex-row gap-2">
-        <Pressable
-          onPress={onReset}
-          accessibilityRole="button"
-          accessibilityLabel={`重設 ${account.name} 的密碼`}
-          className="border-hairline flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5"
-        >
-          <RotateCcw size={14} color={COLORS.ink} strokeWidth={2.2} />
-          <Text className="text-ink text-[12px] font-semibold">重設密碼</Text>
-        </Pressable>
-        {isSelf ? null : (
-          <Pressable
-            onPress={onDelete}
-            accessibilityRole="button"
-            accessibilityLabel={`刪除 ${account.name} 的帳號`}
-            className="border-coral/25 bg-coral-soft flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5"
-          >
-            <Trash2 size={14} color={COLORS.coral} strokeWidth={2.2} />
-            <Text className="text-coral text-[12px] font-semibold">刪除帳號</Text>
-          </Pressable>
-        )}
-      </View>
+          <View className="flex-row items-center gap-3">
+            <View className="flex-1">
+              <Text className="text-ink text-[13px] font-semibold">帳號啟用</Text>
+              <Text className="text-muted mt-0.5 text-[11px]">
+                {isSelf ? '無法停用自己的帳號' : '停用後立即無法登入'}
+              </Text>
+            </View>
+            <Switch
+              isSelected={account.isActive}
+              isDisabled={isSelf}
+              onSelectedChange={onToggleActive}
+            />
+          </View>
+
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={onReset}
+              accessibilityRole="button"
+              accessibilityLabel={`重設 ${account.name} 的密碼`}
+              className="border-hairline flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5"
+            >
+              <RotateCcw size={14} color={COLORS.ink} strokeWidth={2.2} />
+              <Text className="text-ink text-[12px] font-semibold">重設密碼</Text>
+            </Pressable>
+            {isSelf ? null : (
+              <Pressable
+                onPress={onDelete}
+                accessibilityRole="button"
+                accessibilityLabel={`刪除 ${account.name} 的帳號`}
+                className="border-coral/25 bg-coral-soft flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5"
+              >
+                <Trash2 size={14} color={COLORS.coral} strokeWidth={2.2} />
+                <Text className="text-coral text-[12px] font-semibold">刪除帳號</Text>
+              </Pressable>
+            )}
+          </View>
+        </>
+      )}
     </View>
   );
 }

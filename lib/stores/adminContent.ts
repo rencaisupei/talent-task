@@ -5,13 +5,15 @@ import {
   adminDecideGigReview,
   adminFetchChats,
   adminFetchContent,
+  adminFetchTickets,
   adminResolveConversationReport,
+  adminResolveTicket,
   adminRestoreGig,
   adminTakedownGig,
   type AdminReviewDecision,
 } from '@/lib/adminApi';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
-import type { Bid, ChatMessage, Conversation, Gig } from '@/lib/types';
+import type { Bid, ChatMessage, Conversation, Gig, SupportTicket } from '@/lib/types';
 
 export type AdminContentLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -26,6 +28,9 @@ interface AdminContentState {
   conversations: Conversation[];
   chatMessages: Record<string, ChatMessage[]>;
   chatLoadState: AdminContentLoadState;
+  /** 聯絡我們的站內留言（訪客留言只有 service key 讀得到）。 */
+  tickets: SupportTicket[];
+  ticketLoadState: AdminContentLoadState;
   loadState: AdminContentLoadState;
   isMutating: boolean;
   errorMessage: string | null;
@@ -35,6 +40,9 @@ interface AdminContentState {
   refresh: () => Promise<void>;
   /** 讀取需要處理的對話與其完整紀錄。 */
   refreshChats: () => Promise<void>;
+  /** 讀取客服留言（含訪客留言）。 */
+  refreshTickets: () => Promise<void>;
+  resolveTicket: (ticketId: string, note?: string) => Promise<boolean>;
   resolveReport: (conversationId: string, note?: string) => Promise<boolean>;
   takedownGig: (gigId: string, reason: string) => Promise<boolean>;
   restoreGig: (gigId: string) => Promise<boolean>;
@@ -67,6 +75,8 @@ export const useAdminContentStore = create<AdminContentState>()((set) => ({
   conversations: [],
   chatMessages: {},
   chatLoadState: 'idle',
+  tickets: [],
+  ticketLoadState: 'idle',
   loadState: 'idle',
   isMutating: false,
   errorMessage: null,
@@ -128,6 +138,49 @@ export const useAdminContentStore = create<AdminContentState>()((set) => ({
       chatLoadState: 'ready',
       errorMessage: null,
     });
+  },
+
+  refreshTickets: async () => {
+    const token = currentToken();
+    if (token === null) {
+      set({ ticketLoadState: 'error', errorMessage: NO_TOKEN_MESSAGE });
+      return;
+    }
+
+    set((state) => ({ ticketLoadState: state.ticketLoadState === 'ready' ? 'ready' : 'loading' }));
+
+    const outcome = await adminFetchTickets(token);
+    if (outcome.kind !== 'ok') {
+      set((state) => ({
+        ticketLoadState: state.tickets.length > 0 ? 'ready' : 'error',
+        errorMessage: failureMessage(outcome.kind, outcome),
+      }));
+      return;
+    }
+
+    set({ tickets: outcome.tickets, ticketLoadState: 'ready', errorMessage: null });
+  },
+
+  resolveTicket: async (ticketId, note) => {
+    const token = currentToken();
+    if (token === null) {
+      set({ errorMessage: NO_TOKEN_MESSAGE });
+      return false;
+    }
+
+    set({ isMutating: true, errorMessage: null });
+    const outcome = await adminResolveTicket(token, ticketId, note);
+    if (outcome.kind !== 'ok') {
+      set({ isMutating: false, errorMessage: failureMessage(outcome.kind, outcome) });
+      return false;
+    }
+
+    const ticket = outcome.ticket;
+    set((state) => ({
+      isMutating: false,
+      tickets: state.tickets.map((item) => (item.id === ticket.id ? ticket : item)),
+    }));
+    return true;
   },
 
   resolveReport: async (conversationId, note) => {

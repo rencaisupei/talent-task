@@ -7,12 +7,14 @@
   wall) and /admin is the operator platform. Because the export is a single page,
   this file's title and meta apply to every route; app/admin/_layout.tsx swaps
   the title and the robots meta at runtime while an admin route is open.
-  The lang attribute below is substituted at build time.
+  The lang attribute is pinned to Taiwanese Traditional Chinese (zh-Hant-TW) —
+  the app ships one language only, so it must not follow the browser locale.
 -->
-<html lang="%LANG_ISO_CODE%">
+<html lang="zh-Hant-TW">
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="content-language" content="zh-Hant-TW" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"

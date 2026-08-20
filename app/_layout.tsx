@@ -10,7 +10,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Platform } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
 import { useEffect } from 'react';
 import * as DevClient from 'expo-dev-client';
 import { HeroUINativeProvider, useThemeColor } from 'heroui-native';
@@ -49,6 +49,11 @@ export { ErrorBoundary };
 
 // Starter is light-only by default. Remove this when implementing requested dark mode.
 Uniwind.setTheme('light');
+
+// 全站鎖定台灣繁體中文（zh-Hant-TW）。介面文案本身就是單一語言，這裡只需確保
+// 版面不會因為裝置語言是右至左語系而整體鏡射；數字與日期格式集中在 lib/format.ts。
+I18nManager.allowRTL(false);
+I18nManager.forceRTL(false);
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -176,6 +181,7 @@ function RootNavigator() {
       <Stack.Screen name="notification-settings" />
       <Stack.Screen name="maintenance" />
       <Stack.Screen name="privacy" />
+      <Stack.Screen name="contact" />
       <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="admin" />
       <Stack.Screen

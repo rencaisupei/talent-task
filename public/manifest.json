@@ -3,6 +3,7 @@
   "short_name": "人才速配",
   "description": "全台急件媒合：30 秒發布需求，附近的專家立即投標，雙向評價與信任度讓你放心成交。",
   "lang": "zh-Hant-TW",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -4,6 +4,7 @@ import { rowToBid } from '@/lib/remote/bids';
 import { rowToConversation, rowToMessage } from '@/lib/remote/chat';
 import { rowToGig } from '@/lib/remote/gigs';
 import { isBidRow, isConversationRow, isGigRow, isMessageRow } from '@/lib/remote/rows';
+import { isSupportTicketRow, rowToSupportTicket } from '@/lib/remote/support';
 import type {
   AdminAccount,
   AdminRole,
@@ -12,6 +13,7 @@ import type {
   Conversation,
   Gig,
   ManagedAdminAccount,
+  SupportTicket,
 } from '@/lib/types';
 
 /** 管理員驗證與帳號管理都走這個後端函式，前端不持有任何密碼或雜湊。 */
@@ -69,6 +71,7 @@ function parseAdmin(value: unknown): AdminAccount | null {
     name,
     role,
     isActive: value.isActive !== false,
+    isProtected: value.isProtected === true,
     createdAt,
     lastLoginAt: readNumber(value.lastLoginAt),
   };
@@ -800,4 +803,53 @@ export async function adminResolveConversationReport(
   if (!isConversationRow(raw)) return { kind: 'failed', message: '伺服器回應格式不正確。' };
 
   return { kind: 'ok', conversation: rowToConversation(raw) };
+}
+
+/* ------------------------------------------------------------------ */
+/* 客服留言（聯絡我們的站內表單）                                          */
+/* ------------------------------------------------------------------ */
+
+export type AdminTicketListOutcome =
+  | { kind: 'ok'; tickets: SupportTicket[] }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+export type AdminTicketOutcome =
+  | { kind: 'ok'; ticket: SupportTicket }
+  | { kind: 'expired' }
+  | { kind: 'forbidden' }
+  | { kind: 'failed'; message: string };
+
+/** 取得客服留言（含訪客留言，RLS 讓一般用戶端讀不到，需 service key）。 */
+export async function adminFetchTickets(token: string): Promise<AdminTicketListOutcome> {
+  const envelope = await call({ action: 'list-tickets', token }, ADMIN_CONTENT_FUNCTION);
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const raw = envelope.payload.tickets;
+  const tickets = Array.isArray(raw) ? raw.filter(isSupportTicketRow).map(rowToSupportTicket) : [];
+
+  return { kind: 'ok', tickets };
+}
+
+/** 標記留言已處理（記錄處理的管理員與備註）。 */
+export async function adminResolveTicket(
+  token: string,
+  ticketId: string,
+  note?: string,
+): Promise<AdminTicketOutcome> {
+  const envelope = await call(
+    { action: 'resolve-ticket', token, ticketId, note },
+    ADMIN_CONTENT_FUNCTION,
+  );
+  const failure = statusFailure(envelope);
+  if (failure !== null) return failure;
+  if (!envelope.ok) return { kind: 'failed', message: NETWORK_MESSAGE };
+
+  const raw = envelope.payload.ticket;
+  if (!isSupportTicketRow(raw)) return { kind: 'failed', message: '伺服器回應格式不正確。' };
+
+  return { kind: 'ok', ticket: rowToSupportTicket(raw) };
 }

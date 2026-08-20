@@ -7,6 +7,7 @@ import {
   ClipboardList,
   CreditCard,
   LogOut,
+  MessageSquare,
   ScanEye,
   ScrollText,
   ShieldCheck,
@@ -51,8 +52,10 @@ export default function AdminHomeScreen() {
   const gigs = useAdminContentStore((state) => state.gigs);
   const bids = useAdminContentStore((state) => state.bids);
   const conversations = useAdminContentStore((state) => state.conversations);
+  const tickets = useAdminContentStore((state) => state.tickets);
   const refreshContent = useAdminContentStore((state) => state.refresh);
   const refreshChats = useAdminContentStore((state) => state.refreshChats);
+  const refreshTickets = useAdminContentStore((state) => state.refreshTickets);
   const announcements = useAnnouncementStore((state) => state.announcements);
   const auditEntries = useAdminAuditStore((state) => state.entries);
 
@@ -84,10 +87,18 @@ export default function AdminHomeScreen() {
     [bids],
   );
 
+  const openTickets = useMemo(
+    () => tickets.filter((ticket) => ticket.status === 'open').length,
+    [tickets],
+  );
+
   useEffect(() => {
     void refreshContent();
-    if (permissions.includes('review:manage')) void refreshChats();
-  }, [permissions, refreshChats, refreshContent]);
+    if (permissions.includes('review:manage')) {
+      void refreshChats();
+      void refreshTickets();
+    }
+  }, [permissions, refreshChats, refreshContent, refreshTickets]);
 
   const recentEntries = auditEntries.slice(0, 4);
   const canViewRevenue = permissions.includes('revenue:view');
@@ -126,6 +137,14 @@ export default function AdminHomeScreen() {
         label: '審核與安全中心',
         caption: `待審核 ${pendingVerifications} 件・未處理檢舉 ${openReports} 件`,
         href: '/admin/dashboard',
+      },
+      {
+        key: 'support',
+        permission: 'review:manage',
+        icon: <MessageSquare size={17} color={COLORS.ink} strokeWidth={2.1} />,
+        label: '客服留言（聯絡我們）',
+        caption: `待處理 ${openTickets} 則・回覆寄到留言者信箱`,
+        href: '/admin/support',
       },
       {
         key: 'revenue',
@@ -177,6 +196,7 @@ export default function AdminHomeScreen() {
     bannedUserIds.length,
     gigs.length,
     openReports,
+    openTickets,
     pendingBidReviews,
     pendingGigReviews,
     pendingVerifications,

@@ -292,6 +292,12 @@ export interface AdminAccount {
   name: string;
   role: AdminRole;
   isActive: boolean;
+  /**
+   * 固定總管理員：帳號與密碼由伺服器端加密機密（ROOT_ADMIN_EMAIL /
+   * ROOT_ADMIN_PASSWORD）決定。管理平台不能改它的角色、啟用狀態或密碼，
+   * 也不能刪除它——避免唯一的總管理員被誤降級而把整個平台鎖死。
+   */
+  isProtected: boolean;
   createdAt: number;
   lastLoginAt: number | null;
 }
@@ -303,6 +309,38 @@ export interface ManagedAdminAccount extends AdminAccount {
   setupCodeExpiresAt: number | null;
   lockedUntil: number | null;
   failedAttempts: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* 聯絡我們（客服留言）                                                  */
+/* ------------------------------------------------------------------ */
+
+export type SupportCategory = 'account' | 'gig' | 'payment' | 'report' | 'suggestion' | 'other';
+
+export const SUPPORT_CATEGORY_LABEL: Record<SupportCategory, string> = {
+  account: '帳號與登入',
+  gig: '任務與媒合',
+  payment: '訂閱與帳務',
+  report: '檢舉與詐騙',
+  suggestion: '功能建議',
+  other: '其他問題',
+};
+
+export type SupportTicketStatus = 'open' | 'resolved';
+
+/** 站內留言。訪客也能送出（user_id 為 null），因此聯絡方式一律以填寫的信箱為準。 */
+export interface SupportTicket {
+  id: string;
+  userId: string | null;
+  name: string;
+  email: string;
+  category: SupportCategory;
+  message: string;
+  status: SupportTicketStatus;
+  adminNote: string | null;
+  resolvedBy: string | null;
+  resolvedAt: number | null;
+  createdAt: number;
 }
 
 /** 管理端使用者總表的一列（客戶與人才共用）。 */

@@ -7,6 +7,8 @@ import type {
   NotificationKind,
   PublishReview,
   PublishReviewState,
+  SupportCategory,
+  SupportTicketStatus,
   UserRole,
 } from '@/lib/types';
 
@@ -258,6 +260,46 @@ export type NotificationInsert = {
 export type NotificationUpdate = {
   is_read?: boolean;
 };
+
+/**
+ * support_tickets（聯絡我們的站內留言）。
+ *
+ * 訪客也能送出（user_id 為 null），所以 RLS 的 INSERT 只檢查「不能替別人掛上 user_id」。
+ * 這張表**沒有 UPDATE / DELETE 政策**：處理結果（status / admin_note / resolved_*）
+ * 只由 admin-content 函式以 service key 寫入。
+ */
+export type SupportTicketRow = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  category: SupportCategory;
+  message: string;
+  status: SupportTicketStatus;
+  admin_note: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+export type SupportTicketInsert = {
+  user_id: string | null;
+  name: string;
+  email: string;
+  category: SupportCategory;
+  message: string;
+};
+
+export function isSupportTicketRow(value: unknown): value is SupportTicketRow {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.email === 'string' &&
+    typeof value.message === 'string' &&
+    typeof value.status === 'string' &&
+    typeof value.created_at === 'string'
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

@@ -9,6 +9,7 @@ import {
   Crown,
   LogIn,
   LogOut,
+  Mail,
   RefreshCw,
   Repeat,
   ShieldCheck,
@@ -326,6 +327,13 @@ export default function ProfileScreen() {
             label="隱私權政策"
             caption="伺服器端聊天審核說明"
             onPress={() => router.push('/privacy')}
+          />
+          <View className="bg-hairline h-px" />
+          <ProfileRow
+            icon={<Mail size={17} color={COLORS.ink} strokeWidth={2.1} />}
+            label="聯絡我們"
+            caption="客服信箱與站內留言"
+            onPress={() => router.push('/contact')}
           />
           <View className="bg-hairline h-px" />
           <ProfileRow
