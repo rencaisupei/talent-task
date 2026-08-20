@@ -13,6 +13,13 @@
 #
 # `name` must match the Worker created in the Cloudflare dashboard, otherwise a
 # local `npm run deploy:web` publishes to a different Worker.
+#
+# The name is an internal Cloudflare identifier and the workers.dev subdomain —
+# it is NOT the public hostname. The site is served from talent-core-pro.com via
+# a Custom domain attached to this Worker (README section 3), so renaming this
+# would create a second Worker and force the custom domain, Access policy and
+# build variables to be set up again. Left as-is deliberately after the domain
+# move.
 
 name = "instantgig"
 compatibility_date = "2025-11-01"

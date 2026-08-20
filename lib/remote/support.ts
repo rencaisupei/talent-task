@@ -87,6 +87,32 @@ export async function submitSupportTicket(
     message: message.slice(0, SUPPORT_MESSAGE_MAX_LENGTH),
   };
 
+  // 訪客留言（user_id 為 null）不能要求 PostgREST 回傳寫入結果：
+  // `INSERT ... RETURNING` 會把 SELECT 政策套在新列上，而 support_tickets 的 SELECT
+  // 政策只讓留言者本人讀自己的列，因此訪客的那一列在回傳階段會被判定為看不見而整筆失敗。
+  // 訪客只需要「已受理」的確認，所以改成不取回傳表示，用送出的內容組出畫面要顯示的那筆。
+  if (payload.user_id === null) {
+    const { error } = await client.from('support_tickets').insert(payload);
+    if (error !== null) return remoteError(error.message);
+
+    return {
+      status: 'ok',
+      data: {
+        id: `guest-${Date.now()}`,
+        userId: null,
+        name: payload.name,
+        email,
+        category: input.category,
+        message: payload.message,
+        status: 'open',
+        adminNote: null,
+        resolvedBy: null,
+        resolvedAt: null,
+        createdAt: Date.now(),
+      },
+    };
+  }
+
   const { data, error } = await client
     .from('support_tickets')
     .insert(payload)

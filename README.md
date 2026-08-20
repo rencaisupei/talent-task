@@ -283,30 +283,38 @@ Pages 仍可用，但要把 `wrangler.toml` 的 `[assets]` 區塊換回
 
 ### 3. 綁定主網域與 DNS
 
-前置條件：`instantgig.tw` 的 DNS 已由 Cloudflare 託管（尚未轉移請先做第 6 節）。
+前置條件：`talent-core-pro.com` 的 DNS 已由 Cloudflare 託管（尚未轉移請先做第 6 節）。
 
 網站是「一般使用者網站 ＋ `/admin` 管理平台」，所以直接綁主網域。在 Worker →
-Settings → **Domains & Routes** → Add → **Custom domain** 加入 `instantgig.tw`，
-再重複一次加入 `www.instantgig.tw`；zone 在同一個 Cloudflare 帳號時 DNS 記錄會自動建立：
+Settings → **Domains & Routes** → Add → **Custom domain** 加入 `talent-core-pro.com`，
+再重複一次加入 `www.talent-core-pro.com`；zone 在同一個 Cloudflare 帳號時 DNS 記錄會自動建立：
 
-| 網域                | 記錄類型 | 名稱／Host | 值                     | 用途            |
-| ------------------- | -------- | ---------- | ---------------------- | --------------- |
-| `instantgig.tw`     | CNAME    | `@`        | 由 Cloudflare 自動填入 | 網站主入口      |
-| `www.instantgig.tw` | CNAME    | `www`      | 由 Cloudflare 自動填入 | 加上 www 也能開 |
+| 網域                      | 記錄類型 | 名稱／Host | 值                     | 用途            |
+| ------------------------- | -------- | ---------- | ---------------------- | --------------- |
+| `talent-core-pro.com`     | CNAME    | `@`        | 由 Cloudflare 自動填入 | 網站主入口      |
+| `www.talent-core-pro.com` | CNAME    | `www`      | 由 Cloudflare 自動填入 | 加上 www 也能開 |
+
+**從舊網域（`instantgig.tw`）搬過來的順序**：先把新網域的兩個 Custom domain 加上並確認
+顯示 Active、實際開得起來，**再**移除舊網域的 Custom domain。反過來做會有一段時間兩邊
+都打不開。舊網域要繼續保留就把它留在同一個 Worker 上（同一份網站兩個入口都能開），
+或在 Rules → Redirect Rules 把 `hostname eq "instantgig.tw"` 301 轉到新網域。
+Worker 的名稱（`wrangler.toml` 的 `name`，目前是 `instantgig`）**不需要跟著改**：它只是
+Cloudflare 內部識別碼與 `workers.dev` 子網域，改名等於建立另一個 Worker，自訂網域、
+Access 政策與環境變數都要重新設定一次。
 
 注意事項：
 
 - **兩個主機名稱都要加**，否則沒加的那個會顯示 Cloudflare 的錯誤頁。想讓 `www` 統一
   轉到不帶 www 的網址：Rules → **Redirect Rules** → Create，比對
-  `hostname eq "www.instantgig.tw"`，動作 Dynamic → `concat("https://instantgig.tw", http.request.uri.path)`、
+  `hostname eq "www.talent-core-pro.com"`，動作 Dynamic → `concat("https://talent-core-pro.com", http.request.uri.path)`、
   狀態碼 301。這是選配，不設也能正常使用。
 - 這些記錄必須是 **Proxied（橘雲）**。Workers 自訂網域一律經過 Cloudflare 代理，
   這也是 Access 能保護 `/admin` 的原因。
 - 憑證由 Cloudflare 自動簽發，Domains & Routes 顯示 **Active** 即完成。
 - 綁好自訂網域後，到同一頁把 `workers.dev` 路由關閉（Disable），避免同一份網站多一個
   沒被 Access 涵蓋的 `/admin` 入口。
-- 想把管理平台放在自己的子網域（例如 `admin.instantgig.tw`）也可以：加第三個
-  Custom domain 指到同一個 Worker，開 `admin.instantgig.tw/admin` 即可。
+- 想把管理平台放在自己的子網域（例如 `admin.talent-core-pro.com`）也可以：加第三個
+  Custom domain 指到同一個 Worker，開 `admin.talent-core-pro.com/admin` 即可。
   但**同一個 Worker 服務的是同一份靜態網站**，子網域的根路徑仍是一般使用者網站，
   路徑分流無法靠 DNS 完成。
 
@@ -314,11 +322,11 @@ Settings → **Domains & Routes** → Add → **Custom domain** 加入 `instantg
 
 新加入的 zone 還沒有任何記錄時，Cloudflare 概覽頁會出現這幾則提醒：
 
-| 提醒                                        | 該怎麼做                                                       |
-| ------------------------------------------- | -------------------------------------------------------------- |
-| 訪客無法存取 `instantgig.tw`（缺 A／CNAME） | **不要手動加 A／AAAA**。照本節加 Custom domain，記錄會自動建立 |
-| 訪客無法存取 `www.instantgig.tw`            | 同上，`www` 再加一次 Custom domain                             |
-| 電子郵件無法送達、可能被偽造（缺 MX／SPF）  | 與網站無關，見下方「網域信箱」                                 |
+| 提醒                                              | 該怎麼做                                                       |
+| ------------------------------------------------- | -------------------------------------------------------------- |
+| 訪客無法存取 `talent-core-pro.com`（缺 A／CNAME） | **不要手動加 A／AAAA**。照本節加 Custom domain，記錄會自動建立 |
+| 訪客無法存取 `www.talent-core-pro.com`            | 同上，`www` 再加一次 Custom domain                             |
+| 電子郵件無法送達、可能被偽造（缺 MX／SPF）        | 與網站無關，見下方「網域信箱」                                 |
 
 提醒本身不是錯誤，只是「這個 zone 目前沒有指向任何伺服器」。Workers 自訂網域沒有源站
 IP 可填，手動建立的 A 記錄會指到錯的地方，也會讓自訂網域驗證卡在 Pending。順序一定是
@@ -326,13 +334,13 @@ IP 可填，手動建立的 A 記錄會指到錯的地方，也會讓自訂網�
 
 #### 網域信箱（選配，但建議處理防偽造）
 
-- **不打算用 `@instantgig.tw` 收信**：Email → **DNS wizard** → 選「不需要在這個網域收信」，
+- **不打算用 `@talent-core-pro.com` 收信**：Email → **DNS wizard** → 選「不需要在這個網域收信」，
   它會寫入 `v=spf1 -all`、`_dmarc` 的 `p=reject` 與空的 DKIM 記錄，讓別人無法冒用你的
   網域寄信。網站完全不受影響。
 - **要收信**：最省事的是 Cloudflare **Email Routing**（免費，自動寫入 MX 並轉寄到你現有
   的信箱），但它**只能收轉、不能寄**；要能寄信得用 Google Workspace／Microsoft 365 等，
   依它們給的 MX、SPF、DKIM 記錄設定。
-- 若第 7 節的 Access 政策用 `Emails ending in @instantgig.tw`，那些信箱必須真的收得到信，
+- 若第 7 節的 Access 政策用 `Emails ending in @talent-core-pro.com`，那些信箱必須真的收得到信，
   否則收不到一次性驗證碼。改用 `Emails` 逐筆填現有信箱（Gmail 等）就沒有這個依賴。
 - `MX` 記錄不能開 Proxied，郵件主機的 A／CNAME 保持 **DNS only**。
 
@@ -357,9 +365,9 @@ IP 可填，手動建立的 A 記錄會指到錯的地方，也會讓自訂網�
 
 ### 5. 其他主機（備用設定）
 
-| 平台       | 設定檔              | 說明                                                                                                                         |
-| ---------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 自架 Nginx | `deploy/nginx.conf` | 複製 `dist/` 到 `/var/www/instantgig/`，調整 `server_name` 與憑證路徑；`/admin` 有獨立的 `noindex` 與 `X-Frame-Options` 區塊 |
+| 平台       | 設定檔              | 說明                                                                                                                              |
+| ---------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 自架 Nginx | `deploy/nginx.conf` | 複製 `dist/` 到 `/var/www/talent-core-pro/`，調整 `server_name` 與憑證路徑；`/admin` 有獨立的 `noindex` 與 `X-Frame-Options` 區塊 |
 
 `public/_redirects` 與 `public/_headers` 是 Cloudflare 格式（Workers 靜態資產與 Pages 都讀
 同一份，Netlify 也相容），換主機時只要確認該主機支援這兩個檔案，或改用該主機自己的設定方式。
@@ -369,7 +377,7 @@ IP 可填，手動建立的 A 記錄會指到錯的地方，也會讓自訂網�
 `assets.not_found_handling = "single-page-application"`（不是 `_redirects` 的 catch-all —
 Cloudflare 的轉址規則就算命中真實檔案也會執行，catch-all 會蓋掉 `/_expo/` 的 JS bundle）。
 
-### 6. 把 `instantgig.tw` 的 DNS 轉到 Cloudflare（DNS 已在 Cloudflare 就跳過本節）
+### 6. 把 `talent-core-pro.com` 的 DNS 轉到 Cloudflare（DNS 已在 Cloudflare 就跳過本節）
 
 Cloudflare 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloudflare 託管。
 這裡是**轉 DNS 託管**，不是轉移網域註冊商：網域仍留在原註冊商
@@ -392,7 +400,7 @@ Cloudflare 的自訂網域與 Cloudflare Access 都需要網域的 DNS 由 Cloud
 
 **步驟 1：在 Cloudflare 新增網域**
 
-1. 註冊／登入 Cloudflare → Add a site → 輸入 `instantgig.tw`。
+1. 註冊／登入 Cloudflare → Add a site → 輸入 `talent-core-pro.com`。
 2. 方案選 **Free**。
 3. Cloudflare 會自動掃描現有記錄。掃描不保證完整，**逐筆比對步驟 0 的清單**，缺的手動補上。
 4. 網站上線用的記錄不用手動建：轉移完成後在 Worker 加自訂網域（第 3 節），
@@ -426,18 +434,18 @@ Cloudflare 也會寄信通知）。生效後檢查這幾件事：
 
 ```sh
 # nameserver 是否已指向 Cloudflare
-dig NS instantgig.tw +short
+dig NS talent-core-pro.com +short
 
 # 網站主機名稱是否解得到
-dig instantgig.tw +short
-dig www.instantgig.tw +short
+dig talent-core-pro.com +short
+dig www.talent-core-pro.com +short
 
 # 郵件記錄有沒有漏
-dig MX instantgig.tw +short
-dig TXT instantgig.tw +short
+dig MX talent-core-pro.com +short
+dig TXT talent-core-pro.com +short
 ```
 
-再用瀏覽器實測 `https://instantgig.tw` 會看到任務牆、`https://instantgig.tw/admin`
+再用瀏覽器實測 `https://talent-core-pro.com` 會看到任務牆、`https://talent-core-pro.com/admin`
 會看到管理員登入頁，Worker 的 Domains & Routes 顯示 **Active**。
 **寄一封測試信到你的網域信箱**確認郵件沒斷。
 
@@ -445,7 +453,7 @@ dig TXT instantgig.tw +short
 
 1. Cloudflare → SSL/TLS → Overview → 選 **Full (strict)**（不要用 Flexible，會造成無限轉址）。
 2. apex 與 `www` 保持 **Proxied（橘雲）**，這是 Workers 自訂網域的正常狀態。
-3. 接著照第 7 節在 `instantgig.tw` 的 `/admin` 路徑上設定 Cloudflare Access
+3. 接著照第 7 節在 `talent-core-pro.com` 的 `/admin` 路徑上設定 Cloudflare Access
    （**不要**保護整個網域，否則一般使用者也會被要求驗證）。
 
 **容易踩到的地雷**
@@ -484,18 +492,18 @@ Zero Trust → Settings → Authentication → Login methods，確認 **One-time
 
 **設定步驟（Self-hosted application，只綁 `/admin` 路徑）**
 
-前置條件：`instantgig.tw` 的 DNS 由 Cloudflare 託管（第 6 節），且自訂網域在 Worker 的
+前置條件：`talent-core-pro.com` 的 DNS 由 Cloudflare 託管（第 6 節），且自訂網域在 Worker 的
 Domains & Routes 顯示 **Active**（Workers 自訂網域一律 Proxied，Access 才保護得到）。
 
 1. Zero Trust → Access → Applications → **Add an application** → **Self-hosted**。
 2. Application name：`Talent Match Admin`；Session Duration：`24 hours`。
-3. Public hostname：Domain `instantgig.tw`、**Path** 填 `admin`。
+3. Public hostname：Domain `talent-core-pro.com`、**Path** 填 `admin`。
    再用 **Add a public hostname** 補上這幾筆，漏掉的入口不受保護：
-   - `instantgig.tw` + path `admin/*`
-   - `instantgig.tw` + path `admin-dashboard`
+   - `talent-core-pro.com` + path `admin/*`
+   - `talent-core-pro.com` + path `admin-dashboard`
    - 有綁 `www` 的話，同樣三筆再加一次
 4. 新增 Allow 政策：Policy name `Admin allowlist`、Action **Allow**、Include → Selector
-   `Emails` 逐筆填信箱（或 `Emails ending in` → `@instantgig.tw`）。存檔後不要再加
+   `Emails` 逐筆填信箱（或 `Emails ending in` → `@talent-core-pro.com`）。存檔後不要再加
    Bypass 政策。建議這份名單與 `admin_accounts` 的管理員信箱一致，離職時兩邊一起移除。
 5. SSL/TLS → Overview → 選 **Full (strict)**。
 6. `workers.dev` 路由與預覽網址不會被這個應用程式涵蓋（主機名稱不同）。到 Worker →
@@ -508,8 +516,8 @@ Domains & Routes 顯示 **Active**（Workers 自訂網域一律 Proxied，Access
 
 | 測試                                       | 預期                                              | 失敗代表                                    |
 | ------------------------------------------ | ------------------------------------------------- | ------------------------------------------- |
-| 開 `https://instantgig.tw/`                | 直接看到任務牆，**沒有**任何驗證畫面              | Access 套到整個 Worker 或整個網域了         |
-| 直接開 `https://instantgig.tw/admin`       | 先出現 Cloudflare 驗證畫面，收信輸入 6 位碼才進入 | 這個主機名稱／路徑沒被應用程式涵蓋          |
+| 開 `https://talent-core-pro.com/`          | 直接看到任務牆，**沒有**任何驗證畫面              | Access 套到整個 Worker 或整個網域了         |
+| 直接開 `https://talent-core-pro.com/admin` | 先出現 Cloudflare 驗證畫面，收信輸入 6 位碼才進入 | 這個主機名稱／路徑沒被應用程式涵蓋          |
 | 通過驗證後                                 | 才看到管理員登入頁，仍需輸入管理員帳密            | 應用程式設成 Bypass                         |
 | 登入頁／主控台                             | 顯示「Cloudflare Access 已驗證」與你的信箱        | 身分端點沒回 JSON（保護可能仍有效，見下方） |
 | 直接開 `/cdn-cgi/access/get-identity`      | 回傳含 `email` 的 JSON                            | 同上                                        |
@@ -548,7 +556,7 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
   因此每個頁面的標題與描述都一樣，也沒有 sitemap。要做逐頁標題、描述與預覽圖，
   需改成 `static` 匯出（`app/+html.tsx` 才會生效），那是另一項工程。
 - **Open Graph 分享預覽**：`public/index.html` 已帶 `og:image`（絕對網址
-  `https://instantgig.tw/icons/talentmatch-icon.png`，1024×1024 方形，Facebook／LINE
+  `https://talent-core-pro.com/icons/talentmatch-icon.png`，1024×1024 方形，Facebook／LINE
   會顯示為方形縮圖）與 Twitter card。想要 1200×630 的橫幅預覽圖，放一張到
   `public/icons/` 並改 `og:image` 與 `og:image:width` / `og:image:height`，
   `twitter:card` 同時改成 `summary_large_image`。
@@ -591,12 +599,26 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
 - **變更我的密碼**：需輸入目前密碼；成功後其他裝置上的 session 全部失效。
 - 頁面下方是伺服器端的**登入紀錄**（含密碼錯誤與鎖定事件）。
 
-**首次登入用的啟用碼**
+**固定總管理員（改不掉的那一個）**
 
-原本寫在程式碼裡的三個帳號已改建到 `admin_accounts`，並以原本的密碼字串當作
-一次性啟用碼（90 天有效）：`admin@instantgig.tw`（總管理員）、
-`review@instantgig.tw`（審核專員）、`data@instantgig.tw`（數據分析員）。
-第一次登入時輸入舊密碼，系統會要求設定新密碼，之後舊字串就失效。
+登入帳號 **`admin@instantgig.tw`**，密碼存在後端加密機密 `ROOT_ADMIN_PASSWORD`，
+帳號名稱存在 `ROOT_ADMIN_EMAIL`。這個帳號**刻意沒有網域搬遷的問題**：它是登入識別碼，
+不是收信信箱，網站換網域不需要跟著改（真要改就得同步更新 `ROOT_ADMIN_EMAIL` 機密，
+否則會登不進去）。
+
+- 密碼**不在資料庫裡**：`admin_accounts` 這一列的 `password_hash` 永遠是空的，
+  登入時只跟機密比對。資料庫外洩也拿不到它。
+- 平台上改不動它：不能改角色、不能停用、不能刪除、不能被別人重設密碼，本人也不能在
+  平台變更密碼。畫面上會顯示「固定・不可變更」。資料庫另有限制條件保證它永遠是
+  啟用中的總管理員，且全表最多一個受保護帳號。
+- **忘記密碼**：不必進資料庫，更新 `ROOT_ADMIN_PASSWORD` 機密後直接用新密碼登入。
+- 任何管理員都不能變更自己的角色（這正是先前唯一的總管理員被誤降級、平台被鎖死的原因）。
+
+**其他兩個內建帳號**
+
+`review@instantgig.tw`（審核專員）與 `data@instantgig.tw`（數據分析員）目前沒有密碼。
+要啟用它們：以固定總管理員登入 → 管理員帳號管理 → 對該帳號按「重設密碼」取得新的
+一次性啟用碼，對方在登入頁的密碼欄輸入啟用碼後設定自己的密碼。
 新密碼規則：至少 10 個字元，且要有英文與數字。
 
 **角色與權限**

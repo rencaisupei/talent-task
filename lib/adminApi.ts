@@ -109,12 +109,27 @@ async function call(
 
   try {
     const { data, error } = await client.functions.invoke(functionName, { body });
-    if (error !== null || !isRecord(data)) {
-      return { ok: false, unconfigured: false, message: NETWORK_MESSAGE };
+    if (error !== null) {
+      // 底層原因一定要帶出來：只顯示「無法連線」時，前端設定錯誤、函式 500、
+      // 被瀏覽器擋掉的請求全都長一樣，無從判斷該修哪裡。
+      const detail = error instanceof Error ? error.message.trim() : '';
+      return {
+        ok: false,
+        unconfigured: false,
+        message: detail.length > 0 ? `${NETWORK_MESSAGE}（${detail}）` : NETWORK_MESSAGE,
+      };
+    }
+    if (!isRecord(data)) {
+      return { ok: false, unconfigured: false, message: `${NETWORK_MESSAGE}（回應格式不正確）` };
     }
     return { ok: true, payload: data };
-  } catch {
-    return { ok: false, unconfigured: false, message: NETWORK_MESSAGE };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.trim() : '';
+    return {
+      ok: false,
+      unconfigured: false,
+      message: detail.length > 0 ? `${NETWORK_MESSAGE}（${detail}）` : NETWORK_MESSAGE,
+    };
   }
 }
 

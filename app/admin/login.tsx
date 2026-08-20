@@ -6,10 +6,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-na
 
 import { BrandLogo } from '@/components/BrandLogo';
 import { useAccessIdentity } from '@/hooks/useAccessIdentity';
+import { BILT_CONNECTION, IS_BILT_CONFIGURED } from '@/lib/biltConfig';
 import { COLORS } from '@/lib/colors';
 import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 
 type LoginMode = 'password' | 'setup';
+
+/** 驗證服務的主機名稱，供登入頁確認這個版本到底連到哪裡（網址與公開金鑰本來就在前端）。 */
+const BACKEND_HOST = IS_BILT_CONFIGURED ? BILT_CONNECTION.url.replace(/^https?:\/\//, '') : null;
 
 export default function AdminLoginScreen() {
   const signIn = useAdminAuthStore((state) => state.signIn);
@@ -179,7 +183,7 @@ export default function AdminLoginScreen() {
             <Input
               value={email}
               onChangeText={setEmail}
-              placeholder="name@instantgig.tw"
+              placeholder="admin@instantgig.tw"
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -282,8 +286,14 @@ export default function AdminLoginScreen() {
             首次登入時以啟用碼取代密碼，設定完成後啟用碼即失效。
           </Text>
           <Text className="text-muted text-[12px] leading-5">
-            固定總管理員不適用上述重設：它的帳號與密碼存放在後端加密機密，任何管理員都改不了，
-            忘記時請更新機密 ROOT_ADMIN_PASSWORD 後直接以新密碼登入。
+            固定總管理員（帳號 admin@instantgig.tw）不適用上述重設：它的帳號與密碼存放在後端
+            加密機密，任何管理員都改不了，忘記時請更新機密 ROOT_ADMIN_PASSWORD 後直接以新密碼
+            登入。這個帳號名稱只是登入識別碼，不會因為網站換網域而改變。
+          </Text>
+          <Text className="text-muted text-[11px] leading-4">
+            {BACKEND_HOST === null
+              ? '這個版本沒有後端連線設定，登入請求不會送出到伺服器。'
+              : `驗證服務：${BACKEND_HOST}`}
           </Text>
         </View>
       </ScrollView>

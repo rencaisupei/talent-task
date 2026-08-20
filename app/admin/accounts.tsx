@@ -341,7 +341,7 @@ export default function AdminAccountsScreen() {
             <Input
               value={newEmail}
               onChangeText={setNewEmail}
-              placeholder="name@instantgig.tw"
+              placeholder="name@example.com"
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
