@@ -425,6 +425,37 @@ npm run deploy:web
 npm run verify:live
 ```
 
+**建置顯示 Success，但網站畫面完全沒變**
+
+Success 只證明「建置成功部署到某個專案」，它完全不知道網域的事。所以最常見的情況是：
+建置部署到 A 專案，`talent-core-pro.com` 指向 B 專案，兩邊都「正常」，畫面永遠不變。
+
+判斷順序（第 1 步是唯一可信的依據，其他都是猜）：
+
+1. **建置實際部署到哪裡**：Builds → 那筆 Success → 打開 **Build log** 捲到最後。
+   `wrangler deploy` 會印出 `Uploaded <名稱>`、`Deployed <名稱>` 和一行網址
+   （`*.workers.dev` 或 `*.pages.dev`）。先開那行網址：
+   - 看到「人才速配」＝程式碼與建置都沒問題，剩下的純粹是網域接在別的專案上（往下做）。
+   - 還是舊品牌＝建置吃到舊 commit，核對那筆建置的分支與 commit hash。
+2. **網域現在屬於哪個專案**：`talent-core-pro.com` 的 zone → **DNS** → 根網域那筆記錄，
+   它是由 Workers／Pages 代管的記錄，目標或備註會寫出專案名稱。清單要**兩個分頁都看**：
+   早期一次性上傳的 `dist/` 常常是一個 **Pages** 專案，不會出現在 Workers 清單裡。
+3. **把網域搬到建置用的那個專案**。同一個主機名稱一次只能掛一個專案，必須先移除再新增：
+   - 舊的是 Pages 專案：該專案 → **Custom domains** → 移除 `talent-core-pro.com`（有 `www` 一起移）。
+   - 舊的是 Worker：該 Worker → **Domains & Routes** → **Remove**。
+   - 然後在建置用的那個 Worker／Pages 專案加上 **Custom domain** → `talent-core-pro.com`，
+     等狀態變 **Active**，再跑 `npm run verify:live`。
+
+清單裡找不到 `instantgig`、建置卻成功，常見原因：
+
+- 連 Git 的入口是 **Pages → Connect to Git**。Pages **不看** `wrangler.toml` 的 `name`，
+  會部署到以 repo 命名的 Pages 專案（`*.pages.dev`），所以永遠不會出現 `instantgig`。
+- 用 **Import a repository** 在 Workers 建了新專案，名稱取自 repo。
+- 儀表板左上角的帳號切換器切到了另一個帳號，建置與網域不在同一個帳號底下。
+
+三種都用第 1 步的 build log 名稱為準：把網域接到它，或把 `wrangler.toml` 的 `name`
+改成擁有網域的那個 Worker（改名後本機 `npm run deploy:web` 也會部署到同一個地方）。
+
 **若你想改用 Cloudflare Pages**
 
 Pages 仍可用，但要把 `wrangler.toml` 的 `[assets]` 區塊換回
