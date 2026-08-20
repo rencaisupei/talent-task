@@ -64,16 +64,31 @@ try {
       : `線上「${liveName}」／應為「${localManifest.name}」`,
   );
 
+  // 連線設定有兩條合法路徑（README 0.1）：執行階段的 bilt-config.js，
+  // 或建置時的 EXPO_PUBLIC_* 被 Babel 內嵌進 bundle。只看 bilt-config.js 會把
+  // 「用建置變數」的正常部署誤判為失敗，所以佔位字串時要再翻一次 entry bundle。
   const config = await get('/bilt-config.js');
-  const placeholder =
-    config.body.includes('__BILT_URL__') || config.body.includes('__BILT_ANON_KEY__');
-  check(
-    '後端連線設定已填入',
-    !placeholder,
-    placeholder
-      ? 'bilt-config.js 仍是佔位字串 → 網站改吃建置時的 EXPO_PUBLIC_*；兩者都空的話登入會失敗'
-      : '執行階段設定檔已有值',
+  const runtimeConfigured = !(
+    config.body.includes('__BILT_URL__') || config.body.includes('__BILT_ANON_KEY__')
   );
+
+  let configDetail = '執行階段設定檔 bilt-config.js 已有值';
+  let configured = runtimeConfigured;
+
+  if (!configured) {
+    const entryPath = /src="(\/_expo\/static\/js\/web\/[^"]+\.js)"/.exec(home.body)?.[1];
+    if (entryPath === undefined) {
+      configDetail = 'bilt-config.js 仍是佔位字串，且首頁找不到 _expo entry bundle 可檢查';
+    } else {
+      const bundle = await get(entryPath);
+      configured = /https:\/\/[a-z0-9-]+\.cloud\.bilt\.me/.test(bundle.body);
+      configDetail = configured
+        ? '建置時的 EXPO_PUBLIC_* 已內嵌進 bundle（bilt-config.js 保持佔位字串是正常的）'
+        : 'bilt-config.js 是佔位字串，bundle 裡也沒有後端網址 → 登入與任務牆都會失敗';
+    }
+  }
+
+  check('後端連線設定已填入', configured, configDetail);
 
   const admin = await get('/admin');
   const robots = admin.headers.get('x-robots-tag') ?? '';

@@ -223,14 +223,31 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
    - 不需要填輸出目錄，它在 `wrangler.toml` 的 `[assets] directory` 裡
 5. **Build variables**（連線設定的其中一種給法，見 0.1）：使用者登入、管理員登入與帳號
    管理都要呼叫後端，連線設定兩邊都沒給的建置會產出一個沒人能登入的網站。
-   到 Worker → Settings → **Build** → Variables and Secrets 設定：
-   - `EXPO_PUBLIC_BILT_URL` = `https://<project-id>.cloud.bilt.me`
-   - `EXPO_PUBLIC_BILT_ANON_KEY` = `<anon-key>`
-   - 這兩個值是**建置時**寫進 bundle 的，必須設在 Build 區塊（不是執行時的 Worker
-     變數），改完要重新觸發一次建置才會生效。不想動變數的話，把值填進
-     `public/bilt-config.js` 再 commit（或部署後直接改 `dist/bilt-config.js`）。
+
+   路徑：Compute (Workers) → 點 `instantgig` → **Settings** → **Build** →
+   **Variables and secrets** → Add。兩筆都加：
+
+   | Name                        | Value                                |
+   | --------------------------- | ------------------------------------ |
+   | `EXPO_PUBLIC_BILT_URL`      | `https://<project-id>.cloud.bilt.me` |
+   | `EXPO_PUBLIC_BILT_ANON_KEY` | `<anon-key>`                         |
+   - **一定要是 Build 區塊的變數**。同一個 Settings 頁另有一個執行階段的
+     **Variables & Secrets**（Cloudflare 文件裡「Environment variables」那節指的是它）。
+     這個 Worker 是純靜態資產、沒有 `main` 程式碼，執行階段變數不會有任何東西去讀它，
+     設在那裡等於沒設。判斷方法：能同時看到 Build command／Deploy command 的那一頁才對。
+   - 型別 Text 或 Secret 都可以，建置階段都讀得到。`EXPO_PUBLIC_BILT_ANON_KEY`
+     是公開金鑰，本來就會出現在前端 bundle 裡，用 Text 方便日後核對；選 Secret 的話
+     存檔後就看不到值了。**不要**把 service key 放進來。
+   - 存檔後**不會**回頭套用到已完成的建置：要嘛 Deployments → 最後一筆 → **Retry build**
+     （retry 會套用當下的設定，不必製造空 commit），要嘛推一次新 commit。
+   - 不想動變數的話，把值填進 `public/bilt-config.js` 再 commit（或部署後直接改
+     `dist/bilt-config.js`）。
    - Node 版本由 repo 根目錄的 `.node-version`（`20.19.4`）決定，不必再設
      `NODE_VERSION`；若要臨時換版，設 `NODE_VERSION` 會覆寫該檔案。
+   - 驗證：建置 Success 後跑 `npm run verify:live -- <網址>`。走建置變數這條路時
+     `bilt-config.js` 會**保持** `__BILT_URL__` 佔位字串（正常），腳本會改去
+     entry bundle 裡找 `cloud.bilt.me` 來判斷，所以不會誤報。
+
 6. **Create and deploy**，等第一次建置跑完（Building → Deploying → Success）。
    完成後先用 `https://instantgig.<子網域>.workers.dev` 開啟確認會看到任務牆，
    再開 `/admin` 確認會進到管理員登入頁。
