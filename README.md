@@ -160,7 +160,9 @@ Bilt will handle the build and provide you with download links or submission-rea
 `EXPO_PUBLIC_BILT_ANON_KEY` 是公開金鑰（publishable key），本來就會出現在前端 bundle
 與 manifest 裡，資料保護靠資料庫的 RLS 政策；**不要**把 service key 放進任何一個來源。
 
-改 `dist/bilt-config.js` 的例子：
+#### 用 `bilt-config.js` 給連線設定（不設環境變數的做法）
+
+改的是 `public/bilt-config.js` 最後三行，只有兩個字串要換：
 
 ```js
 globalThis.__BILT_CONFIG__ = {
@@ -169,8 +171,37 @@ globalThis.__BILT_CONFIG__ = {
 };
 ```
 
+格式規則（就是 `lib/biltConfig.ts` 的解析條件，違反其中一條就等於沒設）：
+
+- **兩個都要填。** 只填一個時整個來源被跳過，直接退到下一個來源。
+- **不能留 `__`。** 前後包 `__` 的字串一律視為佔位字串，所以不能只改中間的字。
+- `url` 形狀固定是 `https://<project-id>.cloud.bilt.me`：不要結尾斜線
+  （程式會自己去掉，但別依賴它）、不要接 `/rest/v1` 或 `/functions/v1`。
+- `anonKey` 是一整串不換行的字串，不要加 `Bearer ` 前綴，也不要換成 service key。
+- 這是 JS 不是 JSON：單引號、逗號、`globalThis.__BILT_CONFIG__` 這個變數名都別動。
+  （檔案裡的註解可以留著，不影響執行。）
+
+生效方式看你怎麼部署：
+
+| 部署方式 | 改哪個檔案 | 生效條件 |
+| --- | --- | --- |
+| Git 自動建置 | `public/bilt-config.js` → commit → push | 建置 Success 後自動生效 |
+| 本機 `npm run deploy:web` | `public/bilt-config.js` | 下次建置會複製進 `dist/` |
+| 已部署、不想重建 | 線上的 `dist/bilt-config.js` | 重新上傳這一個檔案即可 |
+
 `public/_headers` 已把 `/bilt-config.js` 設成 `max-age=0, must-revalidate`，
-改完不會被 CDN 快取住。
+`workbox-config.js` 也用 `globIgnores` 把它排除在 precache 之外，所以改完不會被
+CDN 或已安裝的 PWA 快取住舊值。
+
+兩點注意：
+
+- **只影響網頁版。** 手機 App（iOS／Android／Expo Go）沒有這個來源，
+  連線設定走 `app.config.ts` 的 `extra.bilt`（來自建置時的環境變數）。
+- **這個檔案會進 Git。** `anonKey` 是公開金鑰，出現在 repo 與前端 bundle 裡都是正常的；
+  service key 與 `ROOT_ADMIN_PASSWORD` 這類機密**絕對不要**寫進來。
+
+驗證：`npm run verify:live -- <網址>`。走這條路時「後端連線設定」那一項會顯示
+`執行階段設定檔 bilt-config.js 已有值`。
 
 ### 1. 本機匯出
 
