@@ -18,7 +18,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       : [];
 
   // Brand mark shown as the launcher icon and on the native launch screen.
-  const brandMark = './assets/instantgig-mark.png';
+  // Kept in public/icons alongside the web icons so every surface (native icon,
+  // adaptive icon, favicon, PWA manifest, in-app BrandLogo) uses one source file.
+  const brandMark = './public/icons/instantgig-icon.png';
 
   return {
     ...config,

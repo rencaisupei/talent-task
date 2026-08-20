@@ -20,7 +20,7 @@ export function BrandLogo({ size = 56, className }: BrandLogoProps) {
       style={{ width: size, height: size }}
     >
       <Image
-        source={require('../assets/instantgig-mark.png')}
+        source={require('../public/icons/instantgig-icon.png')}
         style={{ width: imageSize, height: imageSize }}
         resizeMode="contain"
         accessibilityLabel="即時發標誌"
