@@ -273,8 +273,11 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
      （retry 會套用當下的設定，不必製造空 commit），要嘛推一次新 commit。
    - 不想動變數的話，把值填進 `public/bilt-config.js` 再 commit（或部署後直接改
      `dist/bilt-config.js`）。
-   - Node 版本由 repo 根目錄的 `.node-version`（`20.19.4`）決定，不必再設
+   - Node 版本由 repo 根目錄的 `.node-version`（`22.23.2`）決定，不必再設
      `NODE_VERSION`；若要臨時換版，設 `NODE_VERSION` 會覆寫該檔案。
+     **不要把它降回 20.x**：wrangler 4.x 的 `engines` 要求 Node `>=22.0.0`，
+     Node 20 會讓 deploy 指令直接失敗（見下方常見原因）。`22.23.2` 是
+     Cloudflare 建置映像預先安裝的版本，不必額外下載。
    - 驗證：建置 Success 後跑 `npm run verify:live -- <網址>`。走建置變數這條路時
      `bilt-config.js` 會**保持** `__BILT_URL__` 佔位字串（正常），腳本會改去
      entry bundle 裡找 `cloud.bilt.me` 來判斷，所以不會誤報。
@@ -289,6 +292,17 @@ npm run serve:web       # 以 SPA 模式在 http://localhost:4173 預覽
 
 建置或部署失敗時看 Deployments → 該筆 → Build log，常見原因：
 
+- **build 成功、deploy 失敗，log 最後是
+  `Consider using a Node.js version manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.`
+  接著 `Failed: error occurred while running deploy command`**：這兩行是 wrangler 自己的
+  Node 版本檢查，它前一行會寫 `Wrangler requires at least Node.js v22`。原因是建置容器的
+  Node 版本低於 wrangler 4.x 的要求（`engines: node >=22.0.0`），Build 與 Deploy 兩個步驟
+  跑在同一個容器、用同一個 Node，所以 `expo export` 過得了、`wrangler deploy` 過不了。
+  修法：把 `.node-version` 設成 `22.23.2`（本 repo 已經是）再 push；或在
+  Settings → Build → Variables and secrets 加 `NODE_VERSION = 22.23.2`。
+  和 volta／nvm 無關 —— 那只是 wrangler 給本機使用者的建議文字，建置環境不需要裝版本管理器。
+  想避免 wrangler 未來再改 Node 需求，可把 Deploy command 從 `npx --yes wrangler@latest deploy`
+  改成 `npx --yes wrangler@4 deploy`（鎖在 4.x）。
 - **`Missing entry-point to Worker script or to assets directory`**：`wrangler.toml`
   沒有 `[assets] directory`，或 Deploy command 被改成 `wrangler deploy` 以外的東西。
 - **`Cannot find module '@babel/core'` / `tailwindcss`**：建置環境設了
@@ -326,7 +340,8 @@ Import a repository —— 那會建立第二個 Worker，自訂網域、Access 
    - API token：選 **Create new token**（Cloudflare 自動產生並沿用）
    - Deploy command 刻意不用預設的 `npx wrangler deploy`：這個 repo 沒有把 `wrangler`
      放進 dependencies，加 `--yes wrangler@latest` 才不會卡在 npx 的安裝確認提示
-     （`package.json` 的 deploy 指令用的也是同一個寫法）。
+     （`package.json` 的 deploy 指令用的也是同一個寫法）。wrangler 4.x 需要 Node 22 以上，
+     由 `.node-version`（`22.23.2`）滿足；本機直接跑 `npm run deploy:web` 也一樣要 Node 22。
    - 連線設定已經填進 repo 的 `public/bilt-config.js` 時，這裡不用再加 build 變數。
 3. **連接完成的當下不會建置。** 第一次建置一定要靠一次 push 觸發（Builds 頁在那之前
    會一直是空的）：
