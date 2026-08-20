@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           [
             'expo-notifications',
             {
-              color: '#00A896',
+              color: '#1F6FB2',
             },
           ],
         ]
@@ -20,11 +20,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // Brand mark shown as the launcher icon and on the native launch screen.
   // Kept in public/icons alongside the web icons so every surface (native icon,
   // adaptive icon, favicon, PWA manifest, in-app BrandLogo) uses one source file.
-  const brandMark = './public/icons/instantgig-icon.png';
+  const brandMark = './public/icons/talentmatch-icon.png';
 
   return {
     ...config,
-    name: '即時發',
+    name: '人才速配',
     slug: 'app',
     newArchEnabled: true,
     version: process.env.BILT_APP_VERSION ?? '1.0.0',
@@ -47,8 +47,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: process.env.BILT_ANDROID_PACKAGE ?? 'com.yourcompany.yourapp',
       adaptiveIcon: {
         // Padded version of the mark: Android crops the foreground to a mask,
-        // so the full-bleed brandMark would lose the paper-plane tip.
-        foregroundImage: './public/icons/instantgig-maskable.png',
+        // so the full-bleed brandMark would lose the arrowhead.
+        foregroundImage: './public/icons/talentmatch-maskable.png',
         backgroundColor: '#FFFFFF',
       },
     },
@@ -57,7 +57,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // 'single' = SPA export: one index.html + client routing, so edge serving
       // needs only a single 404→index.html fallback rule.
       output: 'single',
-      favicon: './public/icons/instantgig-icon.png',
+      favicon: './public/icons/talentmatch-icon.png',
     },
     extra: {
       appStoreAppId: process.env.BILT_APP_STORE_APP_ID,

@@ -15,7 +15,7 @@ import { useAdminAuthStore } from '@/lib/stores/adminAuth';
 import { ADMIN_ROLE_LABEL, type AdminRole } from '@/lib/types';
 
 const NOINDEX_META_ID = 'admin-robots-noindex';
-const ADMIN_WEB_TITLE = '即時發管理平台';
+const ADMIN_WEB_TITLE = '人才速配管理平台';
 const NOINDEX_CONTENT = 'noindex, nofollow';
 
 /**

@@ -1,10 +1,10 @@
 /** React Native 可解析的色值常數（用於 icon、圖表、導覽列等非 className 場景）。 */
 export const COLORS = {
-  brand: '#00A896',
-  brandStrong: '#00877A',
-  brandSoft: '#E6F7F4',
-  coral: '#FF6B35',
-  coralSoft: '#FFF1EA',
+  brand: '#1F6FB2',
+  brandStrong: '#17517F',
+  brandSoft: '#E9F2FA',
+  coral: '#F28B3C',
+  coralSoft: '#FEF1E3',
   ink: '#111827',
   inkSoft: '#4B5563',
   muted: '#6B7280',

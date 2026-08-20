@@ -43,10 +43,10 @@ export function configurePushHandler(): void {
 async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('default', {
-    name: '即時發通知',
+    name: '人才速配通知',
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 220, 120, 220],
-    lightColor: '#00A896',
+    lightColor: '#1F6FB2',
   });
 }
 

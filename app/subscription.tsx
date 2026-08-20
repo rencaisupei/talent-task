@@ -140,7 +140,7 @@ export default function SubscriptionScreen() {
         message={
           confirmKind === 'cancel'
             ? `取消後將回到免費版每月 ${FREE_MONTHLY_CHAT_QUOTA} 組新對話的限制。`
-            : `即時發 進階版 ${formatCurrency(PREMIUM_PRICE_TWD)} / 月，可隨時取消。`
+            : `人才速配 進階版 ${formatCurrency(PREMIUM_PRICE_TWD)} / 月，可隨時取消。`
         }
         actions={[
           {

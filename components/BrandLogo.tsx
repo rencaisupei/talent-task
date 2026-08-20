@@ -2,14 +2,23 @@ import { Image, Text, View } from 'react-native';
 
 import { cn } from '@/lib/utils';
 
+/** 中文品牌名。 */
+export const BRAND_NAME = '人才速配';
+
+/** 英文品牌名。 */
+export const BRAND_NAME_EN = 'Talent Match';
+
+/** 品牌標語：顯示於品牌名下方。 */
+export const BRAND_TAGLINE = '專家齊聚・使命必達';
+
 interface BrandLogoProps {
   size?: number;
   className?: string;
 }
 
-/** 品牌圖示：橘色閃電 + 青色紙飛機，置於純白容器圖塊上。 */
+/** 品牌圖示：藍色齒輪與上升箭頭 + 橘金色人物握手，置於純白容器圖塊上。 */
 export function BrandLogo({ size = 56, className }: BrandLogoProps) {
-  const imageSize = Math.round(size * 0.7);
+  const imageSize = Math.round(size * 0.82);
 
   return (
     <View
@@ -20,10 +29,10 @@ export function BrandLogo({ size = 56, className }: BrandLogoProps) {
       style={{ width: size, height: size }}
     >
       <Image
-        source={require('../public/icons/instantgig-icon.png')}
+        source={require('../public/icons/talentmatch-icon.png')}
         style={{ width: imageSize, height: imageSize }}
         resizeMode="contain"
-        accessibilityLabel="即時發標誌"
+        accessibilityLabel={`${BRAND_NAME}標誌`}
       />
     </View>
   );
@@ -35,9 +44,6 @@ interface BrandWordmarkProps {
   className?: string;
 }
 
-/** 品牌標語：顯示於品牌名下方。 */
-export const BRAND_TAGLINE = '全台任務及專家的媒合平台';
-
 /** 品牌鎖定組合：圖示圖塊 + 中文品牌名 + 標語。 */
 export function BrandWordmark({
   subtitle = BRAND_TAGLINE,
@@ -48,9 +54,33 @@ export function BrandWordmark({
     <View className={cn('flex-row items-center gap-3', className)}>
       <BrandLogo size={size} />
       <View className="flex-1">
-        <Text className="text-ink text-[22px] font-bold tracking-tight">即時發</Text>
+        <Text className="text-ink text-[22px] font-bold tracking-tight">{BRAND_NAME}</Text>
         {subtitle ? <Text className="text-muted mt-0.5 text-[13px]">{subtitle}</Text> : null}
       </View>
+    </View>
+  );
+}
+
+/** 原始橫式標誌圖：圖示 + Talent Match 人才速配 + 標語，僅用於登入等大版面。 */
+const LOCKUP_ASPECT_RATIO = 1380 / 752;
+
+interface BrandLockupProps {
+  width?: number;
+  className?: string;
+}
+
+export function BrandLockup({ width = 268, className }: BrandLockupProps) {
+  const height = Math.round(width / LOCKUP_ASPECT_RATIO);
+
+  return (
+    <View className={cn('bg-canvas items-center justify-center rounded-xl', className)}>
+      <Image
+        source={require('../assets/talentmatch-wordmark.png')}
+        // Expo web ignores className sizing on Image; keep width/height in style.
+        style={{ width, height }}
+        resizeMode="contain"
+        accessibilityLabel={`${BRAND_NAME_EN} ${BRAND_NAME}：${BRAND_TAGLINE}`}
+      />
     </View>
   );
 }

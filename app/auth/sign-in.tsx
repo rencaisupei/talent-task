@@ -4,7 +4,7 @@ import { ArrowLeft, BadgeCheck, Mail, Pencil, ShieldCheck, X } from 'lucide-reac
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { BrandWordmark } from '@/components/BrandLogo';
+import { BrandLockup, BrandWordmark } from '@/components/BrandLogo';
 import { PrivacyConsentCard } from '@/components/PrivacyConsentCard';
 import { RoleChoiceCards, RoleIcon, ROLE_TITLES } from '@/components/RoleChoiceCards';
 import { isValidEmail, normalizeEmail, sendLoginCode, verifyLoginCode } from '@/lib/auth';
@@ -27,7 +27,7 @@ const HEADINGS: Record<Step, { title: string; caption: string }> = {
       '先告訴我們你要發需求還是接案，介面會依身分調整。身分可隨時在「帳戶」分頁切換；登入是選用的，不登入也能瀏覽任務牆。',
   },
   email: {
-    title: '登入即時發',
+    title: '登入人才速配',
     caption:
       '登入後身分、技能標籤與地區會跨裝置同步，收藏、通知與評價也會保存在帳號裡。第一次登入會自動建立帳號。',
   },
@@ -155,6 +155,8 @@ export default function SignInScreen() {
 
         {step === 'role' ? (
           <>
+            <BrandLockup className="self-center" width={272} />
+
             <RoleChoiceCards selected={selectedRole} onSelect={setSelectedRole} />
 
             <PrivacyConsentCard accepted={privacyAccepted} onAcceptedChange={setPrivacyAccepted} />

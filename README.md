@@ -488,7 +488,7 @@ Zero Trust → Settings → Authentication → Login methods，確認 **One-time
 Domains & Routes 顯示 **Active**（Workers 自訂網域一律 Proxied，Access 才保護得到）。
 
 1. Zero Trust → Access → Applications → **Add an application** → **Self-hosted**。
-2. Application name：`InstantGig Admin`；Session Duration：`24 hours`。
+2. Application name：`Talent Match Admin`；Session Duration：`24 hours`。
 3. Public hostname：Domain `instantgig.tw`、**Path** 填 `admin`。
    再用 **Add a public hostname** 補上這幾筆，漏掉的入口不受保護：
    - `instantgig.tw` + path `admin/*`
@@ -548,7 +548,7 @@ Service Token，並在該應用程式加一條 `Service Auth` 政策，請求帶
   因此每個頁面的標題與描述都一樣，也沒有 sitemap。要做逐頁標題、描述與預覽圖，
   需改成 `static` 匯出（`app/+html.tsx` 才會生效），那是另一項工程。
 - **Open Graph 分享預覽**：`public/index.html` 已帶 `og:image`（絕對網址
-  `https://instantgig.tw/icons/instantgig-icon.png`，1024×1024 方形，Facebook／LINE
+  `https://instantgig.tw/icons/talentmatch-icon.png`，1024×1024 方形，Facebook／LINE
   會顯示為方形縮圖）與 Twitter card。想要 1200×630 的橫幅預覽圖，放一張到
   `public/icons/` 並改 `og:image` 與 `og:image:width` / `og:image:height`，
   `twitter:card` 同時改成 `summary_large_image`。

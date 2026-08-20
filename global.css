@@ -6,18 +6,19 @@
 @import 'heroui-native/styles';
 
 /*
- * InstantGig 即時發 — 高端現代極簡科技美學
- * 主色 #00A896 / 輔色 #FF6B35 / 文字 #111827 / 背景 #FFFFFF + #F9FAFB
+ * Talent Match 人才速配 — 高端現代極簡科技美學
+ * 取自品牌標誌：藍色齒輪與上升箭頭 + 橘金色人物與握手。
+ * 主色 #1F6FB2 / 輔色 #F28B3C / 文字 #111827 / 背景 #FFFFFF + #F9FAFB
  */
 
 @theme {
   --radius: 0.75rem;
 
-  --color-brand: oklch(0.657 0.118 181);
-  --color-brand-strong: oklch(0.58 0.11 181);
-  --color-brand-soft: oklch(0.962 0.025 181);
-  --color-coral: oklch(0.704 0.193 39);
-  --color-coral-soft: oklch(0.964 0.035 39);
+  --color-brand: oklch(0.529 0.129 249);
+  --color-brand-strong: oklch(0.424 0.096 246);
+  --color-brand-soft: oklch(0.958 0.021 249);
+  --color-coral: oklch(0.735 0.155 54);
+  --color-coral-soft: oklch(0.964 0.03 54);
   --color-ink: oklch(0.215 0.03 255);
   --color-ink-soft: oklch(0.44 0.022 264);
   --color-canvas: oklch(0.985 0.002 247);
@@ -45,7 +46,7 @@
       --default: oklch(0.967 0.003 264);
       --default-foreground: var(--foreground);
 
-      --accent: oklch(0.657 0.118 181);
+      --accent: oklch(0.529 0.129 249);
       --accent-foreground: oklch(1 0 0);
 
       --field-background: oklch(0.985 0.002 247);
@@ -53,7 +54,7 @@
       --field-placeholder: oklch(0.66 0.02 264);
       --field-border: oklch(0.921 0.004 264);
 
-      --warning: oklch(0.704 0.193 39);
+      --warning: oklch(0.735 0.155 54);
       --warning-foreground: oklch(1 0 0);
 
       --border: oklch(0.921 0.004 264);
@@ -85,7 +86,7 @@
       --default: oklch(0.967 0.003 264);
       --default-foreground: var(--foreground);
 
-      --accent: oklch(0.657 0.118 181);
+      --accent: oklch(0.529 0.129 249);
       --accent-foreground: oklch(1 0 0);
 
       --field-background: oklch(0.985 0.002 247);
@@ -93,7 +94,7 @@
       --field-placeholder: oklch(0.66 0.02 264);
       --field-border: oklch(0.921 0.004 264);
 
-      --warning: oklch(0.704 0.193 39);
+      --warning: oklch(0.735 0.155 54);
       --warning-foreground: oklch(1 0 0);
 
       --border: oklch(0.921 0.004 264);

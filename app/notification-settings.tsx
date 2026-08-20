@@ -50,7 +50,7 @@ export default function NotificationSettingsScreen() {
       delivered
         ? '測試推播已送出，請查看裝置通知列。'
         : isPushSupported
-          ? '尚未取得系統推播權限，請於裝置設定開啟「即時發」的通知。'
+          ? '尚未取得系統推播權限，請於裝置設定開啟「人才速配」的通知。'
           : '網頁版無法顯示裝置推播，請在 iOS 或 Android App 測試。',
     );
   };
