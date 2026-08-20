@@ -316,6 +316,46 @@ Worker 的名稱（`wrangler.toml` 的 `name`，目前是 `instantgig`）**不�
 Cloudflare 內部識別碼與 `workers.dev` 子網域，改名等於建立另一個 Worker，自訂網域、
 Access 政策與環境變數都要重新設定一次。
 
+#### 錯誤：「Please ensure you are providing the root domain and not any subdomains」（Code 1099）
+
+**這則訊息不是 Custom domain 的錯誤。** 它出自 Cloudflare 的 **Add a site／新增網域**
+（把一個 zone 加進帳號）流程，官方文件把它列在
+`https://developers.cloudflare.com/dns/zone-setups/troubleshooting/cannot-add-domain/`
+的「Register the domain」段落，錯誤代碼 **1099**。
+
+Worker 的 Custom domain 欄位**接受子網域**（`shop.example.com`、`www.example.com` 都合法，
+本專案的 `www` 就是這樣加的），所以它不可能吐出這句話。看到這句就代表輸入框不是
+Domains & Routes 的那一個。
+
+而且本專案**不需要跑 Add a site**：2026-08-20 以註冊局 RDAP 實測，`talent-core-pro.com`
+的註冊商就是 Cloudflare（NS `damien`／`leah.ns.cloudflare.com`、狀態
+`client transfer prohibited`、DNSSEC 未簽署）。在 Cloudflare 註冊的網域，zone 本來就已經
+建立在某個 Cloudflare 帳號裡，再「新增」一次只會失敗。
+
+排查順序：
+
+| 檢查                | 怎麼看                                                                                         | 對應處理                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 我在哪個畫面        | 輸入框旁邊有方案選擇／掃描 DNS／Continue → 是 Add a site                                       | 離開這頁，改走 Compute (Workers) → Worker → Settings → Domains & Routes → Add |
+| 輸入的字串          | 只能是 `talent-core-pro.com`。有 `www.`、`https://`、結尾斜線、前後空白或整段網址都會觸發 1099 | 手動重打，不要從網址列複製                                                    |
+| zone 在不在這個帳號 | 帳號首頁的網域清單有沒有 `talent-core-pro.com`                                                 | 沒有＝登入了另一個帳號，用儀表板的 Forgot email 找回註冊網域的那個帳號        |
+| Worker 在不在       | Compute (Workers) → Overview 有沒有 `instantgig`                                               | 沒有＝還沒部署，先做第 2 節；Add a site **不能**代替部署                      |
+
+不想碰儀表板也可以，把自訂網域寫進 `wrangler.toml` 由部署建立（zone 必須在同一帳號，
+否則部署會直接報錯）：
+
+```toml
+[[routes]]
+pattern = "talent-core-pro.com"
+custom_domain = true
+
+[[routes]]
+pattern = "www.talent-core-pro.com"
+custom_domain = true
+```
+
+加好後 `npm run deploy:web` 會一併建立兩個 Custom domain 與 DNS 記錄，效果與儀表板相同。
+
 #### 舊網域 `instantgig.tw`：不需要處理，也不需要重導
 
 2026-08-20 用 TWNIC 官方註冊資料查詢（`https://ccrdap.twnic.tw/tw/domain/instantgig.tw`）
