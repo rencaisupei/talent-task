@@ -11,7 +11,8 @@ import { PRIVACY_POLICY_SUMMARY } from '@/lib/legalCopy';
  *
  * 勾選框刻意不用 HeroUI 的預設樣式：未勾選時預設是透明底＋淺灰細邊，
  * 在白底卡片上幾乎看不見。這裡改成未勾選＝橘色提示底＋白色實心方框（提醒待處理），
- * 已勾選＝藍色實心方框＋淡藍底，兩種狀態都有明確的顏色與文字。
+ * 已勾選＝藍色實心方框＋淡藍底。狀態文字壓縮成右側小標籤（必填／已同意），
+ * 不要再擴回整行說明句，否則版面會被推長一行。
  */
 export function PrivacyConsentCard({
   accepted,
@@ -77,14 +78,23 @@ export function PrivacyConsentCard({
           <Text className="text-ink-soft mt-1 text-[12px] leading-4">
             包含伺服器端聊天審核與防詐關鍵字比對機制。
           </Text>
+        </View>
+
+        <View
+          className={
+            accepted
+              ? 'bg-brand mt-0.5 rounded-full px-2 py-0.5'
+              : 'border-coral-strong mt-0.5 rounded-full border bg-white px-2 py-0.5'
+          }
+        >
           <Text
             className={
               accepted
-                ? 'text-brand-strong mt-2 text-[12px] font-semibold'
-                : 'text-coral-strong mt-2 text-[12px] font-semibold'
+                ? 'text-[11px] font-bold text-white'
+                : 'text-coral-strong text-[11px] font-bold'
             }
           >
-            {accepted ? '已同意，可以繼續下一步' : '必填：請點這裡勾選才能繼續'}
+            {accepted ? '已同意' : '必填'}
           </Text>
         </View>
       </Pressable>
