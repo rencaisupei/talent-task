@@ -4,6 +4,8 @@ export const COLORS = {
   brandStrong: '#17517F',
   brandSoft: '#E9F2FA',
   coral: '#F28B3C',
+  /** 深橘：橘色淡底上的文字／圖示用（#F28B3C 在淡底上對比不足）。 */
+  coralStrong: '#8C4A0C',
   coralSoft: '#FEF1E3',
   ink: '#111827',
   inkSoft: '#4B5563',
