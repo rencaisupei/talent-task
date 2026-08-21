@@ -194,6 +194,8 @@ function RootNavigator() {
       <Stack.Screen name="notification-settings" />
       <Stack.Screen name="maintenance" />
       <Stack.Screen name="privacy" />
+      <Stack.Screen name="terms" />
+      <Stack.Screen name="blocked-users" />
       <Stack.Screen name="contact" />
       <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="admin" />

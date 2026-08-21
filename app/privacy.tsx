@@ -1,5 +1,5 @@
 import { ScrollView, Text, View } from 'react-native';
-import { ArrowLeft, ChevronRight, Mail } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, FileText, Mail } from 'lucide-react-native';
 import { Pressable } from 'react-native';
 import { router } from 'expo-router';
 
@@ -41,6 +41,24 @@ export default function PrivacyScreen() {
             <Text className="text-ink-soft text-[13px] leading-6">{section.body}</Text>
           </View>
         ))}
+
+        <Pressable
+          onPress={() => router.push('/terms')}
+          accessibilityRole="button"
+          accessibilityLabel="前往服務條款"
+          className="border-hairline flex-row items-center gap-3 rounded-xl border bg-white p-4"
+        >
+          <View className="bg-canvas h-10 w-10 items-center justify-center rounded-xl">
+            <FileText size={18} color={COLORS.brandStrong} strokeWidth={2.2} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-ink text-[14px] font-semibold">服務條款</Text>
+            <Text className="text-muted mt-0.5 text-[12px] leading-4">
+              平台角色、使用規範、評價機制與帳號刪除
+            </Text>
+          </View>
+          <ChevronRight size={16} color={COLORS.muted} strokeWidth={2.2} />
+        </Pressable>
 
         <Pressable
           onPress={() => router.push('/contact')}

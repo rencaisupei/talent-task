@@ -282,6 +282,28 @@ export type SupportTicketRow = {
   created_at: string;
 };
 
+/**
+ * blocked_users（封鎖名單）。
+ *
+ * 一列代表「blocker 封鎖了 blocked」。SELECT 政策只讓 blocker 本人讀，
+ * 所以查不到「誰封鎖了我」——效果由伺服器端的 is_blocked_pair() 雙向套用。
+ * blocked_name 是封鎖當下的顯示名稱快照，避免解除封鎖時只剩一串 uuid。
+ */
+export type BlockedUserRow = {
+  blocker_id: string;
+  blocked_id: string;
+  blocked_name: string;
+  reason: string | null;
+  created_at: string;
+};
+
+export type BlockedUserInsert = {
+  blocker_id: string;
+  blocked_id: string;
+  blocked_name?: string;
+  reason?: string | null;
+};
+
 export type SupportTicketInsert = {
   user_id: string | null;
   name: string;

@@ -40,6 +40,31 @@ export function bidsForGig(bids: Bid[], gigId: string): Bid[] {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/**
+ * 依任務 id 統計「客戶待處理的提案數」。
+ *
+ * 任務清單的每張卡片都要顯示這個數字。在 renderItem 內呼叫 bidsForGig() 會讓
+ * 每次繪製都掃過整個提案陣列（任務數 × 提案數），因此改成一次走訪建好對照表。
+ */
+export function pendingBidCountsByGig(bids: Bid[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const bid of bids) {
+    if (bid.status !== 'pending' || !isBidVisible(bid)) continue;
+    counts.set(bid.gigId, (counts.get(bid.gigId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** 依任務 id 統計尚未撤回的提案數（管理端的提案總數欄位）。 */
+export function activeBidCountsByGig(bids: Bid[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const bid of bids) {
+    if (bid.status === 'withdrawn') continue;
+    counts.set(bid.gigId, (counts.get(bid.gigId) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** 等待管理員複審的提案。 */
 export function bidsAwaitingReview(bids: Bid[]): Bid[] {
   return bids.filter((bid) => bid.status !== 'withdrawn' && bid.review?.state === 'pending');

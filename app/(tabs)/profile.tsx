@@ -7,14 +7,17 @@ import {
   ChevronRight,
   Clock,
   Crown,
+  FileText,
   LogIn,
   LogOut,
   Mail,
   RefreshCw,
   Repeat,
   ShieldCheck,
+  ShieldOff,
   Star,
   Tags,
+  Trash2,
   Wrench,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -26,10 +29,12 @@ import { RatingStars } from '@/components/RatingStars';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { StaticTag } from '@/components/TagChip';
+import { deleteAccount } from '@/lib/account';
 import { signOut } from '@/lib/auth';
 import { COLORS } from '@/lib/colors';
 import { formatCurrency, formatRelativeTime } from '@/lib/format';
 import { CATEGORY_COUNT, TOTAL_TAG_COUNT } from '@/lib/omniTags';
+import { useBlockStore } from '@/lib/stores/blocks';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useMaintenanceStore } from '@/lib/stores/maintenance';
 import { usePushPrefsStore } from '@/lib/stores/pushPrefs';
@@ -75,8 +80,13 @@ export default function ProfileScreen() {
   const maintenanceRuns = useMaintenanceStore((state) => state.runs);
   const updateStatus = useMaintenanceStore((state) => state.updateStatus);
   const lastMaintenanceAt = maintenanceRuns[0]?.at ?? null;
+  const blockedCount = useBlockStore((state) => state.blocked.length);
 
-  const [confirmAction, setConfirmAction] = useState<'switch' | 'reset' | 'signOut' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    'switch' | 'reset' | 'signOut' | 'delete' | null
+  >(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const summary = useMemo(
     () => summarizeReviews(reviewsForUser(reviews, userId)),
@@ -129,7 +139,27 @@ export default function ProfileScreen() {
       void signOut();
       return;
     }
+    if (confirmAction === 'delete') {
+      setConfirmAction(null);
+      void handleDeleteAccount();
+      return;
+    }
     setConfirmAction(null);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    const result = await deleteAccount();
+    setDeleting(false);
+
+    if (!result.ok) {
+      setDeleteError(result.message);
+      return;
+    }
+
+    // 帳號與雲端資料都已刪除，回到身分選擇頁重新開始。
+    router.replace('/onboarding/role');
   };
 
   return (
@@ -330,11 +360,31 @@ export default function ProfileScreen() {
           />
           <View className="bg-hairline h-px" />
           <ProfileRow
+            icon={<FileText size={17} color={COLORS.ink} strokeWidth={2.1} />}
+            label="服務條款"
+            caption="平台角色、使用規範與責任範圍"
+            onPress={() => router.push('/terms')}
+          />
+          <View className="bg-hairline h-px" />
+          <ProfileRow
             icon={<Mail size={17} color={COLORS.ink} strokeWidth={2.1} />}
             label="聯絡我們"
             caption="客服信箱與站內留言"
             onPress={() => router.push('/contact')}
           />
+          {authStatus === 'signedIn' ? (
+            <>
+              <View className="bg-hairline h-px" />
+              <ProfileRow
+                icon={<ShieldOff size={17} color={COLORS.ink} strokeWidth={2.1} />}
+                label="封鎖名單"
+                caption={
+                  blockedCount === 0 ? '尚未封鎖任何人' : `已封鎖 ${blockedCount} 人・可解除`
+                }
+                onPress={() => router.push('/blocked-users')}
+              />
+            </>
+          ) : null}
           <View className="bg-hairline h-px" />
           <ProfileRow
             icon={<RefreshCw size={17} color={COLORS.coral} strokeWidth={2.1} />}
@@ -358,7 +408,28 @@ export default function ProfileScreen() {
               onPress={() => router.push('/auth/sign-in')}
             />
           )}
+          {authStatus === 'signedIn' ? (
+            <>
+              <View className="bg-hairline h-px" />
+              <ProfileRow
+                icon={<Trash2 size={17} color={COLORS.coral} strokeWidth={2.1} />}
+                label={deleting ? '正在刪除帳號…' : '刪除帳號'}
+                caption="永久刪除帳號與所有資料，無法復原"
+                onPress={() => {
+                  if (deleting) return;
+                  setDeleteError(null);
+                  setConfirmAction('delete');
+                }}
+              />
+            </>
+          ) : null}
         </View>
+
+        {deleteError !== null ? (
+          <View className="border-coral/25 bg-coral-soft rounded-xl border px-4 py-3">
+            <Text className="text-coral text-[12px] leading-5">{deleteError}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       <ConfirmSheet
@@ -368,14 +439,18 @@ export default function ProfileScreen() {
             ? '重設個人資料？'
             : confirmAction === 'signOut'
               ? '登出這個帳號？'
-              : '切換使用身分？'
+              : confirmAction === 'delete'
+                ? '永久刪除帳號？'
+                : '切換使用身分？'
         }
         message={
           confirmAction === 'reset'
             ? '將清除身分、技能與訂閱狀態，回到身分選擇頁。'
             : confirmAction === 'signOut'
               ? '登出後仍可以瀏覽任務牆。通知中心、收藏與評價都保存在你的帳號裡，這台裝置只會清掉快取；重新以同一個 Email 登入就會全部回來。'
-              : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
+              : confirmAction === 'delete'
+                ? `這個動作無法復原。${email ?? '你的帳號'} 以及你發布的任務、投遞的提案、所有對話與訊息、收到與寫下的評價、收藏與通知都會一併永久刪除，重新註冊也不會回來。`
+                : `將切換為「${role === 'client' ? '我要接案' : '尋找專家'}」模式，資料與對話都會保留。`
         }
         actions={[
           {
@@ -385,10 +460,13 @@ export default function ProfileScreen() {
                 ? '確認重設'
                 : confirmAction === 'signOut'
                   ? '確認登出'
-                  : '確認切換',
+                  : confirmAction === 'delete'
+                    ? '確認永久刪除'
+                    : '確認切換',
             tone: confirmAction === 'switch' ? 'primary' : 'danger',
           },
         ]}
+        cancelLabel={confirmAction === 'delete' ? '保留我的帳號' : undefined}
         onSelect={handleConfirm}
         onCancel={() => setConfirmAction(null)}
       />

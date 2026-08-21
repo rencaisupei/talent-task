@@ -16,15 +16,31 @@ interface GigMapPanelProps {
   onOpenGig: (gigId: string) => void;
 }
 
+/**
+ * 地圖上同時顯示的標記上限。
+ *
+ * react-native-maps 的每個標記都是一個原生 view，數百個標記會讓平移與縮放
+ * 明顯掉幀（低階 Android 尤其嚴重），因此超過上限時只顯示最相關的一批。
+ */
+const MAX_MARKERS = 120;
+
 function toRegion(gigs: Gig[]): MapRegion {
   if (gigs.length === 0) return TAIWAN_VIEWPORT;
 
-  const latitudes = gigs.map((gig) => gig.location.latitude ?? TAIWAN_VIEWPORT.latitude);
-  const longitudes = gigs.map((gig) => gig.location.longitude ?? TAIWAN_VIEWPORT.longitude);
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
+  // 刻意不用 Math.min(...array)：任務數量大時展開參數會超過引擎的參數上限。
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+  let minLng = Number.POSITIVE_INFINITY;
+  let maxLng = Number.NEGATIVE_INFINITY;
+
+  for (const gig of gigs) {
+    const latitude = gig.location.latitude ?? TAIWAN_VIEWPORT.latitude;
+    const longitude = gig.location.longitude ?? TAIWAN_VIEWPORT.longitude;
+    if (latitude < minLat) minLat = latitude;
+    if (latitude > maxLat) maxLat = latitude;
+    if (longitude < minLng) minLng = longitude;
+    if (longitude > maxLng) maxLng = longitude;
+  }
 
   return {
     latitude: (minLat + maxLat) / 2,
@@ -47,11 +63,19 @@ export function GigMapPanel({ gigs, onOpenGig }: GigMapPanelProps) {
     [gigs],
   );
 
-  const initialRegion = useMemo(() => toRegion(located), [located]);
+  // 超過上限時優先保留急件，其次是最新發布的任務。
+  const visible = useMemo(() => {
+    if (located.length <= MAX_MARKERS) return located;
+    return [...located]
+      .sort((a, b) => Number(b.isUrgent) - Number(a.isUrgent) || b.createdAt - a.createdAt)
+      .slice(0, MAX_MARKERS);
+  }, [located]);
+
+  const initialRegion = useMemo(() => toRegion(visible), [visible]);
 
   const markers = useMemo<MapMarker[]>(
     () =>
-      located.map((gig) => ({
+      visible.map((gig) => ({
         id: gig.id,
         coordinate: {
           latitude: gig.location.latitude ?? TAIWAN_VIEWPORT.latitude,
@@ -61,10 +85,10 @@ export function GigMapPanel({ gigs, onOpenGig }: GigMapPanelProps) {
         description: gig.location.region,
         color: gig.isUrgent ? COLORS.coral : COLORS.brand,
       })),
-    [located],
+    [visible],
   );
 
-  const selected = located.find((gig) => gig.id === selectedId);
+  const selected = visible.find((gig) => gig.id === selectedId);
   const budget = selected
     ? BUDGET_LEVELS.find((level) => level.id === selected.budgetLevel)
     : undefined;
@@ -96,7 +120,9 @@ export function GigMapPanel({ gigs, onOpenGig }: GigMapPanelProps) {
       <View className="absolute top-3 left-4 flex-row items-center gap-2 rounded-xl bg-white/95 px-3 py-2">
         <Zap size={14} color={COLORS.coral} strokeWidth={2.2} />
         <Text className="text-ink-soft text-[12px] font-medium">
-          橘色標記為急件・共 {located.length} 筆
+          {visible.length < located.length
+            ? `橘色標記為急件・顯示最新 ${visible.length} / ${located.length} 筆`
+            : `橘色標記為急件・共 ${located.length} 筆`}
         </Text>
       </View>
 

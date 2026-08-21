@@ -13,7 +13,8 @@ import { EmptyState } from '@/components/SectionHeading';
 import { SignInNotice } from '@/components/SignInNotice';
 import { COLORS } from '@/lib/colors';
 import { toggleSavedGig } from '@/lib/savedActions';
-import { bidsByTalent, bidsForGig, useBidStore } from '@/lib/stores/bids';
+import { bidsByTalent, pendingBidCountsByGig, useBidStore } from '@/lib/stores/bids';
+import { useBlockedIds } from '@/lib/stores/blocks';
 import { useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
 import { useSavedStore } from '@/lib/stores/saved';
@@ -101,6 +102,10 @@ function ClientTasks() {
     return myGigs;
   }, [myGigs, segment]);
 
+  // 提案數在卡片內顯示。在 renderItem 逐一過濾整個提案陣列會讓滾動變成
+  // 任務數 × 提案數的工作量，因此改成先建好對照表。
+  const pendingBidCounts = useMemo(() => pendingBidCountsByGig(bids), [bids]);
+
   return (
     <View className="bg-background flex-1">
       <ScreenHeader title="任務管理" caption="追蹤提案、進行中與已完成的委託">
@@ -121,9 +126,7 @@ function ClientTasks() {
         refreshing={isRefreshing}
         onRefresh={() => void refreshGigs()}
         renderItem={({ item }) => {
-          const gigBidCount = bidsForGig(bids, item.id).filter(
-            (bid) => bid.status === 'pending',
-          ).length;
+          const gigBidCount = pendingBidCounts.get(item.id) ?? 0;
           const needsReview = item.status === 'completed' && !findReview(reviews, item.id, userId);
           const awaitingModeration = item.review?.state === 'pending';
           const moderationRejected = item.review?.state === 'rejected';
@@ -210,6 +213,7 @@ function TalentTasks() {
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
   const userId = useMyUserId();
   const isSignedIn = useIsSignedIn();
+  const blockedIds = useBlockedIds();
 
   const handleRefresh = () => {
     void refreshBids();
@@ -230,11 +234,18 @@ function TalentTasks() {
     [gigs, userId],
   );
 
-  const savedGigs = useMemo(
-    () =>
-      savedGigIds.map((id) => gigs.find((gig) => gig.id === id)).filter((gig): gig is Gig => !!gig),
-    [gigs, savedGigIds],
-  );
+  const savedGigs = useMemo(() => {
+    // savedGigIds.map(id => gigs.find(...)) 是收藏數 × 任務數的搜尋，改用一次建好的索引。
+    const byId = new Map(gigs.map((gig) => [gig.id, gig] as const));
+    const result: Gig[] = [];
+    for (const id of savedGigIds) {
+      const gig = byId.get(id);
+      if (gig !== undefined && !blockedIds.has(gig.clientId)) result.push(gig);
+    }
+    return result;
+  }, [gigs, savedGigIds, blockedIds]);
+
+  const savedIdSet = useMemo(() => new Set(savedGigIds), [savedGigIds]);
 
   const options: SegmentOption<TalentSegment>[] = [
     { id: 'bids', label: '我的提案', count: myBids.length },
@@ -307,7 +318,7 @@ function TalentTasks() {
               <GigCard
                 gig={item}
                 onPress={() => openGig(item.id)}
-                isSaved={savedGigIds.includes(item.id)}
+                isSaved={savedIdSet.has(item.id)}
                 onToggleSave={segment === 'saved' ? () => toggleSavedGig(item.id) : undefined}
               />
             </View>

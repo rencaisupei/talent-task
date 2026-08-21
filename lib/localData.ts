@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { clearDeliveredPush } from '@/lib/push';
 import { useBidStore } from '@/lib/stores/bids';
+import { useBlockStore } from '@/lib/stores/blocks';
 import { useChatStore } from '@/lib/stores/chat';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useNotificationStore } from '@/lib/stores/notifications';
@@ -33,6 +34,7 @@ export function resetLocalUserData(): void {
   useChatStore.getState().reset();
   useSavedStore.getState().reset();
   useNotificationStore.getState().reset();
+  useBlockStore.getState().reset();
 
   // 系統通知匣裡已經送出的橫幅與紅點要撤掉，否則點開仍看得到前一位的訊息內容。
   void clearDeliveredPush();

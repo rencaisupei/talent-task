@@ -7,6 +7,8 @@ import type {
   BidInsert,
   BidRow,
   BidUpdate,
+  BlockedUserInsert,
+  BlockedUserRow,
   ConversationRow,
   GigInsert,
   GigRow,
@@ -123,6 +125,16 @@ type SupportTicketsTable = {
   Relationships: [];
 };
 
+/**
+ * 封鎖名單：只有本人讀寫得到自己的名單，沒有 UPDATE 政策（要改就刪掉重新封鎖）。
+ */
+type BlockedUsersTable = {
+  Row: BlockedUserRow;
+  Insert: BlockedUserInsert;
+  Update: Partial<BlockedUserInsert>;
+  Relationships: [];
+};
+
 type BiltDatabase = {
   public: {
     Tables: {
@@ -135,6 +147,7 @@ type BiltDatabase = {
       saved_gigs: SavedGigsTable;
       notifications: NotificationsTable;
       support_tickets: SupportTicketsTable;
+      blocked_users: BlockedUsersTable;
     };
     Views: Record<string, never>;
     Functions: {
@@ -183,6 +196,11 @@ type BiltDatabase = {
       chat_unread_counts: {
         Args: Record<PropertyKey, never>;
         Returns: UnreadCountRow[];
+      };
+      /** 兩個帳號之間是否存在任一方向的封鎖（伺服器端函式也用同一支判斷）。 */
+      is_blocked_pair: {
+        Args: { a: string; b: string };
+        Returns: boolean;
       };
       /** 每日維護：每則對話只保留最近 keep 條訊息，回傳刪除筆數。 */
       prune_chat_messages: {

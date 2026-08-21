@@ -5,6 +5,7 @@ import { isAdminPath } from '@/lib/adminHost';
 import { purgeLegacyDeviceData } from '@/lib/localData';
 import { startChatLiveSync, startContentLiveSync } from '@/lib/remote/live';
 import { useBidStore } from '@/lib/stores/bids';
+import { useBlockStore } from '@/lib/stores/blocks';
 import { useChatStore } from '@/lib/stores/chat';
 import { useGigStore } from '@/lib/stores/gigs';
 import { useNotificationStore } from '@/lib/stores/notifications';
@@ -47,6 +48,8 @@ export function CloudSync() {
     const ownerId = authStatus === 'signedIn' ? authUserId : '';
     useSavedStore.getState().setOwner(ownerId);
     useNotificationStore.getState().setOwner(ownerId);
+    // 封鎖名單決定哪些任務、提案與對話要被隱藏，因此要在讀取內容之前設定擁有者。
+    useBlockStore.getState().setOwner(ownerId);
 
     // 這些資料已上雲，裝置上的舊紀錄不再使用。
     void purgeLegacyDeviceData();

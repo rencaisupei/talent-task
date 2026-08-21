@@ -114,7 +114,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           },
         ],
       },
-      supportsTablet: true,
+      // iPhone 版單欄設計。supportsTablet: true 會讓送審必須附 iPad 截圖，
+      // 且所有畫面在 iPad 的大尺寸與多工分割下都要可用；目前不提供 iPad 版。
+      supportsTablet: false,
       bundleIdentifier: process.env.BILT_IOS_BUNDLE_ID ?? 'com.yourcompany.yourapp',
     },
     android: {

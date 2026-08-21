@@ -35,6 +35,7 @@ import {
 import { CATEGORY_COUNT } from '@/lib/omniTags';
 import { toggleSavedGig } from '@/lib/savedActions';
 import { isBidVisible, useBidStore } from '@/lib/stores/bids';
+import { useBlockedIds } from '@/lib/stores/blocks';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { useSavedStore } from '@/lib/stores/saved';
 import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
@@ -62,6 +63,7 @@ function TalentHome() {
   const userId = useMyUserId();
   const verification = useSessionStore((state) => state.verification);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
+  const blockedIds = useBlockedIds();
 
   const [filters, setFilters] = useState<GigFilters>(() => ({
     ...DEFAULT_GIG_FILTERS,
@@ -75,11 +77,15 @@ function TalentHome() {
     const openGigs = gigs.filter(
       (gig) =>
         gig.clientId !== userId &&
+        !blockedIds.has(gig.clientId) &&
         isGigVisible(gig) &&
         (gig.status === 'open' || gig.status === 'talking'),
     );
     return applyGigFilters(openGigs, filters, { skills });
-  }, [gigs, filters, skills, userId]);
+  }, [gigs, filters, skills, userId, blockedIds]);
+
+  // 收藏是陣列，卡片逐一 includes() 會變成每次滾動都線性搜尋，因此先做成查找集合。
+  const savedIdSet = useMemo(() => new Set(savedGigIds), [savedGigIds]);
 
   const filterCount = activeFilterCount(filters);
 
@@ -184,7 +190,7 @@ function TalentHome() {
               <GigCard
                 gig={item}
                 onPress={() => openGig(item.id)}
-                isSaved={savedGigIds.includes(item.id)}
+                isSaved={savedIdSet.has(item.id)}
                 onToggleSave={() => toggleSavedGig(item.id)}
               />
             </View>
@@ -251,6 +257,7 @@ function ClientHome() {
   const refreshGigs = useGigStore((state) => state.refreshGigs);
   const userId = useMyUserId();
   const isSignedIn = useIsSignedIn();
+  const blockedIds = useBlockedIds();
 
   const myGigs = useMemo(
     () => gigs.filter((gig) => gig.clientId === userId).sort((a, b) => b.createdAt - a.createdAt),
@@ -260,9 +267,15 @@ function ClientHome() {
   const pendingBids = useMemo(
     () =>
       bids
-        .filter((bid) => bid.clientId === userId && bid.status === 'pending' && isBidVisible(bid))
+        .filter(
+          (bid) =>
+            bid.clientId === userId &&
+            bid.status === 'pending' &&
+            isBidVisible(bid) &&
+            !blockedIds.has(bid.talentId),
+        )
         .sort((a, b) => b.createdAt - a.createdAt),
-    [bids, userId],
+    [bids, userId, blockedIds],
   );
 
   const activeGigs = useMemo(() => myGigs.filter((gig) => gig.status === 'assigned'), [myGigs]);

@@ -25,20 +25,31 @@ export function PrivacyConsentCard({
       </View>
       <Text className="text-ink-soft mt-2 text-[13px] leading-5">{PRIVACY_POLICY_SUMMARY}</Text>
 
-      <Pressable
-        onPress={() => router.push('/privacy')}
-        accessibilityRole="button"
-        className="mt-3 flex-row items-center gap-1 self-start"
-      >
-        <Text className="text-brand-strong text-[13px] font-semibold">閱讀完整隱私權政策</Text>
-        <ChevronRight size={15} color={COLORS.brandStrong} strokeWidth={2.2} />
-      </Pressable>
+      <View className="mt-3 gap-2">
+        <Pressable
+          onPress={() => router.push('/privacy')}
+          accessibilityRole="button"
+          className="flex-row items-center gap-1 self-start"
+        >
+          <Text className="text-brand-strong text-[13px] font-semibold">閱讀完整隱私權政策</Text>
+          <ChevronRight size={15} color={COLORS.brandStrong} strokeWidth={2.2} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/terms')}
+          accessibilityRole="button"
+          className="flex-row items-center gap-1 self-start"
+        >
+          <Text className="text-brand-strong text-[13px] font-semibold">閱讀服務條款</Text>
+          <ChevronRight size={15} color={COLORS.brandStrong} strokeWidth={2.2} />
+        </Pressable>
+      </View>
 
       <View className="border-hairline mt-4 border-t pt-4">
         <ControlField isSelected={accepted} onSelectedChange={onAcceptedChange}>
           <ControlField.Indicator variant="checkbox" />
           <View className="flex-1">
-            <Label>我已閱讀並同意隱私權政策</Label>
+            <Label>我已閱讀並同意隱私權政策與服務條款</Label>
             <Description>包含伺服器端聊天審核與防詐關鍵字比對機制。</Description>
           </View>
         </ControlField>

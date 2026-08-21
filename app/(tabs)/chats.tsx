@@ -1,6 +1,7 @@
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { MessageCircle, ShieldCheck, TriangleAlert } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { ChatQuotaPill } from '@/components/ChatQuotaPill';
@@ -10,6 +11,7 @@ import { SignInNotice } from '@/components/SignInNotice';
 import { StaticTag } from '@/components/TagChip';
 import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
+import { useBlockedIds } from '@/lib/stores/blocks';
 import { useChatStore } from '@/lib/stores/chat';
 import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import { conversationCounterpart } from '@/lib/types';
@@ -25,11 +27,21 @@ export default function ChatListScreen() {
   const isRefreshing = useChatStore((state) => state.isRefreshing);
   const errorMessage = useChatStore((state) => state.errorMessage);
   const refreshConversations = useChatStore((state) => state.refreshConversations);
+  const blockedIds = useBlockedIds();
+
+  // 被封鎖的人不該再出現在收件匣（伺服器端也已擋掉他們的訊息）。
+  const visible = useMemo(
+    () =>
+      blockedIds.size === 0
+        ? conversations
+        : conversations.filter((item) => !blockedIds.has(conversationCounterpart(item, userId).id)),
+    [conversations, blockedIds, userId],
+  );
 
   return (
     <View className="bg-background flex-1">
       <FlashList
-        data={conversations}
+        data={visible}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -54,9 +66,7 @@ export default function ChatListScreen() {
               </Text>
             </View>
 
-            {conversations.length > 0 ? (
-              <SectionHeading title={`${conversations.length} 組對話`} />
-            ) : null}
+            {visible.length > 0 ? <SectionHeading title={`${visible.length} 組對話`} /> : null}
           </View>
         }
         renderItem={({ item }) => {

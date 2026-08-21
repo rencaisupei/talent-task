@@ -15,6 +15,7 @@ import { COLORS } from '@/lib/colors';
 import { formatRelativeTime } from '@/lib/format';
 import { findCategoryByTag } from '@/lib/omniTags';
 import { useAdminContentStore } from '@/lib/stores/adminContent';
+import { activeBidCountsByGig } from '@/lib/stores/bids';
 import { BUDGET_LEVELS, type Gig, type GigStatus } from '@/lib/types';
 
 type GigFilter = 'all' | 'open' | 'talking' | 'assigned' | 'completed' | 'takedown';
@@ -90,6 +91,10 @@ export default function AdminGigsScreen() {
     });
   }, [filter, gigs, keyword]);
 
+  // 平台可能有數千件任務與提案：在 renderItem 逐一過濾整個提案陣列會讓清單
+  // 滾動變成平方級的工作量，因此先一次算好每件任務的提案數。
+  const bidCounts = useMemo(() => activeBidCountsByGig(bids), [bids]);
+
   const handleTakedown = async (reason: string) => {
     if (!takedownTarget) return;
     const target = takedownTarget;
@@ -158,9 +163,7 @@ export default function AdminGigsScreen() {
         renderItem={({ item }) => (
           <GigAdminRow
             gig={item}
-            bidCount={
-              bids.filter((bid) => bid.gigId === item.id && bid.status !== 'withdrawn').length
-            }
+            bidCount={bidCounts.get(item.id) ?? 0}
             onTakedown={() => setTakedownTarget(item)}
             onRestore={() => setRestoreTarget(item)}
           />

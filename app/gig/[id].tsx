@@ -33,6 +33,7 @@ import { isAccountId } from '@/lib/remote/shared';
 import { toggleSavedGig } from '@/lib/savedActions';
 import { SEED_TALENTS } from '@/lib/seed';
 import { bidsForGig, myBidForGig, useBidStore } from '@/lib/stores/bids';
+import { useBlockedIds } from '@/lib/stores/blocks';
 import { useChatStore } from '@/lib/stores/chat';
 import { isGigVisible, useGigStore } from '@/lib/stores/gigs';
 import { findReview, useReviewStore } from '@/lib/stores/reviews';
@@ -76,6 +77,7 @@ export default function GigDetailScreen() {
 
   const reviews = useReviewStore((state) => state.reviews);
   const savedGigIds = useSavedStore((state) => state.savedGigIds);
+  const blockedIds = useBlockedIds();
 
   const [confirm, setConfirm] = useState<GigConfirmKind | null>(null);
   const [working, setWorking] = useState(false);
@@ -92,7 +94,10 @@ export default function GigDetailScreen() {
     return [...exact, ...sameRegion].slice(0, 4);
   }, [gig]);
 
-  const gigBids = useMemo(() => (gig ? bidsForGig(bids, gig.id) : []), [bids, gig]);
+  const gigBids = useMemo(
+    () => (gig ? bidsForGig(bids, gig.id).filter((bid) => !blockedIds.has(bid.talentId)) : []),
+    [bids, gig, blockedIds],
+  );
   const myBid = useMemo(
     () => (gig ? myBidForGig(bids, gig.id, userId) : undefined),
     [bids, gig, userId],
