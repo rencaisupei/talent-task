@@ -62,7 +62,11 @@ export function AuthGate() {
       return undefined;
     }
 
-    void getStoredSession().then(handleSession);
+    // 失敗也要落到 signedOut：分頁版面在登入狀態確定前是空白畫面
+    // （身分未選時要導向 /onboarding/role），停在 unknown 會讓 App 永遠空白。
+    void getStoredSession()
+      .then(handleSession)
+      .catch(() => handleSession(null));
     const stopAuthListener = subscribeToAuthChanges(handleSession);
     const stopProfileSync = startProfileSync();
 
