@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AiReviewCard } from '@/components/AiReviewCard';
+import { FieldStatusBadge, RequiredFieldCard } from '@/components/FieldStatus';
 import { EmptyState } from '@/components/SectionHeading';
 import { SignInNotice } from '@/components/SignInNotice';
 import { StaticTag } from '@/components/TagChip';
@@ -18,6 +19,9 @@ import { useGigStore } from '@/lib/stores/gigs';
 import { useIsSignedIn, useMyUserId, useSessionStore } from '@/lib/stores/session';
 import { type AiReviewResult, BID_ETA_OPTIONS, BUDGET_LEVELS } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+/** 提案說明的最低字數，同時決定「可以送出」與欄位狀態標籤。 */
+const MIN_MESSAGE_LENGTH = 10;
 
 export default function BidScreen() {
   const { gigId } = useLocalSearchParams<{ gigId: string }>();
@@ -71,10 +75,14 @@ export default function BidScreen() {
 
   const budget = BUDGET_LEVELS.find((level) => level.id === gig.budgetLevel);
   const numericQuote = Number(quote.replace(/[^\d]/g, ''));
-  const canSubmit =
-    isSignedIn &&
-    message.trim().length >= 10 &&
-    (isNegotiable || (Number.isFinite(numericQuote) && numericQuote > 0));
+  const quoteComplete = isNegotiable || (Number.isFinite(numericQuote) && numericQuote > 0);
+  const messageLength = message.trim().length;
+  const messageComplete = messageLength >= MIN_MESSAGE_LENGTH;
+  const canSubmit = isSignedIn && messageComplete && quoteComplete;
+
+  const missingLabels = [quoteComplete ? null : '報價', messageComplete ? null : '說明'].filter(
+    (label): label is string => label !== null,
+  );
 
   const handleSubmit = async () => {
     if (!canSubmit || reviewing) return;
@@ -154,7 +162,12 @@ export default function BidScreen() {
           </Text>
         </View>
 
-        <View className="border-hairline gap-4 rounded-xl border bg-white p-4">
+        <RequiredFieldCard
+          complete={quoteComplete}
+          title="報價方式"
+          completeLabel={isNegotiable ? '價格面議' : formatCurrency(numericQuote)}
+          hint="請輸入報價金額，或改為「價格面議」。"
+        >
           <View className="flex-row items-center justify-between gap-3">
             <View className="flex-1">
               <Text className="text-ink text-[14px] font-semibold">價格面議</Text>
@@ -174,18 +187,15 @@ export default function BidScreen() {
               />
             </TextField>
           ) : null}
-
-          {!isNegotiable && numericQuote > 0 ? (
-            <Text className="text-brand-strong text-[13px] font-semibold">
-              客戶看到的報價：{formatCurrency(numericQuote)}
-            </Text>
-          ) : null}
-        </View>
+        </RequiredFieldCard>
 
         <View className="border-hairline gap-3 rounded-xl border bg-white p-4">
-          <View className="flex-row items-center gap-2">
-            <Clock size={15} color={COLORS.coral} strokeWidth={2.2} />
-            <Text className="text-ink text-[14px] font-semibold">可開始時間</Text>
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="flex-1 flex-row items-center gap-2">
+              <Clock size={15} color={COLORS.coral} strokeWidth={2.2} />
+              <Text className="text-ink text-[14px] font-semibold">可開始時間</Text>
+            </View>
+            <FieldStatusBadge complete completeLabel={eta} />
           </View>
           <View className="flex-row flex-wrap gap-2">
             {BID_ETA_OPTIONS.map((option) => {
@@ -215,21 +225,30 @@ export default function BidScreen() {
           </View>
         </View>
 
-        <View className="border-hairline rounded-xl border bg-white p-4">
-          <TextField>
-            <Label>提案說明</Label>
-            <TextArea
-              value={message}
-              onChangeText={setMessage}
-              placeholder="說明施作方式、包含項目、保固與需要客戶準備的事項"
-              numberOfLines={5}
-              style={{ minHeight: 120 }}
-            />
-          </TextField>
-          <Text className="text-muted mt-2 text-[12px]">
-            已輸入 {message.trim().length} 字（至少 10 字）
+        <RequiredFieldCard
+          complete={messageComplete}
+          title="提案說明"
+          caption={`至少 ${MIN_MESSAGE_LENGTH} 字，客戶會用這段內容決定要不要選你。`}
+        >
+          <TextArea
+            value={message}
+            onChangeText={setMessage}
+            accessibilityLabel="提案說明"
+            placeholder="說明施作方式、包含項目、保固與需要客戶準備的事項"
+            numberOfLines={5}
+            style={{ minHeight: 120 }}
+          />
+          <Text
+            className={cn(
+              'text-[12px] leading-4',
+              messageComplete ? 'text-muted' : 'text-coral-strong font-semibold',
+            )}
+          >
+            {messageComplete
+              ? `已輸入 ${messageLength} 字`
+              : `已輸入 ${messageLength} 字，還需要 ${MIN_MESSAGE_LENGTH - messageLength} 字`}
           </Text>
-        </View>
+        </RequiredFieldCard>
 
         <View className="border-hairline bg-canvas flex-row items-start gap-2 rounded-xl border px-4 py-3">
           <Info size={15} color={COLORS.muted} strokeWidth={2.1} />
@@ -280,9 +299,11 @@ export default function BidScreen() {
               ? '認證中…'
               : !isSignedIn
                 ? '登入後即可投遞'
-                : existing
-                  ? '認證並更新提案'
-                  : '認證並送出提案'}
+                : !canSubmit
+                  ? `請完成：${missingLabels.join('、')}`
+                  : existing
+                    ? '認證並更新提案'
+                    : '認證並送出提案'}
           </Button.Label>
         </Button>
       </ScrollView>

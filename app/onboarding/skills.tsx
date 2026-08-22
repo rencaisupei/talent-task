@@ -15,6 +15,7 @@ import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AiReviewCard } from '@/components/AiReviewCard';
 import { CategoryAccordion } from '@/components/CategoryAccordion';
+import { FieldStatusBadge } from '@/components/FieldStatus';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { runAiReview } from '@/lib/aiReview';
@@ -213,6 +214,13 @@ export default function SkillCertificationScreen() {
         <SectionHeading
           title="選擇你的專業標籤"
           caption={`從 ${CATEGORY_COUNT} 大類別矩陣中最多選擇 ${MAX_TALENT_TAGS} 項，任務牆會依標籤即時推播。`}
+          right={
+            <FieldStatusBadge
+              complete={skills.length > 0}
+              completeLabel={`已選 ${skills.length} 項`}
+            />
+          }
+          rightAlign="start"
         />
 
         {skills.length > 0 ? (

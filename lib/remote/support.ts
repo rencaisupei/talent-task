@@ -62,6 +62,11 @@ export const SUPPORT_MESSAGE_MAX_LENGTH = 2000;
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/** 前端的必填判斷與送出前的驗證共用同一條規則，避免按鈕可按但伺服器擋掉。 */
+export function isSupportEmail(value: string): boolean {
+  return EMAIL_PATTERN.test(value.trim());
+}
+
 /** 送出站內留言。回傳寫入後的那一筆，畫面用它顯示受理時間。 */
 export async function submitSupportTicket(
   input: SupportTicketInput,
@@ -69,7 +74,7 @@ export async function submitSupportTicket(
   const email = input.email.trim();
   const message = input.message.trim();
 
-  if (!EMAIL_PATTERN.test(email)) {
+  if (!isSupportEmail(email)) {
     return remoteError('請填寫可以聯絡到你的電子郵件。');
   }
   if (message.length < SUPPORT_MESSAGE_MIN_LENGTH) {

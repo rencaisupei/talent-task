@@ -1,12 +1,13 @@
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { Button, Description, Label, Spinner, Switch, TextArea, TextField } from 'heroui-native';
+import { Button, Spinner, Switch, TextArea } from 'heroui-native';
 import { CircleCheck, Crosshair, MapPin, ShieldCheck, X, Zap } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AiReviewCard } from '@/components/AiReviewCard';
 import { CategoryAccordion } from '@/components/CategoryAccordion';
+import { FieldStatusBadge, RequiredFieldCard } from '@/components/FieldStatus';
 import { RegionPicker } from '@/components/RegionPicker';
 import { SectionHeading } from '@/components/SectionHeading';
 import { SignInNotice } from '@/components/SignInNotice';
@@ -25,6 +26,9 @@ import {
   type GigLocation,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+/** 任務描述的最低字數，同時決定「可以發布」與欄位狀態標籤。 */
+const MIN_DETAIL_LENGTH = 5;
 
 function detailTemplate(tag: string, region: string) {
   const place = region === REGION_ANY ? '現場' : region;
@@ -106,7 +110,15 @@ export default function PublishScreen() {
     }
   };
 
-  const canPublish = isSignedIn && tag !== null && categoryId !== null && detail.trim().length >= 5;
+  const tagComplete = tag !== null && categoryId !== null;
+  const detailLength = detail.trim().length;
+  const detailComplete = detailLength >= MIN_DETAIL_LENGTH;
+  const selectedBudget = BUDGET_LEVELS.find((level) => level.id === budgetLevel);
+  const canPublish = isSignedIn && tagComplete && detailComplete;
+
+  const missingLabels = [tagComplete ? null : '標籤', detailComplete ? null : '描述'].filter(
+    (label): label is string => label !== null,
+  );
 
   const handlePublish = async () => {
     if (!tag || !categoryId || reviewing) return;
@@ -122,7 +134,7 @@ export default function PublishScreen() {
       tag,
       categoryName: findCategoryById(categoryId)?.name,
       region,
-      budgetLabel: BUDGET_LEVELS.find((level) => level.id === budgetLevel)?.label,
+      budgetLabel: selectedBudget?.label,
       name: displayName,
     });
     const review = publishReviewFromAi(ai);
@@ -225,7 +237,12 @@ export default function PublishScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View className="border-hairline bg-canvas rounded-xl border px-4 py-3">
+        <View
+          className={cn(
+            'rounded-xl border-2 px-4 py-3',
+            tagComplete ? 'border-brand/25 bg-white' : 'border-coral bg-coral-soft',
+          )}
+        >
           <Text className="text-ink-soft text-[13px] leading-5">
             {tag ? (
               <>
@@ -251,7 +268,12 @@ export default function PublishScreen() {
           </Text>
         </View>
 
-        <SectionHeading title="任務類別與標籤" caption="點擊類別展開子標籤，選取後以純青色高亮。" />
+        <SectionHeading
+          title="任務類別與標籤"
+          caption="點擊類別展開子標籤，選取後以純青色高亮。"
+          right={<FieldStatusBadge complete={tagComplete} completeLabel="已選擇" />}
+          rightAlign="start"
+        />
 
         <CategoryAccordion
           selectedTags={tag ? [tag] : []}
@@ -259,24 +281,40 @@ export default function PublishScreen() {
           defaultValue="CAT_01"
         />
 
-        <SectionHeading title="任務描述" caption="選取標籤後已自動帶入描述，可直接補充細節。" />
-
-        <TextField>
-          <Label>文字詳情</Label>
+        <RequiredFieldCard
+          complete={detailComplete}
+          title="任務描述"
+          caption="選取標籤後已自動帶入描述，可直接補充細節。"
+          hint={
+            detailLength === 0
+              ? `請輸入至少 ${MIN_DETAIL_LENGTH} 個字，描述越清楚媒合越快。`
+              : `還需要 ${MIN_DETAIL_LENGTH - detailLength} 個字。`
+          }
+        >
           <TextArea
             value={detail}
             onChangeText={(text) => {
               setDetail(text);
               setDetailTouched(true);
             }}
+            accessibilityLabel="任務描述"
             placeholder="說明需求、期望到場時間與現場狀況"
             numberOfLines={5}
             className="min-h-28"
           />
-          <Description>至少 5 個字，描述越清楚媒合越快。</Description>
-        </TextField>
+          {detailComplete ? (
+            <Text className="text-muted text-[12px] leading-4">
+              已輸入 {detailLength} 個字，描述越清楚媒合越快。
+            </Text>
+          ) : null}
+        </RequiredFieldCard>
 
-        <SectionHeading title="任務地點" caption="可使用裝置定位，或直接選擇全台地區。" />
+        <SectionHeading
+          title="任務地點"
+          caption="可使用裝置定位，或直接選擇全台地區。"
+          right={<FieldStatusBadge complete completeLabel={coords ? '已定位' : region} />}
+          rightAlign="start"
+        />
 
         <View className="gap-3">
           <Pressable
@@ -320,7 +358,12 @@ export default function PublishScreen() {
           </View>
         </View>
 
-        <SectionHeading title="預算等級" />
+        <SectionHeading
+          title="預算等級"
+          caption="預設為單次到府價位，可依現場難度調整。"
+          right={<FieldStatusBadge complete completeLabel={selectedBudget?.label ?? '已選擇'} />}
+          rightAlign="start"
+        />
 
         <View className="flex-row flex-wrap justify-between gap-y-2">
           {BUDGET_LEVELS.map((level) => {
@@ -391,7 +434,7 @@ export default function PublishScreen() {
                   ? isUrgent
                     ? '認證並立即發布急件任務'
                     : '認證並立即發布任務'
-                  : '請完成標籤與描述'}
+                  : `請完成：${missingLabels.join('、')}`}
           </Button.Label>
         </Button>
       </View>

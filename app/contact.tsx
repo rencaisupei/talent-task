@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native';
 
+import { FieldStatusBadge } from '@/components/FieldStatus';
 import { SectionHeading } from '@/components/SectionHeading';
 import { SegmentedTabs, type SegmentOption } from '@/components/SegmentedTabs';
 import { COLORS } from '@/lib/colors';
@@ -30,7 +31,11 @@ import {
   SUPPORT_RESPONSE_NOTE,
 } from '@/lib/legalCopy';
 import { goBackOrReplace } from '@/lib/navigation';
-import { submitSupportTicket } from '@/lib/remote/support';
+import {
+  isSupportEmail,
+  submitSupportTicket,
+  SUPPORT_MESSAGE_MIN_LENGTH,
+} from '@/lib/remote/support';
 import { useMyUserId, useSessionStore } from '@/lib/stores/session';
 import { SUPPORT_CATEGORY_LABEL, type SupportCategory, type SupportTicket } from '@/lib/types';
 
@@ -50,6 +55,11 @@ export default function ContactScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<SupportTicket | null>(null);
+
+  const emailComplete = isSupportEmail(email);
+  const messageLength = message.trim().length;
+  const messageComplete = messageLength >= SUPPORT_MESSAGE_MIN_LENGTH;
+  const canSend = emailComplete && messageComplete;
 
   const openMailApp = () => {
     const subject = encodeURIComponent(`【人才速配】${SUPPORT_CATEGORY_LABEL[category]}`);
@@ -132,7 +142,7 @@ export default function ContactScreen() {
             </View>
 
             <TextField>
-              <Label>你的稱呼</Label>
+              <Label>你的稱呼（選填）</Label>
               <Input
                 value={name}
                 onChangeText={setName}
@@ -142,7 +152,10 @@ export default function ContactScreen() {
             </TextField>
 
             <TextField>
-              <Label>聯絡信箱</Label>
+              <View className="flex-row items-center justify-between gap-2">
+                <Label>聯絡信箱</Label>
+                <FieldStatusBadge complete={emailComplete} />
+              </View>
               <Input
                 value={email}
                 onChangeText={setEmail}
@@ -151,11 +164,20 @@ export default function ContactScreen() {
                 autoCorrect={false}
                 keyboardType="email-address"
               />
-              <Description>我們只會用這個信箱回覆你的問題。</Description>
+              {emailComplete ? (
+                <Description>我們只會用這個信箱回覆你的問題。</Description>
+              ) : (
+                <Text className="text-coral-strong text-[12px] leading-4 font-semibold">
+                  請填寫可以收信的信箱，我們只用它回覆你。
+                </Text>
+              )}
             </TextField>
 
             <TextField>
-              <Label>問題內容</Label>
+              <View className="flex-row items-center justify-between gap-2">
+                <Label>問題內容</Label>
+                <FieldStatusBadge complete={messageComplete} />
+              </View>
               <TextArea
                 value={message}
                 onChangeText={setMessage}
@@ -163,7 +185,15 @@ export default function ContactScreen() {
                 numberOfLines={6}
                 className="min-h-32"
               />
-              <Description>至少 5 個字。</Description>
+              {messageComplete ? (
+                <Description>已輸入 {messageLength} 個字。</Description>
+              ) : (
+                <Text className="text-coral-strong text-[12px] leading-4 font-semibold">
+                  {messageLength === 0
+                    ? `請至少描述 ${SUPPORT_MESSAGE_MIN_LENGTH} 個字，我們才查得到紀錄。`
+                    : `還需要 ${SUPPORT_MESSAGE_MIN_LENGTH - messageLength} 個字。`}
+                </Text>
+              )}
             </TextField>
 
             <Text className="text-muted text-[11px] leading-4">{CONTACT_FORM_NOTE}</Text>
@@ -177,11 +207,7 @@ export default function ContactScreen() {
               </View>
             )}
 
-            <Button
-              size="md"
-              isDisabled={sending || message.trim().length === 0 || email.trim().length === 0}
-              onPress={() => void handleSubmit()}
-            >
+            <Button size="md" isDisabled={sending || !canSend} onPress={() => void handleSubmit()}>
               <Button.Label>{sending ? '送出中…' : '送出留言'}</Button.Label>
             </Button>
           </View>
