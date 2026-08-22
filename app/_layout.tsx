@@ -13,7 +13,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { I18nManager, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import * as DevClient from 'expo-dev-client';
 import { HeroUINativeProvider, useThemeColor } from 'heroui-native';
 import { Uniwind } from 'uniwind';
@@ -26,6 +26,7 @@ import {
 
 import { initPostHog } from '@/lib/posthog';
 import { COLORS } from '@/lib/colors';
+import { preloadBrandAssets } from '@/lib/brandAssets';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -67,6 +68,20 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  // 原生：品牌圖進到圖片快取後才收起啟動畫面，第一個畫面就帶著標誌一起出現。
+  // 網頁版不用等（標誌由 index.html 的 preload 先下載，且沒有啟動畫面可遮）。
+  const [brandReady, setBrandReady] = useState(Platform.OS === 'web');
+
+  useEffect(() => {
+    let cancelled = false;
+    void preloadBrandAssets().then(() => {
+      if (!cancelled) setBrandReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Report uncaught JS errors and unhandled promise rejections to parent (Bilt preview iframe)
   useEffect(() => {
@@ -148,10 +163,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (loaded || error || Platform.OS === 'web') {
+    if (((loaded || error) && brandReady) || Platform.OS === 'web') {
       void SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded, error, brandReady]);
 
   // 一律在第一次渲染就掛上導覽器：root layout 若先回傳 null，expo-router 的根導覽器
   // 尚未建立，任何導向都會失敗（Attempted to navigate before mounting the Root Layout）。

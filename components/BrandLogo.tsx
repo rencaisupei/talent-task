@@ -1,5 +1,6 @@
 import { Image, Text, View } from 'react-native';
 
+import { BRAND_MARK_SOURCE, BRAND_WORDMARK_SOURCE } from '@/lib/brandAssets';
 import { cn } from '@/lib/utils';
 
 /** 中文品牌名。 */
@@ -10,6 +11,21 @@ export const BRAND_NAME_EN = 'Talent Match';
 
 /** 品牌標語：顯示於品牌名下方。 */
 export const BRAND_TAGLINE = '專家齊聚・使命必達';
+
+/**
+ * 圖片抵達前的底圖：品牌色圓環。
+ *
+ * 刻意不用 onLoad 切換狀態 —— 標誌圖本身是不透明白底，載入後會完全蓋住這個圓環，
+ * 所以圖已在快取時也不會出現「先閃一格佔位圖」的情形。
+ */
+function MarkPlaceholder({ size }: { size: number }) {
+  return (
+    <View
+      className="border-brand/30 absolute rounded-full border-2"
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
 interface BrandLogoProps {
   size?: number;
@@ -28,8 +44,9 @@ export function BrandLogo({ size = 56, className }: BrandLogoProps) {
       )}
       style={{ width: size, height: size }}
     >
+      <MarkPlaceholder size={Math.round(size * 0.56)} />
       <Image
-        source={require('../public/icons/talentmatch-icon.png')}
+        source={BRAND_MARK_SOURCE}
         style={{ width: imageSize, height: imageSize }}
         resizeMode="contain"
         accessibilityLabel={`${BRAND_NAME}標誌`}
@@ -74,8 +91,9 @@ export function BrandLockup({ width = 268, className }: BrandLockupProps) {
 
   return (
     <View className={cn('bg-canvas items-center justify-center rounded-xl', className)}>
+      <MarkPlaceholder size={Math.round(height * 0.34)} />
       <Image
-        source={require('../assets/talentmatch-wordmark.png')}
+        source={BRAND_WORDMARK_SOURCE}
         // Expo web ignores className sizing on Image; keep width/height in style.
         style={{ width, height }}
         resizeMode="contain"

@@ -76,6 +76,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
+    <!-- App 內的品牌標誌與上面的 favicon 是同一個檔案（lib/brandAssets.web.ts 指向同一個
+         URL），所以在這裡就開始下載：畫面第一次繪製時標誌已在快取，不會出現「文字都好了、
+         標誌晚一步才跳出來」。改路徑時三處要一起改，preload 才會命中。 -->
+    <link rel="preload" as="image" href="/icons/talentmatch-icon.png" fetchpriority="high" />
+
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
       /* These styles make the body full-height */

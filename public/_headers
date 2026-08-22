@@ -35,6 +35,11 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+# 品牌圖示：檔名固定（favicon、manifest 與 App 內標誌共用同一個 URL），所以不能設 immutable。
+# 快取一天，之後重新驗證 —— 換圖最多一天生效。
+/icons/*
+  Cache-Control: public, max-age=86400, must-revalidate
+
 # Entry document and service worker must revalidate on every load so a new
 # deploy is picked up immediately.
 /index.html
