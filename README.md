@@ -471,6 +471,24 @@ Success 只證明「建置成功部署到某個專案」，它完全不知道網
 三種都用第 1 步的 build log 名稱為準：把網域接到它，或把 `wrangler.toml` 的 `name`
 改成擁有網域的那個 Worker（改名後本機 `npm run deploy:web` 也會部署到同一個地方）。
 
+**線上出現「Something went wrong」＋一行 TypeError，本機／預覽卻正常**
+
+這是**部署的是舊建置**，不是新的程式錯誤。判斷方式：把錯誤訊息裡的函式名去 repo 搜一遍，
+若程式碼裡已經沒有那個呼叫（或已加上防護），線上那份就是修正前產生的 JS。
+
+已知案例：`resolveAssetSource is not a function`（壓縮後長得像
+`n.default.resolveAssetSource`）。`Image.resolveAssetSource` 只存在於原生 React Native，
+react-native-web 沒有；`lib/brandAssets.web.ts` 早已不再呼叫它，`lib/brandAssets.ts`
+（原生版）也加了能力檢查與 try/catch，所以現在的程式碼在網頁版不可能再丟這個錯。
+
+要讓修正上線：推一個 commit 觸發 Workers Builds，或本機 `npm run deploy:web`。
+兩者都會產生新的雜湊檔名，`/index.html` 是 `max-age=0, must-revalidate`（見
+`public/_headers`），所以使用者重新載入就會拿到新版，不需要清快取。部署後跑
+`npm run verify:live` 確認。
+
+注意：JS 執行期的錯誤**不會**出現在 Cloudflare 的 build log 裡，建置照樣 Success，
+所以「Success」不代表線上打得開 —— 每次部署後至少開一次首頁。
+
 **若你想改用 Cloudflare Pages**
 
 Pages 仍可用，但要把 `wrangler.toml` 的 `[assets]` 區塊換回

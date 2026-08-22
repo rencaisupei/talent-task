@@ -75,9 +75,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     let cancelled = false;
-    void preloadBrandAssets().then(() => {
+    // 成功與失敗都要放行：預熱失敗只代表標誌可能晚一步出現，若不放行，原生的啟動畫面
+    // 會永遠蓋在上面，App 等於開不起來。
+    const markReady = () => {
       if (!cancelled) setBrandReady(true);
-    });
+    };
+    void preloadBrandAssets().then(markReady, markReady);
     return () => {
       cancelled = true;
     };

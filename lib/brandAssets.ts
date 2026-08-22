@@ -21,8 +21,27 @@ export const BRAND_WORDMARK_SOURCE: ImageSourcePropType = require('../assets/tal
  */
 const PRELOAD_TIMEOUT_MS = 1200;
 
+/**
+ * 取出打包後資源的實際網址。
+ *
+ * 刻意做能力檢查而不是直接呼叫：`Image.resolveAssetSource` 只存在於原生的
+ * React Native，react-native-web 的 Image 沒有這個方法。這個檔案有 .web.ts 孿生檔，
+ * 正常情況下網頁版不會走到這裡 —— 但只要有一次解析走偏（例如新的建置設定、
+ * 或有人直接 import 這個路徑），少了這道檢查就是同步丟出 TypeError，整個網站
+ * 在第一次渲染就變成「Something went wrong」。這種代價不值得省一行判斷。
+ */
+function resolveAssetUri(source: ImageSourcePropType): string | undefined {
+  const resolve = (Image as Partial<typeof Image>).resolveAssetSource;
+  if (typeof resolve !== 'function') return undefined;
+  try {
+    return resolve(source)?.uri;
+  } catch {
+    return undefined;
+  }
+}
+
 function prefetchSource(source: ImageSourcePropType): Promise<void> {
-  const uri = Image.resolveAssetSource(source)?.uri;
+  const uri = resolveAssetUri(source);
   if (!uri) return Promise.resolve();
   // 打包後的本機檔案在部分平台不支援 prefetch（Android release 拿到的是 drawable 名稱），
   // 失敗只代表沒有預熱到，不是錯誤，所以吞掉。
@@ -35,16 +54,27 @@ function prefetchSource(source: ImageSourcePropType): Promise<void> {
 /**
  * 讓品牌圖在第一次顯示前就進到圖片快取，避免「其他內容都出現了，標誌晚一步才跳出來」。
  * 開發模式（Expo Go）的資源是從 Metro 以 HTTP 取得，這一步的效果最明顯。
+ *
+ * 這個函式**永不丟出例外**（同步或非同步都不會）。它在 app/_layout.tsx 的 useEffect
+ * 裡被呼叫，同步丟出就等於在第一次渲染炸掉整個 App —— 而預熱圖片快取只是體驗優化，
+ * 失敗的正確結果是「標誌晚一步出現」，不是白畫面。
  */
 export function preloadBrandAssets(): Promise<void> {
-  const work = Promise.all([
-    prefetchSource(BRAND_MARK_SOURCE),
-    prefetchSource(BRAND_WORDMARK_SOURCE),
-  ]).then(() => undefined);
-
   const timeout = new Promise<void>((resolve) => {
     setTimeout(resolve, PRELOAD_TIMEOUT_MS);
   });
 
-  return Promise.race([work, timeout]);
+  try {
+    const work = Promise.all([
+      prefetchSource(BRAND_MARK_SOURCE),
+      prefetchSource(BRAND_WORDMARK_SOURCE),
+    ]).then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return Promise.race([work, timeout]);
+  } catch {
+    return Promise.resolve();
+  }
 }
