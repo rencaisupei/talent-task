@@ -3,7 +3,7 @@ import { router, usePathname } from 'expo-router';
 import { useEffect } from 'react';
 
 import { isAdminPath } from '@/lib/adminHost';
-import { getStoredSession, subscribeToAuthChanges } from '@/lib/auth';
+import { getStoredSession, isPasswordRecoveryInProgress, subscribeToAuthChanges } from '@/lib/auth';
 import { IS_BILT_CONFIGURED } from '@/lib/bilt';
 import { resetLocalUserData } from '@/lib/localData';
 import { useNavigationReady } from '@/lib/navigation';
@@ -81,6 +81,9 @@ export function AuthGate() {
     if (disabled || !navigationReady) return;
 
     if (authStatus === 'signedIn' && onAuthRoute) {
+      // 重設密碼驗證成功時已經有 session，但使用者還在登入頁輸入新密碼，
+      // 這時導走會讓密碼永遠停在舊值（驗證碼也已用掉）。
+      if (isPasswordRecoveryInProgress()) return;
       router.replace(APP_PATH);
     }
   }, [authStatus, onAuthRoute, navigationReady, disabled]);
