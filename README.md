@@ -1413,6 +1413,33 @@ Play 明文禁止的：裝置外框、「立即下載」等行動呼籲、「第
 - [ ] 截圖尺寸、張數與內容符合 15.2／15.3（含檢舉與封鎖入口的那一張）
 - [ ] Play 上傳的是 AAB，且已設定正式簽章金鑰（第 14 節仍是 debug keystore）
 
+## 16. 品牌圖檔（原始大圖 vs UI 縮小版）
+
+repo 裡有兩種品牌圖檔，用途不能互換：
+
+| 檔案                                    | 尺寸      | 誰在用                                                            |
+| --------------------------------------- | --------- | ----------------------------------------------------------------- |
+| `public/icons/talentmatch-icon.png`     | 1024×1024 | App 圖示、favicon、apple-touch-icon、PWA manifest、og:image       |
+| `public/icons/talentmatch-maskable.png` | 1024×1024 | Android 自適應圖示前景、PWA maskable 圖示                         |
+| `public/icons/talentmatch-mark-192.png` | 192×192   | **App 內的 `BrandLogo`**（網頁版另由 index.html 以 preload 預抓） |
+| `assets/talentmatch-wordmark.png`       | 1380×752  | 原始橫式標誌（只作為產生縮小版的來源，App 不直接載入）            |
+| `assets/talentmatch-wordmark-816.png`   | 816×445   | **App 內的 `BrandLockup`**（登入頁）                              |
+
+後兩者由 `scripts/generate-brand-assets.mjs` 產生（純 JS，pngjs，線性光下的面積平均縮圖）：
+
+```sh
+npm run assets:brand
+```
+
+這個指令也掛在 `prepare` 上，所以 `npm install` / `npm ci`（含 Cloudflare 建置）會自動確保檔案存在；輸出比來源新就跳過，不會重複工作。腳本內部任何失敗都只印訊息並以 0 結束，不會讓安裝或建置中斷。
+
+要點：
+
+- **換 logo 時只換原始大圖，然後重跑 `npm run assets:brand`。** 產出檔已進版控，忘記重跑會讓 App 內還是舊標誌。
+- **尺寸是「畫面最大顯示尺寸 × 3」**（`BrandLogo` 最大 64pt → 192px；`BrandLockup` 最大 272pt → 816px）。改用更大的顯示尺寸時，要同步調整 `scripts/generate-brand-assets.mjs` 的 `TARGETS`，否則在 3x 裝置上會模糊。
+- **不要讓 App 內的畫面直接載入 1024px 那份。** 那是「其他內容都出現了，標誌晚一步才跳出來」的主要成本：777 KB 下載加上 1024×1024 的解碼，縮小版是 20 KB 加 192×192。
+- **`public/index.html` 的 preload 必須指向 `talentmatch-mark-192.png`**，與 `lib/brandAssets.web.ts` 的 `BRAND_MARK_URL` 完全相同，否則預先下載會落在別的檔案上。
+
 ## How can I make changes to my app?
 
 **Via Bilt (Easiest)**

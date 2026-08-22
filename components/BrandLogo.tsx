@@ -78,7 +78,8 @@ export function BrandWordmark({
   );
 }
 
-/** 原始橫式標誌圖：圖示 + Talent Match 人才速配 + 標語，僅用於登入等大版面。 */
+/** 橫式標誌圖：圖示 + Talent Match 人才速配 + 標語，僅用於登入等大版面。 */
+// 實際檔案是 816×445 的 UI 縮小版；比例沿用原始圖檔（1380/752，差 0.08%，contain 下看不出來）。
 const LOCKUP_ASPECT_RATIO = 1380 / 752;
 
 interface BrandLockupProps {
