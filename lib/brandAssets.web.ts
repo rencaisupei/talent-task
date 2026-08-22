@@ -1,4 +1,4 @@
-import { Image, type ImageSourcePropType } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 
 /**
  * 網頁版的品牌標誌路徑。刻意不用 require()：固定 URL 才能讓 index.html 的
@@ -19,23 +19,18 @@ export const BRAND_MARK_SOURCE: ImageSourcePropType = { uri: BRAND_MARK_URL };
 export const BRAND_WORDMARK_SOURCE: ImageSourcePropType = require('../assets/talentmatch-wordmark-816.png');
 
 /**
- * 橫式標誌只出現在登入頁，用 rel="prefetch"（低優先、瀏覽器閒置時才抓）而不是 preload：
- * 不跟目前這一頁的資源搶頻寬，但使用者真的開登入頁時已經在快取裡。
+ * 網頁版沒有啟動畫面可等，而且每個畫面都會用到的標誌已由 index.html 的 preload
+ * 在 bundle 之前下載，所以這裡不需要做任何事，直接回傳已完成的 promise。
+ *
+ * 為什麼不順手預抓橫式標誌（只出現在登入頁）：
+ * react-native-web 的 Image **沒有** resolveAssetSource（只有 getSize / prefetch /
+ * queryCache），而 Metro 打包後 require() 一張圖回傳的是數字資源 ID，不是網址 ——
+ * 呼叫 Image.resolveAssetSource 在網頁版會直接以 TypeError 讓 App 開不起來。
+ * 要拿到帶雜湊的實際網址只能碰 react-native-web 的私有模組，不值得為一次低優先
+ * 預抓承擔這個風險；橫式標誌就在登入頁渲染時載入。
+ *
+ * 原生版的實作（brandAssets.ts）才會真的預抓，並由啟動畫面等它完成。
  */
-function addPrefetchLink(href: string): void {
-  if (typeof document === 'undefined') return;
-  if (document.querySelector(`link[rel="prefetch"][href="${href}"]`)) return;
-
-  const link = document.createElement('link');
-  link.rel = 'prefetch';
-  link.as = 'image';
-  link.href = href;
-  document.head.appendChild(link);
-}
-
-/** 見 brandAssets.ts。網頁版的標誌已由 index.html 預先下載，這裡只補橫式標誌。 */
 export function preloadBrandAssets(): Promise<void> {
-  const uri = Image.resolveAssetSource(BRAND_WORDMARK_SOURCE)?.uri;
-  if (uri) addPrefetchLink(uri);
   return Promise.resolve();
 }
