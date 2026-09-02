@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@import 'tailwindcss';
+@import 'uniwind';
+
+@import 'heroui-native/styles';
+
+/*
+ * HeroUI Native + Uniwind tokens
+ *
+ * HeroUI component variants compile to semantic utilities such as bg-accent,
+ * text-accent-foreground, bg-default, and text-foreground. The imported
+ * heroui-native/styles package defines the default semantic theme and maps it
+ * to --color-* Tailwind utilities.
+ *
+ * When changing brand colors, override semantic tokens inside Uniwind theme
+ * variants. Do not put --accent only in a plain :root block: web may look
+ * correct through CSS cascade order while Expo Go/native keeps HeroUI's
+ * default blue from the active light/dark theme table.
+ *
+ * Example:
+ *
+ * @layer theme {
+ *   :root {
+ *     @variant light {
+ *       --accent: oklch(0.63 0.18 148);
+ *       --accent-foreground: oklch(0.99 0 0);
+ *       --focus: var(--accent);
+ *     }
+ *
+ *     @variant dark {
+ *       --accent: oklch(0.63 0.18 148);
+ *       --accent-foreground: oklch(0.99 0 0);
+ *       --focus: var(--accent);
+ *     }
+ *   }
+ * }
+ */
+
+@source './node_modules/heroui-native/lib';
+
+/*
+ * JiMatch — "warm neon night" brand theme.
+ * Dark-first: deep plum night background, coral-pink accent, violet/cyan glow.
+ * Semantic overrides live inside Uniwind theme variants so Expo Go/native
+ * resolves the same tokens the web build does.
+ */
+@layer theme {
+  :root {
+    @variant light {
+      --background: oklch(0.15 0.028 305);
+      --foreground: oklch(0.97 0.008 320);
+      --surface: oklch(0.215 0.038 306);
+      --surface-foreground: var(--foreground);
+      --surface-secondary: oklch(0.26 0.044 306);
+      --surface-secondary-foreground: var(--foreground);
+      --surface-tertiary: oklch(0.305 0.05 307);
+      --surface-tertiary-foreground: var(--foreground);
+      --overlay: oklch(0.2 0.036 306);
+      --overlay-foreground: var(--foreground);
+      --backdrop: oklch(0.08 0.02 305 / 62%);
+      --panel: oklch(0.215 0.038 306);
+      --panel-foreground: var(--foreground);
+
+      --accent: oklch(0.7 0.196 16);
+      --accent-foreground: oklch(0.99 0.004 320);
+      --accent-soft: oklch(0.34 0.086 12);
+      --accent-soft-foreground: oklch(0.9 0.06 20);
+
+      --muted: oklch(0.7 0.03 310);
+      --default: oklch(0.27 0.036 306);
+      --default-foreground: oklch(0.97 0.008 320);
+      --border: oklch(0.32 0.042 307);
+      --separator: oklch(0.38 0.045 307);
+      --focus: var(--accent);
+      --link: oklch(0.8 0.14 18);
+
+      --success: oklch(0.76 0.17 158);
+      --success-foreground: oklch(0.16 0.02 300);
+      --warning: oklch(0.84 0.15 78);
+      --warning-foreground: oklch(0.16 0.02 300);
+      --danger: oklch(0.64 0.2 22);
+      --danger-foreground: oklch(0.99 0.004 320);
+    }
+
+    @variant dark {
+      --background: oklch(0.15 0.028 305);
+      --foreground: oklch(0.97 0.008 320);
+      --surface: oklch(0.215 0.038 306);
+      --surface-foreground: var(--foreground);
+      --surface-secondary: oklch(0.26 0.044 306);
+      --surface-secondary-foreground: var(--foreground);
+      --surface-tertiary: oklch(0.305 0.05 307);
+      --surface-tertiary-foreground: var(--foreground);
+      --overlay: oklch(0.2 0.036 306);
+      --overlay-foreground: var(--foreground);
+      --backdrop: oklch(0.08 0.02 305 / 62%);
+      --panel: oklch(0.215 0.038 306);
+      --panel-foreground: var(--foreground);
+
+      --accent: oklch(0.7 0.196 16);
+      --accent-foreground: oklch(0.99 0.004 320);
+      --accent-soft: oklch(0.34 0.086 12);
+      --accent-soft-foreground: oklch(0.9 0.06 20);
+
+      --muted: oklch(0.7 0.03 310);
+      --default: oklch(0.27 0.036 306);
+      --default-foreground: oklch(0.97 0.008 320);
+      --border: oklch(0.32 0.042 307);
+      --separator: oklch(0.38 0.045 307);
+      --focus: var(--accent);
+      --link: oklch(0.8 0.14 18);
+
+      --success: oklch(0.76 0.17 158);
+      --success-foreground: oklch(0.16 0.02 300);
+      --warning: oklch(0.84 0.15 78);
+      --warning-foreground: oklch(0.16 0.02 300);
+      --danger: oklch(0.64 0.2 22);
+      --danger-foreground: oklch(0.99 0.004 320);
+    }
+  }
+}
+
+/* Brand palette utilities (bg-*, text-*, border-*). */
+@theme {
+  --color-night: oklch(0.11 0.024 303);
+  --color-night-soft: oklch(0.185 0.032 305);
+  --color-glass: oklch(0.99 0.01 320 / 8%);
+  --color-glass-strong: oklch(0.99 0.01 320 / 16%);
+  --color-neon-pink: oklch(0.72 0.21 12);
+  --color-neon-rose: oklch(0.68 0.2 350);
+  --color-neon-violet: oklch(0.63 0.23 300);
+  --color-neon-cyan: oklch(0.8 0.13 205);
+  --color-neon-amber: oklch(0.85 0.16 75);
+  --color-neon-lime: oklch(0.85 0.19 135);
+
+  /*
+   * 遊戲城（Game Hub）專屬配色：沉浸式暗黑底 #121212，
+   * 橙 → 粉 → 紫的漸層與金色儲值色。只用在遊戲區域，
+   * 其他畫面維持既有的暖夜霓虹主題。
+   */
+  --color-game-base: #121212;
+  --color-game-card: #1a181d;
+  --color-game-raised: #231f28;
+  --color-game-line: #ffffff1f;
+  --color-game-orange: #ff8a3d;
+  --color-game-pink: #ff4f9a;
+  --color-game-violet: #a855f7;
+  --color-game-gold: #ffc53d;
+  --color-game-cyan: #38e1ff;
+  --color-game-mint: #4ce0a5;
+}
